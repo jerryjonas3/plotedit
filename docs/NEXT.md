@@ -139,10 +139,64 @@ server.
 `↑↓←→` nudge an inch · `⇧` + arrow nudges a foot · `Delete` removes ·
 `Esc` deselects · `⌘Z` / `⇧⌘Z` undo and redo
 
-## 5. Import and export  ← next
+## 5. Import and export ✅ done 2026.09.23
 
-DXF ground plan in. Plot PDF, schedule, hookup, DXF and Eos patch out —
-all five already exist server-side.
+**Out** — `server/plotedit/exports.py`, offered from the toolbar:
+
+| | |
+|---|---|
+| Plot PDF | architectural scale, scale bar, 1-inch check. Scale picker: ⅛ ¼ ⅜ ½ |
+| Plot DXF | layered, in feet — for a rented Vectorworks month |
+| Instrument schedule | CSV, by position then unit — hanging order |
+| Channel hookup | CSV, by channel — what the board sees |
+| Eos patch | USITT ASCII ⚠ **format unverified** |
+| Magic sheet | JSON, channels grouped by purpose — no layout yet |
+
+**In** — a venue's `.dxf` becomes the base drawing. Layers are listed first with
+their counts and the declared units, the chosen ones come back as polylines in
+feet, and they draw in gray under everything.
+
+### Decisions
+
+**A plot that will not fit FAILS with the scale that would.** `/export/pdf`
+returns 422 carrying the sheet's own warning, and the front end puts it in the
+status line. A clipped PDF looks finished and is not.
+
+**The imported extents are announced.** *"imported 8 paths, 33.0' × 38.0' —
+check that against something you measured."* Unit headers lie, and a venue's
+drawing is their claim rather than a survey.
+
+**🔴 The Eos patch format has never been tested against a console.** The cue
+exporter was reverse-engineered from a real Eos export after three guesses
+failed; no real *patch* export was available. **The warning is written into the
+file's own header**, so it travels with it. Units missing a channel or an
+address are listed as comments rather than dropped — a silently missing unit at
+tech is worse than a noisy file.
+
+### 🔴 It found the third real bug
+
+`Content-Disposition` is a latin-1 header, and the export filenames carry an em
+dash — *"Without Consent — Plot.pdf"*. Every download raised
+`UnicodeEncodeError`. Fixed with RFC 5987: an ASCII fallback plus
+`filename*=UTF-8''…`, verified present in both forms.
+
+**Test:** `cd server && python3 test_export.py`
+
+---
+
+## Next, in no particular order
+
+- **Symbols.** Still the open question from day one. Jerry's convention is Field
+  Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are
+  `.vwx` and cannot be reused. **He has not marked up the draft sheet yet.**
+- **Verify the Eos patch** against Nomad. Ten minutes with a scratch show file.
+- **Magic sheet layout** — the data is there, the page is not.
+- **Section view.** `scaled_pdf.section()` already draws one.
+- **Open a file**, not just the sample. And remember the last one.
+- **Multiple positions per drag**, box select, duplicate.
+- **Circuits and loads** — Art's half. `photometrics` has no load table yet.
+- **One-command run** — a single entry point that starts the service and opens
+  the browser, so it works at tech without two terminals.
 
 ---
 

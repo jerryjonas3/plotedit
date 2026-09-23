@@ -11,13 +11,19 @@ Nothing here writes a file or changes state. Export and editing come later.
 sources through rather than stripping them. A number without provenance is how
 the EDLT figures got mistaken for standard-tube figures in the first place.
 """
+import io
+import os
+import tempfile
+import unicodedata
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from . import photometrics as ph
+from . import exports, dxf_bridge
 
 app = FastAPI(
     title="plotedit",
@@ -33,6 +39,7 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -200,3 +207,135 @@ def lens(pool: float, throw: float, family: str = "S4") -> Dict[str, Any]:
     return {"wanted_ft": pool, "throw": throw, "family": family,
             "options": [{"type": k, "field_ft": ph.fmt_ft(d), "error_ft": round(e, 2)}
                         for k, d, e in rows]}
+
+
+# ----------------------------------------------------------------- export
+
+class ExportRequest(BaseModel):
+    """A whole plot, as the editor holds it. Loosely typed on purpose — the
+    format's own types live in web/src/plot.ts and the server should not
+    reject a plot for carrying a field it does not know about."""
+    plot: Dict[str, Any]
+    scale: str = "1/4"
+    page: str = "TABLOID"
+    landscape: bool = False
+
+
+def _attach(body: bytes, media: str, filename: str) -> Response:
+    """Send a file as a download.
+
+    ⚠ HTTP headers are latin-1. An em dash in a show title — and Jerry's titles
+    have them — raises UnicodeEncodeError on the way out. RFC 5987 is the fix:
+    an ASCII fallback for old clients and a UTF-8 `filename*` for everything
+    since about 2012.
+    """
+    from urllib.parse import quote
+    ascii_name = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode()
+    ascii_name = ascii_name.replace('"', "").strip() or "download"
+    disposition = (f'attachment; filename="{ascii_name}"; '
+                   f"filename*=UTF-8''{quote(filename)}")
+    return Response(content=body, media_type=media,
+                    headers={"Content-Disposition": disposition})
+
+
+def _stem(plot: Dict[str, Any]) -> str:
+    return "".join(c for c in str(plot.get("show", "plot")) if c.isalnum() or c in " -_").strip() or "plot"
+
+
+@app.post("/export/schedule")
+def export_schedule(req: ExportRequest) -> Response:
+    """Instrument schedule, by position and unit — hanging order."""
+    return _attach(exports.schedule_csv(req.plot).encode(), "text/csv",
+                   f"{_stem(req.plot)} — Instrument Schedule.csv")
+
+
+@app.post("/export/hookup")
+def export_hookup(req: ExportRequest) -> Response:
+    """Channel hookup, by channel — what the board sees."""
+    return _attach(exports.hookup_csv(req.plot).encode(), "text/csv",
+                   f"{_stem(req.plot)} — Channel Hookup.csv")
+
+
+@app.post("/export/eos")
+def export_eos(req: ExportRequest) -> Response:
+    """USITT ASCII patch. ⚠ Unverified format — the file says so in its header."""
+    return _attach(exports.eos_patch(req.plot).encode(), "text/plain",
+                   f"{_stem(req.plot)} — Patch.asc")
+
+
+@app.post("/export/magic-sheet")
+def export_magic_sheet(req: ExportRequest) -> Dict[str, Any]:
+    """Channels grouped by purpose. JSON — the front end lays it out."""
+    return {"groups": exports.magic_sheet_rows(req.plot)}
+
+
+@app.post("/export/pdf")
+def export_pdf(req: ExportRequest) -> Response:
+    """The plot, to architectural scale, with a scale bar and a 1-inch check.
+
+    ⚠ If the drawing will not fit the sheet at the requested scale, this fails
+    with the scale that would fit rather than returning a clipped drawing. A
+    plot that runs off the page looks finished and is not.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        pdf = os.path.join(d, "plot.pdf")
+        sheet, _ = exports.plot_pdf(req.plot, pdf, scale=req.scale,
+                                    page=req.page, landscape=req.landscape)
+        if sheet.warnings:
+            raise HTTPException(status_code=422, detail=sheet.warnings[0])
+        body = open(pdf, "rb").read()
+    return _attach(body, "application/pdf", f"{_stem(req.plot)} — Plot.pdf")
+
+
+@app.post("/export/dxf")
+def export_dxf(req: ExportRequest) -> Response:
+    """The plot as layered DXF in feet — for a rented Vectorworks month."""
+    with tempfile.TemporaryDirectory() as d:
+        pdf, dxf = os.path.join(d, "p.pdf"), os.path.join(d, "p.dxf")
+        exports.plot_pdf(req.plot, pdf, dxf_path=dxf, scale=req.scale,
+                         page=req.page, landscape=req.landscape)
+        body = open(dxf, "rb").read()
+    return _attach(body, "application/dxf", f"{_stem(req.plot)}.dxf")
+
+
+# ----------------------------------------------------------------- import
+
+@app.post("/import/dxf/layers")
+async def import_dxf_layers(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """Layer names, counts and the declared units — so the user picks before importing.
+
+    ⚠ Unit headers lie. Check the extents against a dimension that is known
+    before trusting the file.
+    """
+    return await _with_temp_dxf(file, dxf_bridge.list_layers)
+
+
+@app.post("/import/dxf")
+async def import_dxf(
+    file: UploadFile = File(...),
+    layers: Optional[str] = Form(None),
+    units: Optional[str] = Form(None),
+) -> Dict[str, Any]:
+    """A venue's ground plan as polylines in feet, ready to draw underneath.
+
+    layers: comma-separated names, or omitted for all.
+    units:  in | ft | mm | cm | m — overrides the file header, which is often wrong.
+    """
+    chosen = [s.strip() for s in layers.split(",")] if layers else None
+    return await _with_temp_dxf(
+        file, lambda p: dxf_bridge.to_paths(p, layers=chosen, units=units))
+
+
+async def _with_temp_dxf(file: UploadFile, fn):
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "in.dxf")
+        with open(path, "wb") as fh:
+            fh.write(data)
+        try:
+            return fn(path)
+        except Exception as e:
+            raise HTTPException(status_code=400,
+                                detail=f"cannot read that DXF: {e}")

@@ -59,10 +59,25 @@ and wrong in the room, and it is invisible until the plot is printed. Snapping
 also sets the instrument's `position`, so the schedule stays true without anyone
 retyping it. Alt-drag opts out. Dragging far past the end of a pipe does not snap.
 
+## 2026.09.23 — Exports refuse rather than clip
+
+`/export/pdf` returns 422 with the sheet's own warning when the drawing will not
+fit, and the front end shows it. A clipped plot looks finished and is not — the
+same rule the drawing code has had since it was written.
+
+## 2026.09.23 — The Eos patch ships with its own warning
+
+No real Eos patch export was available to reverse-engineer from, so the format
+follows the spec and nothing else. The warning is in the file's header rather
+than only in the docs, because the file is what somebody will open at tech.
+
 ## Open
 
 - **Symbols.** The designer's own convention is Field Template / SoftSymbols for ETC
   with AutoPlot for cable and truss, but those are `.vwx` and cannot be reused.
   This needs its own set drawn to USITT RP-2. `scaled_pdf.py` has a first pass;
-  **it needs marking up before more are drawn.**
+  **it needs marking up before more are drawn.** Open since day one.
+
+- **The Eos patch format.** Written to spec, never tested. Ten minutes with
+  Nomad and a scratch show file settles it.
 

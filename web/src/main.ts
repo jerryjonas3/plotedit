@@ -2,7 +2,8 @@
 import { fitView, type View } from "./geometry.js";
 import { isPlot, type Plot } from "./plot.js";
 import { render, type Computed, type RenderOptions } from "./render.js";
-import { compute, fixtures, type FixtureRow } from "./api.js";
+import { compute, fixtures, exportFile, dxfLayers, dxfPaths,
+         type FixtureRow, type ExportKind, type DxfPaths } from "./api.js";
 import { Store } from "./store.js";
 import { attachPointer, attachKeyboard } from "./interact.js";
 import { renderInspector } from "./inspector.js";
@@ -13,6 +14,7 @@ const svg = $<HTMLElement>("plot") as unknown as SVGSVGElement;
 let store: Store;
 let computed: Computed[] = [];
 let fixtureTable: Record<string, FixtureRow> = {};
+let basePlan: DxfPaths | null = null;
 
 function view(): View {
   const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
@@ -28,6 +30,7 @@ function opts(): RenderOptions {
     showFocus: $<HTMLInputElement>("focus").checked,
     showLabels: $<HTMLInputElement>("labels").checked,
     selected: store.selected,
+    basePaths: $<HTMLInputElement>("base").checked ? basePlan?.paths : undefined,
   };
 }
 
@@ -105,6 +108,12 @@ function save() {
   store.markSaved();
 }
 
+function status(msg: string, bad = false) {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = bad ? "warn" : "muted";
+}
+
 function showError(e: unknown) {
   const box = $("err");
   box.hidden = false;
@@ -133,7 +142,54 @@ async function boot() {
     attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
     attachKeyboard(store, { view, onChange: draw, onSettled: () => recompute() });
 
-    for (const id of ["pools", "focus", "labels", "zoom"]) $(id).addEventListener("input", draw);
+    for (const id of ["pools", "focus", "labels", "base", "zoom"])
+      $(id).addEventListener("input", draw);
+
+    // ---- export
+    $("export").addEventListener("change", async (e) => {
+      const sel = e.target as HTMLSelectElement;
+      const kind = sel.value as ExportKind;
+      sel.value = "";
+      if (!kind) return;
+      try {
+        await exportFile(kind, store.plot, { scale: $<HTMLSelectElement>("scale").value });
+        status("");
+      } catch (err) {
+        // The commonest failure is the sheet refusing to clip, and it says
+        // which scale would fit. That belongs in front of the user, not a console.
+        status(err instanceof Error ? err.message : String(err), true);
+      }
+    });
+
+    // ---- import a venue ground plan
+    $("dxf").addEventListener("change", async (e) => {
+      const input = e.target as HTMLInputElement;
+      const file = input.files?.[0];
+      input.value = "";
+      if (!file) return;
+      try {
+        status("reading the DXF…");
+        const info = await dxfLayers(file);
+        const names = info.layers.map(l => `${l.name} (${l.entities})`).join(", ");
+        const want = prompt(
+          `${file.name}\nUnits declared: ${info.units}\nLayers: ${names}\n\n` +
+          `Which layers? Comma-separated, or blank for all.`, "");
+        if (want === null) { status(""); return; }
+        const units = info.units === "unitless"
+          ? prompt("The file declares no units. in / ft / mm / cm / m?", "in") ?? undefined
+          : undefined;
+        basePlan = await dxfPaths(file, want ? want.split(",").map(s => s.trim()) : undefined, units);
+        const [x0, y0, x1, y1] = basePlan.extents ?? [0, 0, 0, 0];
+        // Unit headers lie. Say the size out loud so it can be checked against
+        // a dimension that is actually known.
+        status(`imported ${basePlan.paths.length} paths, ` +
+               `${(x1 - x0).toFixed(1)}' x ${(y1 - y0).toFixed(1)}' — check that against something you measured`);
+        $<HTMLInputElement>("base").checked = true;
+        draw();
+      } catch (err) {
+        status(err instanceof Error ? err.message : String(err), true);
+      }
+    });
     $("undo").addEventListener("click", () => { store.undo(); recompute(); });
     $("redo").addEventListener("click", () => { store.redo(); recompute(); });
     $("save").addEventListener("click", save);

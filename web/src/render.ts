@@ -33,6 +33,8 @@ export interface RenderOptions {
   showLabels: boolean;
   /** Index into plot.instruments, or null. */
   selected?: number | null;
+  /** A venue's DXF, already in feet. Drawn under everything, in gray. */
+  basePaths?: { layer: string; points: [number, number][] }[];
 }
 
 function isSelNow(opts: RenderOptions, i: number): boolean {
@@ -69,7 +71,18 @@ export function render(
     return g;
   };
   // draw order: room, pools, positions, focus, instruments, labels
-  const gRoom = layer("room"), gPools = layer("pools"), gPos = layer("positions");
+  const gBase = layer("base"), gRoom = layer("room"), gPools = layer("pools"),
+        gPos = layer("positions");
+
+  // ---- the venue's own drawing, if one was imported.
+  // Their claim, not a measurement — drawn quietly, under everything.
+  for (const path of opts.basePaths ?? []) {
+    const d = path.points.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ");
+    gBase.appendChild(el("path", {
+      d, fill: "none", stroke: "#c9c9c9", "stroke-width": W.dim * 2,
+      "vector-effect": "non-scaling-stroke",
+    }));
+  }
   const gFocus = layer("focus"), gInst = layer("instruments"), gText = layer("labels");
 
   // ---- the room

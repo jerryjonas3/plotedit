@@ -25,6 +25,8 @@ Only geometry crosses the bridge. Symbols come out as their outlines, not as
 Spotlight symbols; swap them in Vectorworks if it matters.
 """
 import math
+import os
+
 import ezdxf
 from ezdxf import units as dxf_units
 
@@ -194,3 +196,91 @@ class DxfOut:
 
     def save(self, path):
         self.doc.saveas(path); print("wrote", path)
+
+
+# ---------------------------------------------------------------- for the browser
+
+def to_paths(path, layers=None, units=None, offset=(0.0, 0.0), rotate_deg=0.0,
+             max_points=60000):
+    """Read a DXF as plain polylines in FEET, for a front end to draw.
+
+    import_into() draws onto a PDF Sheet; this returns the same geometry as data:
+
+        {"units": "inches", "layers": [...], "extents": [x0,y0,x1,y1],
+         "paths": [{"layer": "WALLS", "points": [[x,y], ...]}, ...]}
+
+    Arcs, circles, ellipses and splines are flattened. Block references are
+    expanded one level, the same as import_into.
+
+    ⚠ The venue's drawing is their claim, not a measurement. Whatever this
+    returns, the extents should be checked against one dimension that is known.
+    """
+    import math as _m
+    doc = ezdxf.readfile(os.path.expanduser(path))
+    k, code = _scale_for(doc, units)
+    a = _m.radians(rotate_deg)
+    ca, sa = _m.cos(a), _m.sin(a)
+
+    def T(x, y):
+        x, y = x * k, y * k
+        return [round(x * ca - y * sa + offset[0], 4),
+                round(x * sa + y * ca + offset[1], 4)]
+
+    paths, seen_layers, total = [], set(), 0
+    ext = [1e9, 1e9, -1e9, -1e9]
+
+    def add(layer, pts, closed=False):
+        nonlocal total
+        if len(pts) < 2 or total >= max_points:
+            return
+        out = [T(x, y) for x, y in pts]
+        if closed and out[0] != out[-1]:
+            out.append(out[0])
+        for x, y in out:
+            ext[0], ext[1] = min(ext[0], x), min(ext[1], y)
+            ext[2], ext[3] = max(ext[2], x), max(ext[3], y)
+        total += len(out)
+        seen_layers.add(layer)
+        paths.append({"layer": layer, "points": out})
+
+    for e in _entities(doc.modelspace(), layers):
+        t, layer = e.dxftype(), e.dxf.layer
+        try:
+            if t == "LINE":
+                add(layer, [(e.dxf.start.x, e.dxf.start.y), (e.dxf.end.x, e.dxf.end.y)])
+            elif t == "LWPOLYLINE":
+                pts = [(p[0], p[1]) for p in e.get_points()]
+                if any(p[4] for p in e.get_points()):
+                    pts = [(p.x, p.y) for p in e.flattening(0.05)]
+                add(layer, pts, closed=e.closed)
+            elif t == "POLYLINE":
+                add(layer, [(v.dxf.location.x, v.dxf.location.y) for v in e.vertices],
+                    closed=e.is_closed)
+            elif t == "CIRCLE":
+                c, r = e.dxf.center, e.dxf.radius
+                add(layer, [(c.x + r * _m.cos(th), c.y + r * _m.sin(th))
+                            for th in [i * _m.tau / 48 for i in range(49)]])
+            elif t in ("ARC", "ELLIPSE", "SPLINE"):
+                add(layer, [(p.x, p.y) for p in e.flattening(0.05)])
+        except Exception:
+            continue
+
+    return {
+        "units": UNIT_NAME.get(code, "?"),
+        "units_from": "header" if units is None else "override",
+        "layers": sorted(seen_layers),
+        "extents": [round(v, 2) for v in ext] if paths else None,
+        "paths": paths,
+        "truncated": total >= max_points,
+    }
+
+
+def list_layers(path):
+    """Layer names and entity counts, so the user can choose before importing."""
+    doc = ezdxf.readfile(os.path.expanduser(path))
+    counts = {}
+    for e in _entities(doc.modelspace(), None):
+        counts[e.dxf.layer] = counts.get(e.dxf.layer, 0) + 1
+    code = doc.header.get("$INSUNITS", 0)
+    return {"units": UNIT_NAME.get(code, "?"), "units_code": code,
+            "layers": [{"name": k, "entities": v} for k, v in sorted(counts.items())]}

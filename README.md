@@ -19,7 +19,8 @@ and still openable in twenty years.
 
 ## Status
 
-**Draws and edits a plot.** Steps 1–4 of `docs/NEXT.md` are done; import and export are next.
+**Draws a plot, edits it, imports a ground plan and exports the paperwork.**
+All five steps of `docs/NEXT.md` are done. What is left is in the list at its end.
 The computation half was already working and is in `server/plotedit/`:
 
 | Module | Does |
@@ -66,7 +67,11 @@ npm run test:store   # undo, selection, pipe snapping
 Both halves must agree about the numbers:
 
 ```bash
-cd server && python3 test_agreement.py
+cd server
+python3 test_package.py      # the computation half
+python3 test_api.py          # the service
+python3 test_agreement.py    # screen and paper must agree
+python3 test_export.py       # exports, and DXF import
 ```
 
 Eventually: one command, opens a browser tab, no network.
