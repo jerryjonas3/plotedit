@@ -53,16 +53,46 @@ the manual. **A missing number must never arrive looking like a real one.**
 This runs on the designer's laptop at tech, not on a network. Origins are pinned
 to the Vite dev server.
 
-## 3. A drawing surface that renders a plot it cannot edit  ← next
+## 3. A drawing surface that renders a plot it cannot edit ✅ done 2026.09.23
 
-Load a `.plot.json`, draw the room and the instruments, no interaction.
-Get the coordinate transform right once — real feet in, screen pixels out —
-and everything after is easier.
+Vite + TypeScript, SVG, no interaction yet.
 
-**Done when:** `samples/test.plot.json` renders and matches the PDF `scaled_pdf.py`
-produces from the same data.
+| File | |
+|---|---|
+| `web/src/geometry.ts` | the transform, with its own test — `npm test` |
+| `web/src/plot.ts` | the `.plot.json` types |
+| `web/src/render.ts` | SVG drawing: room, positions, symbols, focus, pools, USITT annotation |
+| `web/src/api.ts` | talks to the Python |
+| `web/src/main.ts` | loads the sample, computes, draws, fills the schedule |
+| `samples/bluver.plot.json` | ten instruments in the Bluver |
+| `server/plot_to_pdf.py` | the same file through `scaled_pdf` — the start of step 5 |
 
-## 4. Editing
+**Run it:** `cd server && uvicorn plotedit.api:app` and `cd web && npm run dev`
+
+### Decisions
+
+**SVG, not canvas.** A 60-unit plot is small either way, SVG is easier to get right,
+and every instrument is a DOM node — which is hit testing for free in step 4.
+
+**Everything inside the root `<g>` is drawn in real feet.** The group transform
+carries the scale and the y flip, so the markup reads in the units of the room.
+Text needs `counterFlip()`.
+
+**Screen scale is pixels per foot, not an architectural scale.** ¼" = 1'-0"
+belongs to paper and stays in `scaled_pdf.py`. On screen it zooms; on paper it
+must measure true. Keep the two apart.
+
+### 🔴 It found the second real bug
+
+`scaled_pdf.unit()` had **no `mode` parameter**, so an LED fixture was computed at
+its reference output no matter what the plot asked for. The Lustr units read
+**441 fc on paper and 382 on screen** — the same rig, disagreeing, because
+"Regulated 3200K" never reached the function. Fixed in both copies.
+
+**`server/test_agreement.py` now pins it:** both paths start from the same
+`.plot.json` and every throw, pool and footcandle must match.
+
+## 4. Editing  ← next
 
 Drag to move, click to select, edit the record in a side table. Both views on
 one record.

@@ -144,13 +144,16 @@ class Sheet:
         if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
-             trim=None, focus_h=5.5, lamp=None, show_pool=True, annotate=False):
+             trim=None, focus_h=5.5, lamp=None, mode=None, show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
         With trim (hang height, ft) and focus_to, the photometrics are worked out:
         throw, elevation, pan, field/beam pool at focus_h (head height, default 5'-6")
         and centre-beam footcandles if the fixture is in photometrics.FIXTURES.
+        lamp is a tungsten lamp ("HPL 575"); mode is an LED output mode
+        ("Regulated 3200K"). Passing neither uses the fixture's reference figure.
+
         show_pool draws the field pool at the focus point; annotate prints the
         numbers beside it. Returns the dict (or None if no trim/focus given).
         Everything is recorded in self.units for the schedule and the section."""
@@ -183,7 +186,7 @@ class Sheet:
                         factor, gnote = ph.gel_factor(gel_arg)
                         if factor is None:          # a gel we have no figure for
                             gel_arg, gel_warn = None, gnote
-                    fc, note = ph.footcandles(kind, a["throw"], lamp, gel=gel_arg)
+                    fc, note = ph.footcandles(kind, a["throw"], lamp, mode, gel_arg)
                     if gel_warn:
                         note += f" — {gel_warn}; level is for open white"
                     result["fc"], result["fc_note"] = fc, note

@@ -19,7 +19,8 @@ and still openable in twenty years.
 
 ## Status
 
-Scaffolded 2026.09.23. The computation half already works and is in `server/plotedit/`:
+**Renders a plot; cannot edit one yet.** Steps 1–3 of `docs/NEXT.md` are done.
+The computation half was already working and is in `server/plotedit/`:
 
 | Module | Does |
 |---|---|
@@ -54,7 +55,20 @@ python3 test_package.py                # the computation half
 python3 test_api.py                    # the service
 ```
 
-When the front end lands: one command, opens a browser tab, no network.
+```bash
+cd web
+npm install
+npm run dev          # http://localhost:5173 — needs the service running
+npm test             # the coordinate transform
+```
+
+Both halves must agree about the numbers:
+
+```bash
+cd server && python3 test_agreement.py
+```
+
+Eventually: one command, opens a browser tab, no network.
 
 ## Data sources
 

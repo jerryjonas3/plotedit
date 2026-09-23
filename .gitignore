@@ -22,3 +22,6 @@ out/
 # Editor
 .vscode/
 .idea/
+
+# node
+web/node_modules/

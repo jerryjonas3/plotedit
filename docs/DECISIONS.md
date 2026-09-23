@@ -33,11 +33,23 @@ being locked inside `.vwx` files nothing can read.
 gobo · purpose · focus · trim · accessory · notes`. Using the names the industry
 already uses means `paperwork.py` imports old shows with no translation layer.
 
+## 2026.09.23 — SVG, not canvas
+
+A 60-unit plot is small either way. SVG is easier to get right, and every
+instrument becomes a DOM node — which is hit testing for free when step 4 needs
+dragging. Revisit only if a plot ever gets large enough to feel slow.
+
+## 2026.09.23 — Screen scale and paper scale are different things
+
+Pixels per foot on screen; ¼" = 1'-0" on paper. The screen zooms, the paper must
+measure true. `geometry.ts` holds the first, `scaled_pdf.py` the second, and
+`test_agreement.py` checks they agree about the numbers even though they differ
+about the units.
+
 ## Open
 
 - **Symbols.** The designer's own convention is Field Template / SoftSymbols for ETC
   with AutoPlot for cable and truss, but those are `.vwx` and cannot be reused.
   This needs its own set drawn to USITT RP-2. `scaled_pdf.py` has a first pass;
   **it needs marking up before more are drawn.**
-- **Canvas or SVG** for the drawing surface. SVG is easier to get right, canvas
-  scales better with instrument count. A 60-unit plot is small either way.
+

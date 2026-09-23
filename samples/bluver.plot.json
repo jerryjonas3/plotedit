@@ -1,0 +1,56 @@
+{
+  "formatVersion": 1,
+  "show": "Without Consent",
+  "venue": "Louis Bluver Theatre at the Drake",
+  "designer": "Jerry Jonas",
+  "date": "2026-09-23",
+  "revision": "0 — test data, not a design",
+  "room": {
+    "width": 33,
+    "depth": 38,
+    "gridHeight": 15,
+    "source": "InterAct rentals page, 2016 SpaceFinder listing. NOT MEASURED — see the venue research file. Nothing here may be cited in a real plot."
+  },
+  "positions": [
+    { "name": "GRID B", "x1": 0, "y1": 16, "x2": 33, "y2": 16, "trim": 14 },
+    { "name": "GRID C", "x1": 0, "y1": 20, "x2": 33, "y2": 20, "trim": 14 },
+    { "name": "GRID D", "x1": 0, "y1": 24, "x2": 33, "y2": 24, "trim": 14 }
+  ],
+  "instruments": [
+    { "unit": 1, "channel": 1, "type": "S4 26", "x": 5.5, "y": 20, "trim": 14,
+      "focusX": 8, "focusY": 10, "color": "R52+R119", "lamp": "HPL 575",
+      "position": "GRID C", "purpose": "Area 1" },
+    { "unit": 2, "channel": 2, "type": "S4 26", "x": 11, "y": 20, "trim": 14,
+      "focusX": 13, "focusY": 10, "color": "R52+R119", "lamp": "HPL 575",
+      "position": "GRID C", "purpose": "Area 2" },
+    { "unit": 3, "channel": 3, "type": "S4 26", "x": 16.5, "y": 20, "trim": 14,
+      "focusX": 16.5, "focusY": 10, "color": "R52+R119", "lamp": "HPL 575",
+      "position": "GRID C", "purpose": "Area 3" },
+    { "unit": 4, "channel": 4, "type": "S4 26", "x": 22, "y": 20, "trim": 14,
+      "focusX": 20, "focusY": 10, "color": "R52+R119", "lamp": "HPL 575",
+      "position": "GRID C", "purpose": "Area 4" },
+    { "unit": 5, "channel": 5, "type": "S4 26", "x": 27.5, "y": 20, "trim": 14,
+      "focusX": 25, "focusY": 10, "color": "R52+R119", "lamp": "HPL 575",
+      "position": "GRID C", "purpose": "Area 5" },
+    { "unit": 1, "channel": 11, "type": "S4 36", "x": 8, "y": 24, "trim": 14,
+      "focusX": 10, "focusY": 14, "lamp": "HPL 575",
+      "position": "GRID D", "purpose": "BAX" },
+    { "unit": 2, "channel": 12, "type": "S4 36", "x": 16.5, "y": 24, "trim": 14,
+      "focusX": 16.5, "focusY": 14, "lamp": "HPL 575",
+      "position": "GRID D", "purpose": "BAX" },
+    { "unit": 3, "channel": 13, "type": "S4 36", "x": 25, "y": 24, "trim": 14,
+      "focusX": 23, "focusY": 14, "lamp": "HPL 575",
+      "position": "GRID D", "purpose": "BAX" },
+    { "unit": 1, "channel": 21, "type": "Lustr 26 EDLT", "x": 11, "y": 16, "trim": 14,
+      "focusX": 13, "focusY": 8, "mode": "Regulated 3200K",
+      "position": "GRID B", "purpose": "Special SL" },
+    { "unit": 2, "channel": 22, "type": "Lustr 26 EDLT", "x": 22, "y": 16, "trim": 14,
+      "focusX": 20, "focusY": 8, "mode": "Regulated 3200K",
+      "position": "GRID B", "purpose": "Special SR" }
+  ],
+  "notes": [
+    "Test data for the renderer. Room dimensions are from a 2016 rental listing and have not been measured.",
+    "BAX carries no color, matching the archive: back light is open-white PARs or ellipsoidals.",
+    "The five acting-area units are spaced 5'-6\" on centre; field-to-beam at this throw wants 5'-4\"."
+  ]
+}
