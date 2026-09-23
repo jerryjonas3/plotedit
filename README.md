@@ -44,7 +44,17 @@ docs/SPEC.md       scope, architecture, the instrument record, v1 vs later
 
 ## Running it
 
-Not runnable yet. When it is: one command, opens a browser tab, no network.
+The service runs; the front end does not exist yet.
+
+```bash
+cd server
+pip install -r requirements.txt
+uvicorn plotedit.api:app --reload      # http://localhost:8000/docs for the API browser
+python3 test_package.py                # the computation half
+python3 test_api.py                    # the service
+```
+
+When the front end lands: one command, opens a browser tab, no network.
 
 ## Data sources
 

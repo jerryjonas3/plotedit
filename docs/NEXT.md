@@ -20,17 +20,40 @@ here and in `My AI Brain/my-skills/plot/`, and the test now pins the value.
 
 **Run it:** `cd server && python3 test_package.py`
 
-## 2. A read-only service
+## 2. A read-only service ✅ done 2026.09.23
 
-FastAPI, three endpoints:
+`server/plotedit/api.py`. Six endpoints, nothing that writes:
 
-- `GET /fixtures` — the FIXTURES table with sources
-- `GET /gels` — the gel table
-- `POST /compute` — a list of instruments in, throw/pool/footcandles out
+| | |
+|---|---|
+| `GET /health` | fixture and gel counts |
+| `GET /fixtures` | all 28, with beam/field, penumbra, candela, modes **and source** |
+| `GET /gels` | all 11, with transmission and source, plus what `+` and `/` mean |
+| `POST /compute` | instruments in; throw, elevation, pan, pools, footcandles out |
+| `POST /wash` | field-to-beam spacing, and how many units cover a width |
+| `GET /lens` | which barrel gives the pool you want at that throw |
 
-**Done when:** it answers `curl localhost:8000/fixtures`.
+**Run it:** `cd server && uvicorn plotedit.api:app --reload`
+**Test it:** `cd server && python3 test_api.py` *(TestClient — no server needed)*
 
-## 3. A drawing surface that renders a plot it cannot edit
+### Two decisions worth keeping
+
+**Sources travel with the numbers.** `/fixtures` returns `"ETC S4 LED Photometry
+Guide p7: Series 2 Lustr 26° EDLT"` alongside the candela. Strip that and the front
+end has no way to show that a Lustr figure is EDLT-only — which is exactly the
+mistake that had to be corrected once already.
+
+**The API refuses rather than guesses.** No trim or focus → `computed: false` and
+a reason. Unknown fixture → the same. Unknown gel → the level is returned but
+flagged as open white. A fixture with no published beam angle → HTTP 400 quoting
+the manual. **A missing number must never arrive looking like a real one.**
+
+### CORS is localhost only
+
+This runs on the designer's laptop at tech, not on a network. Origins are pinned
+to the Vite dev server.
+
+## 3. A drawing surface that renders a plot it cannot edit  ← next
 
 Load a `.plot.json`, draw the room and the instruments, no interaction.
 Get the coordinate transform right once — real feet in, screen pixels out —
