@@ -73,10 +73,10 @@ than only in the docs, because the file is what somebody will open at tech.
 
 ## Open
 
-- **Symbols.** The designer's own convention is Field Template / SoftSymbols for ETC
-  with AutoPlot for cable and truss, but those are `.vwx` and cannot be reused.
-  This needs its own set drawn to USITT RP-2. `scaled_pdf.py` has a first pass;
-  **it needs marking up before more are drawn.** Open since day one.
+- **Symbols.** ✅ The standard was fetched 2026.09.23 — USITT RP-2 (2006), in
+  `docs/reference/`. **The current symbols are NOT RP-2** and the specific errors
+  are listed in `docs/SYMBOLS.md`. **Redraw from the document.** Jerry's markup is
+  now only the tiebreak where RP-2 leaves room, not the source of truth.
 
 - **The Eos patch format.** Written to spec, never tested. Ten minutes with
   Nomad and a scratch show file settles it.
