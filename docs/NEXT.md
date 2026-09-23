@@ -2,13 +2,23 @@
 
 In order. Each step should leave something that runs.
 
-## 1. Make the Python importable as a package
+## 1. Make the Python importable as a package ✅ done 2026.09.23
 
-The modules were written as scripts that import each other by bare name
-(`import photometrics`). Inside a package they need relative imports, and
-`scaled_pdf.py` looks for `gels.csv` beside itself — check that still resolves.
+- `scaled_pdf.py` now uses relative imports for `photometrics` and `dxf_bridge`.
+- `make-eos-asc.py` renamed **`eos_ascii.py`** — a hyphen cannot be imported — and
+  turned from a script with module-level constants into `build(show, groups, cues)`.
+  The *Without Consent* data is kept as `EXAMPLE_*` and still prints via
+  `python3 -m plotedit.eos_ascii`.
+- `gels.csv` resolves off `__file__`, so it survived the move unchanged.
+- `server/test_package.py` added — a smoke test, not a unit suite.
 
-**Done when:** `python -c "from plotedit import photometrics; print(photometrics.report('S4 26', (6,20,14), (10,10,5.5), lamp='HPL 575'))"` works from the repo root.
+**🔴 It found a real bug, which is why this step exists.** `Sheet.unit()` tested
+`color_gel.upper() in ph.GELS`, a plain dict lookup, so any compound notation
+missed and **silently fell back to open white**. `R52+R119` — the acting-area wash,
+the most common color in the archive — reported **729 fc instead of 169**. Fixed
+here and in `My AI Brain/my-skills/plot/`, and the test now pins the value.
+
+**Run it:** `cd server && python3 test_package.py`
 
 ## 2. A read-only service
 

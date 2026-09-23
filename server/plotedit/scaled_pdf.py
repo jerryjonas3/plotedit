@@ -8,7 +8,7 @@ printed at 100% / "Actual size", never "Fit to page".
 
 Real-world input is FEET. Convert with ft(feet, inches=0).
 
-    from scaled_pdf import Sheet, ft
+    from plotedit.scaled_pdf import Sheet, ft
     s = Sheet("plan.pdf", page="TABLOID", scale="1/4", landscape=True,
               show="Without Consent", venue="Louis Bluver Theatre at the Drake",
               sheet="Light Plot — plan", rev="A")
@@ -73,7 +73,7 @@ class Sheet:
         self.dxf_path = dxf
         self.dxf = None
         if dxf:
-            from dxf_bridge import DxfOut
+            from .dxf_bridge import DxfOut
             self.dxf = DxfOut()
 
     # ---- coordinates -------------------------------------------------
@@ -84,7 +84,7 @@ class Sheet:
 
     def import_dxf(self, path, **kw):
         """Draw a venue's DXF under the plot as the base drawing. See dxf_bridge.import_into."""
-        from dxf_bridge import import_into
+        from .dxf_bridge import import_into
         if self.dxf: self.dxf.layer = "BASE"
         ext = import_into(self, path, **kw)
         if self.dxf: self.dxf.layer = "POSITIONS"
@@ -170,16 +170,23 @@ class Sheet:
             self.line(x, y, fx, fy, width=0.5, dash=(3, 3), color=grey)
             self.circle(fx, fy, ft(0, 3), width=0.5, color=grey)
             if trim is not None:
-                import photometrics as ph
+                from . import photometrics as ph
                 a = ph.aim((x, y, trim), (fx, fy, focus_h))
                 result = dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim, focus=(fx, fy),
                               focus_h=focus_h, **a)
                 if kind in ph.FIXTURES:
                     pl = ph.pool(kind, a["throw"], a["elevation"]); result.update(pl)
-                    fc, note = ph.footcandles(kind, a["throw"], lamp, gel=color_gel if color_gel and color_gel.upper() in ph.GELS else None)
+                    # color_gel may be compound ("R52+R119", "R52/R119"), so ask
+                    # gel_factor rather than looking for a single key in GELS.
+                    gel_arg, gel_warn = color_gel or None, None
+                    if gel_arg:
+                        factor, gnote = ph.gel_factor(gel_arg)
+                        if factor is None:          # a gel we have no figure for
+                            gel_arg, gel_warn = None, gnote
+                    fc, note = ph.footcandles(kind, a["throw"], lamp, gel=gel_arg)
+                    if gel_warn:
+                        note += f" — {gel_warn}; level is for open white"
                     result["fc"], result["fc_note"] = fc, note
-                    if color_gel and color_gel.upper() not in ph.GELS:
-                        result["fc_note"] += f" — {color_gel} not in gels.csv, level is for open white"
                     if show_pool and pl.get("field"):
                         self.layer("NOTES")
                         self.circle(fx, fy, pl["field"] / 2, width=0.4, dash=(2, 2), color=grey)
@@ -283,7 +290,7 @@ def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", l
     Draws the deck, the grid/trim, each unit at its trim, the beam's centre line to
     the focus point at head height, and the field-edge lines to the deck.
     """
-    import photometrics as ph
+    from . import photometrics as ph
     s = Sheet(path, page=page, scale=scale, landscape=landscape,
               sheet=meta.pop("sheet", "Section"), **meta)
     s.origin(ft(3), ft(3))

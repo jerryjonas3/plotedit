@@ -11,14 +11,18 @@ The three things that made earlier attempts fail:
   3. Levels are hex with an H prefix: 1@Hd9, not 1@D9 or 1@85
 Line endings are bare LF. Sub-records are indented three spaces.
 
-Usage:  python3 make-eos-asc.py > out.asc
-Edit SHOW, GROUPS and CUES below for a new production.
+Usage as a module:
+    from plotedit.eos_ascii import build
+    open("out.asc", "w").write(build(show, groups, cues))
+
+Usage as a script (writes the worked example from Without Consent):
+    python3 -m plotedit.eos_ascii > out.asc
 """
 
-SHOW = "Without Consent"
+EXAMPLE_SHOW = "Without Consent"
 
 # name -> channel list
-GROUPS = {
+EXAMPLE_GROUPS = {
     "Study":     [1, 2, 3, 4],
     "Patio":     [5, 6, 7],
     "Threshold": [8],
@@ -26,7 +30,7 @@ GROUPS = {
 }
 
 # (cue number, label, up seconds, down seconds, {group name: percent})
-CUES = [
+EXAMPLE_CUES = [
     (1,  "Q1 p3 Lights rise - sunny study",             5,  5,  {"Study": 85, "Threshold": 15}),
     (2,  "Q2 p28 JUDITH opens doors - GESTURE CUE",     3,  3,  {"Study": 100, "Patio": 70, "Threshold": 80}),
     (3,  "Q3 p28 LISA steps onto patio",                3,  3,  {"Study": 100, "Patio": 100, "Threshold": 80}),
@@ -44,42 +48,54 @@ CUES = [
 ]
 
 def hx(pct):
+    """Eos writes levels as hex with an H prefix: 85% -> Hd9."""
     return "H" + format(round(pct * 255 / 100), "02x")
 
-def chan_string(levels):
-    out = {}
-    for gname, pct in levels.items():
-        for c in GROUPS[gname]:
-            out[c] = pct
-    return " ".join(f"{c}@{hx(p)}" for c, p in sorted(out.items()))
 
-L = []
-L += [
-    "Ident 3:0",
-    "Manufacturer ETC",
-    "Console Eos",
-    "$$Format 3.10",
-    f"$$Title {SHOW}",
-    "!",
-    "! Cue structure only - no patch, no levels worth defending.",
-    "! Import as MERGE so the existing patch survives.",
-    "!",
-]
+def build(show, groups, cues, note=None):
+    """Return a USITT ASCII file ETC Eos will import.
 
-for i, (name, chans) in enumerate(GROUPS.items(), start=1):
-    L += [f"Group {i}", f"   Text {name}",
-          "   Chan  " + " ".join(f"{c}@Hff" for c in chans), " "]
+    show   : title string
+    groups : {group name: [channel numbers]}
+    cues   : [(number, label, up_seconds, down_seconds, {group name: percent})]
+    note   : optional extra comment line
 
-L += ["$CueList 1", " "]
+    Import as MERGE or the existing patch is destroyed. The file carries
+    INTENSITY ONLY — colour on RGBW fixtures must be set at the console.
+    """
+    def chan_string(levels):
+        out = {}
+        for gname, pct in levels.items():
+            for c in groups[gname]:
+                out[c] = pct
+        return " ".join(f"{c}@{hx(p)}" for c, p in sorted(out.items()))
 
-for num, text, up, dn, levels in CUES:
-    L += [f"Cue {num} 1", f"   Text {text}",
-          f"   Up {up}", f"   $$TimeUp {up} 0 0 0",
-          f"   Down {dn}", f"   $$TimeDown {dn} 0 0 0"]
-    cs = chan_string(levels)
-    if cs:
-        L += [f"   $$ChanMove  {cs}", f"   Chan  {cs}"]
-    L += [" "]
+    L = ["Ident 3:0", "Manufacturer ETC", "Console Eos", "$$Format 3.10",
+         f"$$Title {show}", "!",
+         "! Cue structure only - no patch, no levels worth defending.",
+         "! Import as MERGE so the existing patch survives."]
+    if note:
+        L.append(f"! {note}")
+    L.append("!")
 
-L += ["Enddata"]
-print("\n".join(L))
+    for i, (name, chans) in enumerate(groups.items(), start=1):
+        L += [f"Group {i}", f"   Text {name}",
+              "   Chan  " + " ".join(f"{c}@Hff" for c in chans), " "]
+
+    L += ["$CueList 1", " "]
+
+    for num, text, up, dn, levels in cues:
+        L += [f"Cue {num} 1", f"   Text {text}",
+              f"   Up {up}", f"   $$TimeUp {up} 0 0 0",
+              f"   Down {dn}", f"   $$TimeDown {dn} 0 0 0"]
+        cs = chan_string(levels)
+        if cs:
+            L += [f"   $$ChanMove  {cs}", f"   Chan  {cs}"]
+        L += [" "]
+
+    L += ["Enddata"]
+    return "\n".join(L)
+
+
+if __name__ == "__main__":
+    print(build(EXAMPLE_SHOW, EXAMPLE_GROUPS, EXAMPLE_CUES))
