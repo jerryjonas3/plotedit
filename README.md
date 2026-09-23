@@ -82,3 +82,19 @@ Photometrics come from ETC's own datasheets; gel transmissions from Rosco's prod
 pages and the myColor swatch app. **Every fixture row names its source.** Where two
 sources disagree — the ETC Europe spread table of 2000 and the modern US datasheets
 differ on the 26° and 36° — both are kept and the preferred one is marked.
+
+## Names
+
+Paperwork calls a fixture `ETC Source4 36deg`; the photometric table calls it
+`S4 36`. **None of the 38 distinct instrument names in the source archive matched
+a table key** — plots imported from Lightwright drew correctly and were silently
+unlit, every throw computed and every pool and level blank.
+
+`server/plotedit/fixture_names.py` resolves them: normalise, then explicit
+aliases, then a list of real fixtures with no photometrics on file and the reason
+why. **81% of the archive resolves**; the remainder say what is missing rather
+than returning nothing.
+
+```bash
+cd server && python3 test_names.py
+```

@@ -186,14 +186,22 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
 
 ## Next, in no particular order
 
-- **🔴 Fixture names from paperwork do not match the photometric table keys.**
-  Lightwright says `ETC Source4 PARNel`, `ETC Source4 36deg`, `Altman 6in Fres`;
-  `photometrics.FIXTURES` says `S4 PARNel @25`, `S4 36`. The symbol picker
-  (`symbols.for_type`) copes because it matches loosely, but the photometrics
-  look up an exact key and quietly return nothing — the unit draws, gets a throw,
-  and has no pool or footcandles. **An alias table belongs in `photometrics`, fed
-  by the real names `/paperwork` finds in the archive.** Until then a plot
-  imported from Lightwright will be silently unlit.
+- ~~Fixture names from paperwork do not match the photometric table keys.~~
+  ✅ **Done 2026.09.23 — `server/plotedit/fixture_names.py`.** Measured against
+  the real archive first: **none of the 38 distinct names matched**, so an
+  imported plot drew correctly and was silently unlit. Now **81% resolve**
+  (196 of 242 instruments) and the rest carry a stated reason.
+
+  Three layers: **normalise** (strip the maker, unify Source4/S4, deg/°, repair
+  latin-1 mojibake), **ALIASES** for what normalising cannot reach, and
+  **NO_DATA** for real fixtures with no figures on file. Photometrics, the symbol
+  picker and `POST /resolve-names` all go through it, and the footcandle note
+  says how a name was read: *"at HPL 575 (MF 0.78) ['ETC Source4 26deg' read as
+  'S4 36']"*.
+
+  **What is left is missing DATA, not missing aliases:** ColorSource Spot and
+  Cyc, Source Four LED on standard tubes, Altman Spectra Cyc. Fetch those
+  datasheets and they resolve without touching the resolver.
 
 - **Symbols.** Still the open question from day one. Jerry's convention is Field
   Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are

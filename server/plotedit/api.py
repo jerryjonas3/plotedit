@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from . import photometrics as ph
 from . import exports, dxf_bridge, symbols as sym
+from . import fixture_names
 
 app = FastAPI(
     title="plotedit",
@@ -375,3 +376,23 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
                               "s": p[2], "size": p[3]})
         out[t] = prims
     return {"symbols": out, "source": "USITT RP-2 (2006), plates pp.4-9"}
+
+
+# ----------------------------------------------------------------- names
+
+class NamesRequest(BaseModel):
+    names: List[str]
+
+
+@app.post("/resolve-names")
+def resolve_names(req: NamesRequest) -> Dict[str, Any]:
+    """Map instrument names from paperwork to photometric table keys.
+
+    Lightwright says `ETC Source4 36deg`; the table says `S4 36`. Before this
+    existed, an imported plot drew correctly and was silently unlit — 81% of the
+    names in the real archive needed translating. Anything that cannot be
+    resolved comes back with a REASON, never a blank.
+    """
+    ok, bad = fixture_names.audit(req.names, ph.FIXTURES)
+    return {"resolved": ok, "unresolved": bad,
+            "counts": {"resolved": len(ok), "unresolved": len(bad)}}

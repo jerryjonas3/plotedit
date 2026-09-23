@@ -118,6 +118,19 @@ LAMP_MF = {
 FIELD_ANGLES_S4 = [5, 10, 14, 19, 26, 36, 50, 70, 90]   # the barrel family, nominal
 
 
+def lookup(kind):
+    """FIXTURES row for a name that may have come from paperwork.
+
+    Returns (key, row, note). Paperwork calls a Source Four 26 `ETC Source4
+    26deg`; the table calls it `S4 26`. See fixture_names.py — 81% of the names
+    in the real archive need translating, and before this existed they silently
+    produced no pool and no level.
+    """
+    from .fixture_names import resolve
+    key, note = resolve(kind, FIXTURES)
+    return (key, FIXTURES[key], note) if key else (None, None, note)
+
+
 def aim(unit, target):
     """unit=(x, y, trim_ft), target=(x, y, height_ft). Returns throw, elevation, pan, horizontal, drop."""
     ux, uy, uz = unit; tx, ty, tz = target
@@ -137,7 +150,9 @@ def diameter(throw, angle_deg):
 def pool(kind, throw, elevation=None):
     """Field and beam diameter at the throw distance. With elevation, also the
     stretched length of the pool on a horizontal deck (the ellipse's long axis)."""
-    f = FIXTURES[kind]
+    _, f, _note = lookup(kind)
+    if f is None:
+        return {"field": None, "beam": None, "note": _note}
     out = dict(field=diameter(throw, f["field"]) if f["field"] else None,
                beam=diameter(throw, f["beam"]) if f["beam"] else None)
     if elevation is not None and f["field"]:
@@ -214,13 +229,20 @@ def footcandles(kind, throw, lamp=None, mode=None, gel=None):
     lamp: an HPL lamp for tungsten fixtures. mode: an output mode for LED fixtures with 'modes'.
     gel: a Rosco number or a list of them. Transmission figures are Rosco's, measured for a
     broadband (tungsten) source — exact for HPL, approximate on a white LED."""
-    f = FIXTURES[kind]
+    key, f, knote = lookup(kind)
+    if f is None:
+        return None, knote
     gf, gnote = gel_factor(gel)
     if gf is None: return None, gnote
     if gel and f["family"] not in ("S4", "S4 EDLT"):
         gnote += " (transmission is a tungsten figure; approximate on LED)"
-    fc, note = _footcandles_white(f, kind, throw, lamp, mode)
-    if fc is None: return None, note
+    # use the RESOLVED key: the lamp multiplier table is keyed by table name,
+    # not by whatever the paperwork called the fixture
+    fc, note = _footcandles_white(f, key, throw, lamp, mode)
+    if fc is None:
+        return None, note
+    if knote:
+        note = f"{note} [{knote}]"
     return fc * gf, (note + (f", through {gnote}" if gel else ""))
 
 
@@ -279,7 +301,9 @@ def wash_spacing(kind, throw, rule="field-to-beam"):
 
     Returns dict with the spacing, the two radii, and the overlap width.
     """
-    f = FIXTURES[kind]
+    _, f, _note = lookup(kind)
+    if f is None:
+        raise ValueError(_note)
     if not f["field"] or not f["beam"]:
         raise ValueError(f"{kind} has no beam/field pair on file — {f['source']}")
     rf = diameter(throw, f["field"]) / 2

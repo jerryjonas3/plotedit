@@ -364,6 +364,16 @@ def for_type(kind, lens_rotation=None):
     and the angle is information the electrician needs, not decoration.
     """
     k = (kind or "").strip()
+    # Resolve a paperwork name to a table key first — "ETC Source4 36deg" should
+    # draw exactly what "S4 36" draws, not something the loose matcher guessed.
+    try:
+        from .fixture_names import resolve
+        from . import photometrics as _ph
+        _key, _ = resolve(k, _ph.FIXTURES)
+        if _key:
+            k = _key
+    except Exception:
+        pass
     low = k.lower()
     import re as _re
     # ⚠ "S4 26" must not parse as 4 degrees. Strip the product names that carry
