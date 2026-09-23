@@ -165,9 +165,34 @@ room.
    profile, and RP-2 (2006) has no symbol that is both. The lens matters more to
    an electrician than the source does. **Revisit if it ever confuses anyone.**
 
+## §6.18 line weights ✅
+
+**Three, and only three.** `LINE_STYLES` in `scaled_pdf.py` maps every RP-2
+category to a weight and a dash pattern, in POINTS at final print size — so a
+batten is the same weight on paper whatever scale the drawing is at.
+
+| Weight | pt | Categories |
+|---|---|---|
+| **Light** | 0.5 | scenery · leader lines · dimensions · beam pools · grid |
+| **Medium** | 0.9 | masking · drops · **centre line** (chain-dash) · **plaster line** (even dash) |
+| **Heavy** | 1.7 | **batten · luminaire · architecture** · drawing border · title block |
+
+**Pass `style="batten"` rather than `width=2`.** A named category records *why*
+a line is that weight, and `style()` raises on an unknown name rather than
+quietly drawing something plausible.
+
+**The hierarchy carries meaning an electrician reads without thinking:** heavy
+lines are things that physically exist, light lines are notation about them. An
+imported ground plan is drawn as **scenery** — light — so the venue's drawing sits
+behind the rig instead of competing with it.
+
+**A bug this exposed:** every dash pattern was being passed to ReportLab as
+`setDash(*dash)`, which means `(array, phase)` — so `(3, 3)` set a 3pt dash with
+a 3pt *phase*, not 3-on-3-off. It looked close enough to miss until a four-part
+chain-dash raised a TypeError.
+
 ## Still to draw
 
 Beam projectors (§6.4) · scoops (§6.5) · fluorescents (§6.7.3) · arc sources
 (§6.15) · scene machine (§6.17) · accessories (§6.13 — barn doors, scroller, top
-hat, CYM, douser, sightline, rigging point) · **three line weights (§6.18)**,
-where the drawing still uses one.
+hat, CYM, douser, sightline, rigging point).

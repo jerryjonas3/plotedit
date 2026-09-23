@@ -266,12 +266,15 @@ def striplight(length=6.0, depth=0.6, lamp="PAR 38"):
 
 # ------------------------------------------------------------------ drawing
 
-def draw(sheet, prims, x, y, rotate_deg=0.0, width=1.0):
+def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):
     """Draw primitives onto a scaled_pdf.Sheet at (x, y) feet, pointing `rotate_deg`.
 
     0° points the instrument toward -y (downstage). RP-2 §2.2 allows orienting a
     symbol either to its focus point or to a 90° axis.
     """
+    # §6.18: a luminaire is a HEAVY line — it is a thing that physically exists.
+    from .scaled_pdf import LINE_STYLES
+    lw = width if width is not None else LINE_STYLES["luminaire"][0]
     a = math.radians(rotate_deg)
     ca, sa = math.cos(a), math.sin(a)
 
@@ -288,15 +291,15 @@ def draw(sheet, prims, x, y, rotate_deg=0.0, width=1.0):
             closed = p[2]
             for i in range(len(pts) - 1 + (1 if closed else 0)):
                 q1, q2 = pts[i], pts[(i + 1) % len(pts)]
-                sheet.line(q1[0], q1[1], q2[0], q2[1], width=width)
+                sheet.line(q1[0], q1[1], q2[0], q2[1], width=lw)
         elif kind == "line":
             q1, q2 = T(*p[1]), T(*p[2])
-            sheet.line(q1[0], q1[1], q2[0], q2[1], width=width * 0.8)
+            sheet.line(q1[0], q1[1], q2[0], q2[1], width=lw * 0.8)
         elif kind == "circle":
             q = T(*p[1])
             dashed = len(p) > 3 and p[3] == "dashed"
             filled = len(p) > 3 and p[3] is True
-            sheet.circle(q[0], q[1], p[2], width=width * (0.5 if dashed else 0.8),
+            sheet.circle(q[0], q[1], p[2], width=lw * (0.45 if dashed else 0.8),
                          fill=None, dash=(2, 2) if dashed else None)
             if filled:
                 sheet.circle(q[0], q[1], p[2], width=0.3, fill=_black())

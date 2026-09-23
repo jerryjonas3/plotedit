@@ -93,6 +93,24 @@ _face_w = _pts[0][1]                       # first point is the front face
 _body_w = max(c for _, c in _pts)
 check("the front face is the widest point", round(_face_w, 4), round(_body_w, 4))
 
+print("\nline weights — RP-2 6.18, three and only three")
+from plotedit.scaled_pdf import LINE_STYLES, LIGHT, MEDIUM, HEAVY
+check("exactly three weights are used",
+      sorted({w for w, _ in LINE_STYLES.values()}), [LIGHT, MEDIUM, HEAVY])
+check("a batten is heavy", LINE_STYLES["batten"][0], HEAVY)
+check("a luminaire is heavy", LINE_STYLES["luminaire"][0], HEAVY)
+check("architecture is heavy", LINE_STYLES["architecture"][0], HEAVY)
+check("scenery is light", LINE_STYLES["scenery"][0], LIGHT)
+check("a dimension is light", LINE_STYLES["dimension"][0], LIGHT)
+check("the centre line is a 4-part chain dash", len(LINE_STYLES["centerline"][1]), 4)
+check("the plaster line is evenly dashed", len(LINE_STYLES["plasterline"][1]), 2)
+try:
+    from plotedit.scaled_pdf import style as _style
+    _style("chunky")
+    check("an unknown category is refused", "no error", "KeyError")
+except KeyError:
+    check("an unknown category is refused", "KeyError", "KeyError")
+
 print("\npaperwork")
 check("Lightwright column aliases", len(paperwork.LW_COLUMNS), 37)
 

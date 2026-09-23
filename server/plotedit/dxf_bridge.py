@@ -129,7 +129,9 @@ def import_into(sheet, path, layers=None, units=None, offset=(0.0, 0.0), rotate_
         pts = [T(x, y) for x, y in pts]
         for p in pts: seen(*p)
         for (x1, y1), (x2, y2) in zip(pts, pts[1:] + ([pts[0]] if closed and len(pts) > 2 else [])):
-            sheet.line(x1, y1, x2, y2, width=width, color=color)
+            # §6.18: an imported ground plan is scenery — LIGHTWEIGHT, and it
+            # must sit visually behind the rig rather than competing with it.
+            sheet.line(x1, y1, x2, y2, style="scenery", color=color)
 
     n = 0
     for e in _entities(doc.modelspace(), layers):
@@ -147,7 +149,7 @@ def import_into(sheet, path, layers=None, units=None, offset=(0.0, 0.0), rotate_
             elif t == "CIRCLE":
                 cx, cy = T(e.dxf.center.x, e.dxf.center.y); r = e.dxf.radius * k
                 seen(cx - r, cy - r); seen(cx + r, cy + r)
-                sheet.circle(cx, cy, r, width=width, color=color)
+                sheet.circle(cx, cy, r, style="scenery", color=color)
             elif t in ("ARC", "ELLIPSE", "SPLINE"):
                 polyline([(p.x, p.y) for p in e.flattening(0.05)])
             elif t in ("TEXT", "MTEXT") and text:

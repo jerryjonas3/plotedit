@@ -45,6 +45,48 @@ PAGES = {  # inches, portrait
 SCALES = {"1/8": 0.125, "1/4": 0.25, "3/8": 0.375, "1/2": 0.5, "3/4": 0.75, "1": 1.0}
 GREEN, BROWN = HexColor("#256948"), HexColor("#994C00")   # Twin Oaks palette
 
+# ---------------------------------------------------------------------------
+# §6.18 LINE WEIGHTS — three, and only three.
+#
+# RP-2 assigns every element on a plot to one of three weights, and four of the
+# medium ones to a dash pattern. Drawing everything at one weight is legible but
+# it throws away information an electrician reads without thinking: the heavy
+# lines are the things that are physically there — battens, luminaires, walls —
+# and the light ones are notation about them.
+#
+# Widths are in points at final print size, so they are the same on paper
+# whatever the drawing scale. Dashes are in points for the same reason.
+LIGHT, MEDIUM, HEAVY = 0.5, 0.9, 1.7
+
+LINE_STYLES = {
+    # lightweight — notation
+    "scenery":      (LIGHT, None),
+    "leader":       (LIGHT, (4, 3)),
+    "dimension":    (LIGHT, None),
+    "pool":         (LIGHT, (2.5, 2)),      # beam pools: our own, not in RP-2
+    "grid":         (LIGHT, None),
+    # medium — soft goods and reference lines
+    "masking":      (MEDIUM, None),
+    "drop":         (MEDIUM, (8, 4)),
+    "centerline":   (MEDIUM, (11, 3, 2.5, 3)),   # chain-dash
+    "plasterline":  (MEDIUM, (5, 4)),
+    # heavy — the things that physically exist
+    "batten":       (HEAVY, None),
+    "luminaire":    (HEAVY, None),
+    "architecture": (HEAVY, None),
+    "border":       (HEAVY, None),
+    "titleblock":   (HEAVY, None),
+}
+
+
+def style(name):
+    """(width, dash) for an RP-2 line category. Raises rather than guessing."""
+    try:
+        return LINE_STYLES[name]
+    except KeyError:
+        raise KeyError(f"{name!r} is not an RP-2 line category; "
+                       f"have {sorted(LINE_STYLES)}") from None
+
 def ft(feet, inches=0):
     """Real-world length in feet (decimal). ft(12, 6) == 12.5"""
     return feet + inches / 12.0
@@ -105,14 +147,23 @@ class Sheet:
         return feet * self.pt_per_ft
 
     # ---- primitives (all args in real feet) --------------------------
-    def line(self, x1, y1, x2, y2, width=0.75, dash=None, color=black):
+    def line(self, x1, y1, x2, y2, width=0.75, dash=None, color=black, style=None):
+        """style is an RP-2 line category (see LINE_STYLES) and wins over
+        width/dash when given. Prefer it — a named category says WHY the line
+        is that weight."""
+        if style:
+            width, dash = LINE_STYLES[style]
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
-        if dash: c.setDash(*dash)
+        if dash: c.setDash(list(dash))   # (array, phase) — pass the pattern as ONE list
         c.line(*self.P(x1, y1), *self.P(x2, y2)); c.restoreState()
         if self.dxf: self.dxf.line(x1, y1, x2, y2)
 
-    def rect(self, x, y, w, h, width=1.0, label=None, fill=None, color=black):
+    def rect(self, x, y, w, h, width=1.0, label=None, fill=None, color=black, style=None):
+        if style:
+            width, dash = LINE_STYLES[style]
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
+        if style and LINE_STYLES[style][1]:
+            c.setDash(list(LINE_STYLES[style][1]))
         if fill: c.setFillColor(fill)
         px, py = self.P(x, y); self.P(x + w, y + h)   # second call records the far corner
         c.rect(px, py, self.L(w), self.L(h), stroke=1, fill=1 if fill else 0)
@@ -120,9 +171,11 @@ class Sheet:
         if self.dxf: self.dxf.rect(x, y, w, h)
         if label: self.text(x + w / 2, y + h / 2, label, size=8, center=True, color=grey)
 
-    def circle(self, x, y, r, width=0.75, fill=None, color=black, dash=None):
+    def circle(self, x, y, r, width=0.75, fill=None, color=black, dash=None, style=None):
+        if style:
+            width, dash = LINE_STYLES[style]
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
-        if dash: c.setDash(*dash)
+        if dash: c.setDash(list(dash))   # (array, phase) — pass the pattern as ONE list
         if fill: c.setFillColor(fill)
         self.P(x - r, y - r); self.P(x + r, y + r)
         c.circle(*self.P(x, y), self.L(r), stroke=1, fill=1 if fill else 0); c.restoreState()
@@ -138,9 +191,9 @@ class Sheet:
 
     # ---- theatre objects ----------------------------------------------
     def pipe(self, x1, y, x2, label=None, width=2.0):
-        """A hanging position drawn as a heavy line, with its label above."""
+        """A hanging position. §6.18: a batten is HEAVY."""
         self.layer("POSITIONS")
-        self.line(x1, y, x2, y, width=width)
+        self.line(x1, y, x2, y, style="batten")
         if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
@@ -175,8 +228,8 @@ class Sheet:
         result = None
         if focus_to:
             fx, fy = focus_to
-            self.line(x, y, fx, fy, width=0.5, dash=(3, 3), color=grey)
-            self.circle(fx, fy, ft(0, 3), width=0.5, color=grey)
+            self.line(x, y, fx, fy, color=grey, style="leader")
+            self.circle(fx, fy, ft(0, 3), color=grey, style="leader")
             if trim is not None:
                 from . import photometrics as ph
                 a = ph.aim((x, y, trim), (fx, fy, focus_h))
@@ -197,7 +250,7 @@ class Sheet:
                     result["fc"], result["fc_note"] = fc, note
                     if show_pool and pl.get("field"):
                         self.layer("NOTES")
-                        self.circle(fx, fy, pl["field"] / 2, width=0.4, dash=(2, 2), color=grey)
+                        self.circle(fx, fy, pl["field"] / 2, color=grey, style="pool")
                         self.layer("UNITS")
                 if annotate:
                     t = f"{ph.fmt_ft(a['throw'])} @ {a['elevation']:.0f}°"
@@ -218,17 +271,29 @@ class Sheet:
             whole = int(length); inches = round((length - whole) * 12)
             if inches == 12: whole, inches = whole + 1, 0
             text = f"{whole}'-{inches}\""
-        self.line(x1, y1, x2, y2, width=0.5)
+        self.line(x1, y1, x2, y2, style="dimension")
         nx, ny = (-dy / length, dx / length) if length else (0, 1)
         t = ft(0, 4)
         for (x, y) in ((x1, y1), (x2, y2)):
-            self.line(x - nx * t, y - ny * t, x + nx * t, y + ny * t, width=0.5)
+            self.line(x - nx * t, y - ny * t, x + nx * t, y + ny * t, style="dimension")
         ang = math.degrees(math.atan2(dy, dx))
         self.text(x1 + dx / 2 + nx * ft(0, 6), y1 + dy / 2 + ny * ft(0, 6), text,
                   size=7, center=True, rotate=ang)
 
     def note(self, x, y, s, size=7):
         self.layer("NOTES"); self.text(x, y, s, size=size, color=BROWN)
+
+    # ---- §6.18 reference lines
+
+    def center_line(self, x, y0, y1):
+        """§6.18: the centre line is MEDIUM, chain-dashed."""
+        self.layer("BASE")
+        self.line(x, y0, x, y1, style="centerline", color=grey)
+
+    def plaster_line(self, y, x0, x1):
+        """§6.18: the plaster line is MEDIUM, evenly dashed."""
+        self.layer("BASE")
+        self.line(x0, y, x1, y, style="plasterline", color=grey)
 
     # ---- sheet furniture ----------------------------------------------
     def finish(self):
@@ -248,13 +313,13 @@ class Sheet:
             self.warnings.append(msg); print("⚠", msg, file=sys.stderr)
         self.dxf, _dxf = None, self.dxf          # sheet furniture stays off the DXF
         # border
-        c.setLineWidth(1.5); c.rect(m, m, W - 2 * m, H - 2 * m)
+        c.setLineWidth(HEAVY); c.rect(m, m, W - 2 * m, H - 2 * m)      # §6.18 drawing border
         if self.base_note:
             c.setFillColor(grey); c.setFont("Helvetica", 6); c.drawString(m + 6, m + 6, self.base_note)
         # title block, lower right
         tb_w, tb_h = 4.0 * inch, 1.1 * inch
         x0, y0 = W - m - tb_w, m
-        c.setLineWidth(1.0); c.rect(x0, y0, tb_w, tb_h)
+        c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
         c.setFillColor(GREEN); c.setFont("Helvetica-Bold", 11)
         c.drawString(x0 + 6, y0 + tb_h - 15, self.meta["show"] or "Untitled")
         c.setFillColor(black); c.setFont("Helvetica", 8)

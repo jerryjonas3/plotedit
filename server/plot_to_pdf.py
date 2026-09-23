@@ -23,7 +23,12 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
     s.origin(ft(4), ft(4))
 
     s.layer("BASE")
-    s.rect(0, 0, room["width"], room["depth"], width=1.5)
+    # §6.18: architecture is HEAVY; the reference lines are MEDIUM and dashed;
+    # dimensions are LIGHT.
+    s.rect(0, 0, room["width"], room["depth"], style="architecture")
+    s.center_line(room["width"] / 2, -1.0, room["depth"] + 1.0)
+    if room.get("plasterLine") is not None:
+        s.plaster_line(room["plasterLine"], -1.0, room["width"] + 1.0)
     s.dim(0, -1.5, room["width"], -1.5)
     s.dim(-1.5, 0, -1.5, room["depth"])
 
