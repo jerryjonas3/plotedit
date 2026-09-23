@@ -32,12 +32,12 @@ def main(path="../out/rp2-symbols.pdf"):
         ("70  rings", sym.enhanced_ers(70)),
         ("zoom  Z", sym.ers_zoom(30)),
     ])
-    row(6.0, "6.2  FRESNEL — proud lens ring        6.3  PAR — capsule, spread marked on the front", [
+    row(6.0, "6.2  FRESNEL — proud lens ring, and the OVAL BEAM FRESNEL (= an ETC PARNel)        6.3  PAR", [
         ("Fresnel 6\"", sym.fresnel(6)),
         ("Fresnel 8\"", sym.fresnel(8)),
-        ("PAR 64 VNSP", sym.par(64, "VNSP")),
-        ("PAR 64 NSP", sym.par(64, "NSP")),
-        ("PAR 64 MFL", sym.par(64, "MFL")),
+        ("PARNel — axis 0", sym.oval_beam_fresnel(rotation=0)),
+        ("PARNel — axis 45", sym.oval_beam_fresnel(rotation=45)),
+        ("PARNel — axis 90", sym.oval_beam_fresnel(rotation=90)),
         ("PAR 64 WFL", sym.par(64, "WFL")),
     ])
     row(3.0, "6.16  LED — dots = number of colours     6.8  MOVERS — dashed swing radius     6.9  PRACTICAL", [

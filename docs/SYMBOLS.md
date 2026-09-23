@@ -145,6 +145,7 @@ room.
 | 6.1.6 | **Enhanced ERS** | body, shoulder step, short neck, **steep flare to a face wider than the body**. Mark in the lens housing: X (19–20°), diagonal (26–30°), none (36–40°), wedge (50°), rings (70–90°) |
 | 6.1.11 | Zoom | the same body carrying a **Z** |
 | 6.2 | Fresnel | rounded back, **lens ring standing proud** — what tells it from an ERS at a glance |
+| 6.2 | **Oval Beam Fresnel** = an **ETC PARNel** | squatter and wider than a Fresnel, with a proud flange. Carries an **oval-axis bar** driven by the instrument's `lensRotation`, because a PARNel's lens turns and the angle is something the electrician needs |
 | 6.3 | PAR | capsule sized by lamp, **spread marked on the front** (VNSP, NSP, MFL, WFL, XWFL) |
 | 6.6 | Cyc unit | one box per cell |
 | 6.7 | Striplight | length follows the real unit |

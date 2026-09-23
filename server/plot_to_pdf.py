@@ -44,7 +44,8 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    kind=inst["type"], color_gel=inst.get("color"),
                    trim=inst.get("trim"), focus_to=focus,
                    focus_h=inst.get("focusH", 5.5), lamp=inst.get("lamp"),
-                   mode=inst.get("mode"))
+                   mode=inst.get("mode"),
+                   lens_rotation=inst.get("lensRotation"))
         rows.append(r)
 
     if room.get("source"):

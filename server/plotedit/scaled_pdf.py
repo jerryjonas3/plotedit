@@ -197,7 +197,8 @@ class Sheet:
         if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
-             trim=None, focus_h=5.5, lamp=None, mode=None, show_pool=True, annotate=False):
+             trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
+             show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -219,7 +220,7 @@ class Sheet:
         if focus_to and trim is not None:
             from . import photometrics as _ph
             pan = _ph.aim((x, y, trim), (focus_to[0], focus_to[1], focus_h))["pan"]
-        _sym.draw(self, _sym.for_type(kind), x, y, rotate_deg=pan, width=1.0)
+        _sym.draw(self, _sym.for_type(kind, lens_rotation), x, y, rotate_deg=pan)
 
         # §6.14 notation. RP-2 allows leaving categories out rather than
         # cluttering the plot, so only what was supplied is drawn.

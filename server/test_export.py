@@ -41,15 +41,16 @@ check("starts at channel 1", hook[0][0], "1")
 print("\nmagic sheet")
 groups = exports.magic_sheet_rows(plot)
 bax = next(g for g in groups if g["purpose"] == "BAX")
-check("BAX grouped", bax["channels"], [11, 12, 13])
+check("BAX grouped", bax["channels"], [11, 12, 13, 14])
 check("BAX has no color, as in the archive", bax["colors"], [])
 
 print("\neos patch — the format is UNVERIFIED and must say so")
 asc = exports.eos_patch(plot)
 check("warning is in the file itself", "HAS NOT BEEN TESTED" in asc, True)
 check("unpatched units are listed, not dropped", asc.count("! Not patched") , 1)
-check("all ten are unpatched here (no addresses in the sample)",
-      sum(1 for line in asc.splitlines() if line.startswith("!   GRID")), 10)
+check("every unit is listed as unpatched — the sample has no addresses",
+      sum(1 for line in asc.splitlines() if line.startswith("!   GRID")),
+      len(plot["instruments"]))
 
 print("\nexport endpoints")
 req = {"plot": plot}

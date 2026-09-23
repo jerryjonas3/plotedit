@@ -344,7 +344,7 @@ async def _with_temp_dxf(file: UploadFile, fn):
 # ----------------------------------------------------------------- symbols
 
 @app.get("/symbols")
-def symbol_geometry(types: str) -> Dict[str, Any]:
+def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[str, Any]:
     """RP-2 symbol outlines for a comma-separated list of fixture types.
 
     ⭐ The geometry lives in ONE place — symbols.py — and both the PDF and the
@@ -358,7 +358,7 @@ def symbol_geometry(types: str) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for t in [x.strip() for x in types.split(",") if x.strip()]:
         prims = []
-        for p in sym.for_type(t):
+        for p in sym.for_type(t, lens_rotation):
             if p[0] == "poly":
                 prims.append({"k": "poly", "pts": [[round(a, 4), round(c, 4)] for a, c in p[1]],
                               "closed": bool(p[2])})

@@ -113,10 +113,13 @@ export type SymbolPrim =
 /** RP-2 symbol outlines, fetched rather than reimplemented.
  *  The geometry lives once, in symbols.py, so the screen and the paper cannot
  *  drift apart the way the photometrics did before test_agreement.py existed. */
-export async function symbols(types: string[]): Promise<Record<string, SymbolPrim[]>> {
+export async function symbols(
+  types: string[], lensRotation?: number,
+): Promise<Record<string, SymbolPrim[]>> {
   const want = [...new Set(types)].filter(Boolean);
   if (!want.length) return {};
-  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}`);
+  const rot = lensRotation === undefined ? "" : `&lens_rotation=${lensRotation}`;
+  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}${rot}`);
   if (!r.ok) throw new Error(`symbols failed: ${r.status}`);
   return (await r.json()).symbols as Record<string, SymbolPrim[]>;
 }

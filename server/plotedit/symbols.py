@@ -139,6 +139,48 @@ def fresnel(size_in=6):
     return [("poly", _mirror(upper), True)]
 
 
+def oval_beam_fresnel(length=1.05, width=0.72, rotation=None):
+    """§6.2 "Oval Beam Fresnel" — which is what an ETC Source Four PARNel is.
+
+    A PARNel is ETC's oval-beam unit: a PAR-style body with a Fresnel-type lens
+    that throws a soft oval, and a lens that ROTATES so the oval can be turned.
+    RP-2 has no "PARNel" but it has this, and it is the same instrument class.
+
+    Distinctive against a plain Fresnel: shorter and squatter, with a lens flange
+    that stands proud and is clearly WIDER than the body.
+
+    `rotation` in degrees adds the oval-axis bar. An oval beam that nobody has
+    been told the angle of is an oval beam somebody will hang wrong, and §6.14.4
+    requires an axis note for PAR lamps for exactly this reason.
+    """
+    w = width / 2
+    front = -0.55 * length
+    back = length + front
+    flange = front + 0.17 * length
+    upper = [
+        (front, w * 1.22),            # lens flange, proud and wider than the body
+        (flange, w * 1.22),
+        (flange, w),
+        (back - 0.22 * length, w),
+        (back - 0.06 * length, w * 0.82),   # curved back, two chords
+        (back, w * 0.40),
+    ]
+    out = [("poly", _mirror(upper), True)]
+    if rotation is not None:
+        # The oval-axis bar goes across the BODY, not the lens flange — the
+        # flange is only a fifth of the length deep, so a tilted bar drawn there
+        # collapses to nothing. Sized to stay inside the outline at any angle.
+        a = math.radians(rotation)
+        body_half_len = (back - flange) / 2
+        cx = (flange + back) / 2
+        r = min(w * 0.82 / max(abs(math.cos(a)), 1e-6),
+                body_half_len * 0.82 / max(abs(math.sin(a)), 1e-6))
+        out.append(("line",
+                    (cx - r * math.sin(a), -r * math.cos(a)),
+                    (cx + r * math.sin(a), r * math.cos(a))))
+    return out
+
+
 # ------------------------------------------------------------------- §6.3 PAR
 
 # §6.3.2: the beam spread is a MARK ON THE FRONT, and §6.14.4 adds a lamp-axis
@@ -315,8 +357,12 @@ def _black():
 
 # ------------------------------------------------------ §6.14 luminaire notation
 
-def for_type(kind):
-    """Pick a symbol from a fixture-table key like "S4 26" or "Lustr 26 EDLT"."""
+def for_type(kind, lens_rotation=None):
+    """Pick a symbol from a fixture-table key like "S4 26" or "Lustr 26 EDLT".
+
+    lens_rotation (degrees) is used by oval-beam units — a PARNel's lens turns,
+    and the angle is information the electrician needs, not decoration.
+    """
     k = (kind or "").strip()
     low = k.lower()
     import re as _re
@@ -330,8 +376,10 @@ def for_type(kind):
     if "lustr" in low or "colorsource" in low or "clrsrc" in low or "led" in low:
         colors = 7 if "lustr" in low else 4
         return led(colors)
-    if "parnel" in low:
-        return fresnel(6)
+    if "parnel" in low or "oval" in low:
+        # An oval beam needs its axis called out. Default to level — the
+        # commonest hang, and what an electrician assumes if nobody says.
+        return oval_beam_fresnel(rotation=lens_rotation if lens_rotation is not None else 0)
     if "par" in low:
         spread = next((s for s in ("VNSP", "XWFL", "WFL", "MFL", "NSP") if s in k.upper()), "MFL")
         lamp = 64 if "64" in k else (56 if "56" in k else 64)

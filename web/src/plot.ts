@@ -35,6 +35,9 @@ export interface Instrument {
   lamp?: string;
   /** LED output mode, e.g. "Regulated 3200K". */
   mode?: string;
+  /** Oval-beam units only (PARNel). Degrees the lens is turned — an oval beam
+   *  whose angle nobody recorded is one somebody will hang wrong. */
+  lensRotation?: number;
   wattage?: number;
   position?: string;
   purpose?: string;

@@ -40,6 +40,8 @@ export const FIELDS: Field[] = [
   { key: "gobo", label: "Gobo", kind: "text" },
   { key: "lamp", label: "Lamp", kind: "select", photometric: true },
   { key: "mode", label: "LED mode", kind: "select", photometric: true },
+  { key: "lensRotation", label: "Lens angle", kind: "number", step: 15,
+    hint: "Oval-beam units (PARNel): degrees the lens is turned" },
   { key: "accessory", label: "Accessory", kind: "text" },
   { key: "notes", label: "Notes", kind: "text" },
 ];

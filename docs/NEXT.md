@@ -186,6 +186,15 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
 
 ## Next, in no particular order
 
+- **🔴 Fixture names from paperwork do not match the photometric table keys.**
+  Lightwright says `ETC Source4 PARNel`, `ETC Source4 36deg`, `Altman 6in Fres`;
+  `photometrics.FIXTURES` says `S4 PARNel @25`, `S4 36`. The symbol picker
+  (`symbols.for_type`) copes because it matches loosely, but the photometrics
+  look up an exact key and quietly return nothing — the unit draws, gets a throw,
+  and has no pool or footcandles. **An alias table belongs in `photometrics`, fed
+  by the real names `/paperwork` finds in the archive.** Until then a plot
+  imported from Lightwright will be silently unlit.
+
 - **Symbols.** Still the open question from day one. Jerry's convention is Field
   Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are
   `.vwx` and cannot be reused. **He has not marked up the draft sheet yet.**
