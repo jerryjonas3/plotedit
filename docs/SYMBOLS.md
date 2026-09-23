@@ -7,8 +7,14 @@ and the one fetched here, so there is one standard and no ambiguity about which.
 
 **The plates are pages 4–9. Read them before drawing anything.**
 
-**⚠ What the editor draws today is NOT RP-2.** It is an approximation made from
-memory before the standard was read. Every difference is listed below.
+**✅ Redrawn to RP-2 on 2026.09.23.** `server/plotedit/symbols.py` holds the
+geometry, traced from the plates; `server/draw_symbol_sheet.py` prints the set for
+comparison against the document.
+
+**⭐ The geometry lives in ONE place.** The PDF draws it directly; the browser
+fetches it from `GET /symbols`. Porting the shapes to TypeScript would guarantee
+screen and paper drift apart — which is exactly what happened with the
+photometrics before `test_agreement.py` existed.
 
 ---
 
@@ -78,7 +84,7 @@ booms number downstage to upstage.** Anything off centreline is subnamed by its 
 
 ---
 
-## Where the current symbols are wrong
+## What was wrong before, and is now fixed
 
 | | Editor draws | RP-2 |
 |---|---|---|
@@ -128,3 +134,40 @@ before guessing, and before asking someone to correct the guess.**
 **Jerry's own set is Field Template / SoftSymbols, which is RP-2-derived.** So
 RP-2 is the thing to match, and his eye is the tiebreak only where RP-2 leaves
 room.
+
+
+---
+
+## What is drawn
+
+| § | Symbol | Notes |
+|---|---|---|
+| 6.1.6 | **Enhanced ERS** | body, shoulder step, short neck, **steep flare to a face wider than the body**. Mark in the lens housing: X (19–20°), diagonal (26–30°), none (36–40°), wedge (50°), rings (70–90°) |
+| 6.1.11 | Zoom | the same body carrying a **Z** |
+| 6.2 | Fresnel | rounded back, **lens ring standing proud** — what tells it from an ERS at a glance |
+| 6.3 | PAR | capsule sized by lamp, **spread marked on the front** (VNSP, NSP, MFL, WFL, XWFL) |
+| 6.6 | Cyc unit | one box per cell |
+| 6.7 | Striplight | length follows the real unit |
+| 6.8 | Movers | yoke / head wash / head spot, inside a **dashed swing-radius circle** |
+| 6.9 | Practical | a triangle |
+| 6.10 | Followspot | long body, stepped waist |
+| 6.16 | LED | **dots = number of colors.** A Lustr is 7 |
+| 6.14 | Notation | **hexagon = circuit · rectangle = dimmer · circle = channel** |
+
+## Two departures from the plate, both deliberate
+
+1. **Real proportions, not the plate's.** RP-2 draws an ERS at about 2:1; a real
+   Source Four is nearer 2.7:1. **§2.2 asks for approximate real size and shape**,
+   and symbol width is what governs spacing on a pipe — drawing it 2:1 would
+   over-state how much pipe a unit needs. The shape grammar is RP-2's, stretched
+   along the axis.
+2. **The SHEHDS 19° draws as an ellipsoidal, not as an LED.** It is an LED
+   profile, and RP-2 (2006) has no symbol that is both. The lens matters more to
+   an electrician than the source does. **Revisit if it ever confuses anyone.**
+
+## Still to draw
+
+Beam projectors (§6.4) · scoops (§6.5) · fluorescents (§6.7.3) · arc sources
+(§6.15) · scene machine (§6.17) · accessories (§6.13 — barn doors, scroller, top
+hat, CYM, douser, sightline, rigging point) · **three line weights (§6.18)**,
+where the drawing still uses one.

@@ -158,15 +158,20 @@ class Sheet:
         numbers beside it. Returns the dict (or None if no trim/focus given).
         Everything is recorded in self.units for the schedule and the section."""
         self.layer("UNITS")
-        r = r if r is not None else ft(0, 9)             # 9-inch body reads at 1/4"
-        self.circle(x, y, r, width=1.0, fill=white)
-        self.text(x, y, str(num), size=7, center=True, bold=True)
-        if ch is not None:
-            self.text(x, y - r - ft(0, 8), f"ch {ch}", size=6, center=True)
-        side = []
-        if kind: side.append(kind)
-        if color_gel: side.append(color_gel)
-        if side: self.text(x + r + ft(0, 3), y - ft(0, 2), " · ".join(side), size=6)
+        # The symbol itself, drawn to USITT RP-2 (2006). See symbols.py and
+        # docs/SYMBOLS.md — the shape and the mark inside it carry the fixture
+        # type and the beam angle, which is what an electrician reads first.
+        from . import symbols as _sym
+        pan = 0.0
+        if focus_to and trim is not None:
+            from . import photometrics as _ph
+            pan = _ph.aim((x, y, trim), (focus_to[0], focus_to[1], focus_h))["pan"]
+        _sym.draw(self, _sym.for_type(kind), x, y, rotate_deg=pan, width=1.0)
+
+        # §6.14 notation. RP-2 allows leaving categories out rather than
+        # cluttering the plot, so only what was supplied is drawn.
+        _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
+                      above=ft(0, 11))
         result = None
         if focus_to:
             fx, fy = focus_to

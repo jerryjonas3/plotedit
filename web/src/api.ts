@@ -101,3 +101,22 @@ export async function dxfPaths(
   if (!r.ok) throw new Error((await r.json()).detail ?? r.statusText);
   return r.json();
 }
+
+// ------------------------------------------------------------------ symbols
+
+export type SymbolPrim =
+  | { k: "poly"; pts: [number, number][]; closed: boolean }
+  | { k: "line"; a: [number, number]; b: [number, number] }
+  | { k: "circle"; c: [number, number]; r: number; dashed: boolean; filled: boolean }
+  | { k: "text"; c: [number, number]; s: string; size: number };
+
+/** RP-2 symbol outlines, fetched rather than reimplemented.
+ *  The geometry lives once, in symbols.py, so the screen and the paper cannot
+ *  drift apart the way the photometrics did before test_agreement.py existed. */
+export async function symbols(types: string[]): Promise<Record<string, SymbolPrim[]>> {
+  const want = [...new Set(types)].filter(Boolean);
+  if (!want.length) return {};
+  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}`);
+  if (!r.ok) throw new Error(`symbols failed: ${r.status}`);
+  return (await r.json()).symbols as Record<string, SymbolPrim[]>;
+}

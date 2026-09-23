@@ -2,8 +2,8 @@
 import { fitView, type View } from "./geometry.js";
 import { isPlot, type Plot } from "./plot.js";
 import { render, type Computed, type RenderOptions } from "./render.js";
-import { compute, fixtures, exportFile, dxfLayers, dxfPaths,
-         type FixtureRow, type ExportKind, type DxfPaths } from "./api.js";
+import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols,
+         type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim } from "./api.js";
 import { Store } from "./store.js";
 import { attachPointer, attachKeyboard } from "./interact.js";
 import { renderInspector } from "./inspector.js";
@@ -15,6 +15,7 @@ let store: Store;
 let computed: Computed[] = [];
 let fixtureTable: Record<string, FixtureRow> = {};
 let basePlan: DxfPaths | null = null;
+let symbolCache: Record<string, SymbolPrim[]> = {};
 
 function view(): View {
   const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
@@ -31,6 +32,7 @@ function opts(): RenderOptions {
     showLabels: $<HTMLInputElement>("labels").checked,
     selected: store.selected,
     basePaths: $<HTMLInputElement>("base").checked ? basePlan?.paths : undefined,
+    symbols: symbolCache,
   };
 }
 
@@ -84,6 +86,20 @@ function paint() {
   ($("redo") as HTMLButtonElement).disabled = !store.canRedo;
 }
 
+/** Fetch RP-2 outlines for any fixture type not already held. */
+async function ensureSymbols() {
+  const want = [...new Set(store.plot.instruments.map(i => i.type))]
+    .filter(t => t && !(t in symbolCache));
+  if (!want.length) return;
+  try {
+    Object.assign(symbolCache, await symbols(want));
+  } catch (e) {
+    // Drawing the wrong shape is worse than drawing a plain ring, which is
+    // what render() falls back to when a type is missing from the cache.
+    status(e instanceof Error ? e.message : String(e), true);
+  }
+}
+
 /** Ask the Python what the light does. Debounced — a drag is one request. */
 let pending: ReturnType<typeof setTimeout>;
 function recompute(delay = 120) {
@@ -91,6 +107,7 @@ function recompute(delay = 120) {
   pending = setTimeout(async () => {
     try {
       computed = await compute(store.plot);
+      await ensureSymbols();
       paint();
     } catch (e) {
       showError(e);
@@ -198,6 +215,7 @@ async function boot() {
     });
 
     computed = await compute(store.plot);
+    await ensureSymbols();
     paint();
   } catch (e) {
     showError(e);

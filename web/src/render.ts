@@ -11,6 +11,7 @@
  */
 import { svgTransform, counterFlip, fmtFt, type View } from "./geometry.js";
 import type { Plot, Instrument } from "./plot.js";
+import type { SymbolPrim } from "./api.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -35,6 +36,8 @@ export interface RenderOptions {
   selected?: number | null;
   /** A venue's DXF, already in feet. Drawn under everything, in gray. */
   basePaths?: { layer: string; points: [number, number][] }[];
+  /** RP-2 symbol outlines by fixture type, from GET /symbols. */
+  symbols?: Record<string, SymbolPrim[]>;
 }
 
 function isSelNow(opts: RenderOptions, i: number): boolean {
@@ -143,7 +146,7 @@ export function render(
       gFocus.appendChild(fh);
     }
     const isSel = opts.selected === i;
-    const g = symbol(inst, c);
+    const g = symbol(inst, c, opts.symbols?.[inst.type]);
     g.setAttribute("data-index", String(i));
     if (isSel) g.classList.add("selected");
     // A generous invisible disc so a 9-inch symbol is still easy to grab.
@@ -157,42 +160,60 @@ export function render(
 }
 
 /**
- * A first-pass instrument symbol, drawn at real size and pointed at the focus.
+ * Draw an instrument from the RP-2 primitives the server supplies.
  *
- * ⚠ These approximate USITT RP-2. Jerry's own convention is Field Template /
- * SoftSymbols, which are .vwx and cannot be reused. He has not marked up the
- * draft sheet yet — see docs/DECISIONS.md. Do not draw more until he has.
+ * The geometry is NOT defined here. It lives in server/plotedit/symbols.py,
+ * traced from USITT RP-2 (2006). Reimplementing it in TypeScript would
+ * guarantee the screen and the printed plot drift apart.
+ *
+ * Local coordinates: +a toward the back of the instrument, -a the front,
+ * c across, origin at the yoke. Rotation puts the front toward the focus.
  */
-function symbol(inst: Instrument, c?: Computed): SVGElement {
-  const g = el("g", { class: "instrument", "data-unit": inst.unit, "data-channel": inst.channel ?? "" });
-  // pan is degrees clockwise from pointing downstage (-y)
+function symbol(inst: Instrument, c: Computed | undefined,
+                prims: SymbolPrim[] | undefined): SVGElement {
+  const g = el("g", { class: "instrument", "data-unit": inst.unit,
+                      "data-channel": inst.channel ?? "" });
   const pan = c?.pan ?? 0;
   const body = el("g", { transform: `translate(${inst.x} ${inst.y}) rotate(${-pan})` });
 
-  const t = inst.type;
-  if (/PAR/i.test(t)) {
-    body.appendChild(el("rect", { x: -0.34, y: -0.5, width: 0.68, height: 1.0,
-      fill: "#fff", stroke: "#111", "stroke-width": 0.08, rx: 0.3 }));
-  } else if (/Fresnel/i.test(t)) {
-    body.appendChild(el("rect", { x: -0.34, y: -0.42, width: 0.68, height: 0.84,
-      fill: "#fff", stroke: "#111", "stroke-width": 0.08 }));
-    body.appendChild(el("line", { x1: -0.34, y1: -0.42, x2: 0.34, y2: -0.42,
-      stroke: "#111", "stroke-width": 0.18 }));
-  } else {
-    // ellipsoidal: body plus a lens tube whose LENGTH codes the beam angle —
-    // narrower field, longer tube, the way the real barrels look.
-    const field = fieldOf(t);
-    const tube = field ? Math.max(0.35, Math.min(1.1, 22 / field * 0.42)) : 0.6;
-    body.appendChild(el("rect", { x: -0.3, y: -0.38, width: 0.6, height: 0.76,
-      fill: "#fff", stroke: "#111", "stroke-width": 0.08 }));
-    body.appendChild(el("rect", { x: -0.21, y: -0.38 - tube, width: 0.42, height: tube,
-      fill: "#fff", stroke: "#111", "stroke-width": 0.08 }));
+  if (!prims) {
+    // The server has not answered yet, or the type is unknown. Draw a plain
+    // ring rather than guessing a shape — a wrong symbol is read as fact.
+    body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.42, fill: "#fff",
+                                    stroke: "#111", "stroke-width": 0.07 }));
   }
-  // the yoke point, which is where the unit actually is
-  body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.12, fill: "#111" }));
+  for (const p of prims ?? []) {
+    if (p.k === "poly") {
+      const d = p.pts.map((q, i) => `${i ? "L" : "M"}${q[1]} ${q[0]}`).join(" ")
+                + (p.closed ? " Z" : "");
+      body.appendChild(el("path", { d, fill: p.closed ? "#fff" : "none",
+                                    stroke: "#111", "stroke-width": 0.075 }));
+    } else if (p.k === "line") {
+      body.appendChild(el("line", { x1: p.a[1], y1: p.a[0], x2: p.b[1], y2: p.b[0],
+                                    stroke: "#111", "stroke-width": 0.06 }));
+    } else if (p.k === "circle") {
+      body.appendChild(el("circle", {
+        cx: p.c[1], cy: p.c[0], r: p.r,
+        fill: p.filled ? "#111" : "none", stroke: "#111",
+        "stroke-width": p.dashed ? 0.04 : 0.06,
+        ...(p.dashed ? { "stroke-dasharray": "0.16 0.12" } : {}),
+      }));
+    } else if (p.k === "text") {
+      const t = el("text", {
+        transform: `translate(${p.c[1]} ${p.c[0]}) scale(1 -1)`,
+        "font-size": p.size, "font-family": "system-ui, sans-serif",
+        "font-weight": "700", fill: "#111", "text-anchor": "middle",
+      });
+      t.textContent = p.s;
+      body.appendChild(t);
+    }
+  }
+  // the yoke point — where the unit actually is, per RP-2 2.2
+  body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.09, fill: "#111" }));
   g.appendChild(body);
   return g;
 }
+
 
 /** Field angle by name, for tube length only. The server holds the real table. */
 function fieldOf(type: string): number | null {

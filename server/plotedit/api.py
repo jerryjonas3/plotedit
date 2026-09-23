@@ -23,7 +23,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from . import photometrics as ph
-from . import exports, dxf_bridge
+from . import exports, dxf_bridge, symbols as sym
 
 app = FastAPI(
     title="plotedit",
@@ -339,3 +339,39 @@ async def _with_temp_dxf(file: UploadFile, fn):
         except Exception as e:
             raise HTTPException(status_code=400,
                                 detail=f"cannot read that DXF: {e}")
+
+
+# ----------------------------------------------------------------- symbols
+
+@app.get("/symbols")
+def symbol_geometry(types: str) -> Dict[str, Any]:
+    """RP-2 symbol outlines for a comma-separated list of fixture types.
+
+    ⭐ The geometry lives in ONE place — symbols.py — and both the PDF and the
+    browser draw from it. Porting the shapes to TypeScript would guarantee the
+    two drift, and `test_agreement.py` exists precisely to stop that happening
+    with numbers; the same argument applies to shapes.
+
+    Local coordinates, in feet: +a is toward the back of the instrument, -a the
+    front, c is across. The origin is the yoke — the hanging point.
+    """
+    out: Dict[str, Any] = {}
+    for t in [x.strip() for x in types.split(",") if x.strip()]:
+        prims = []
+        for p in sym.for_type(t):
+            if p[0] == "poly":
+                prims.append({"k": "poly", "pts": [[round(a, 4), round(c, 4)] for a, c in p[1]],
+                              "closed": bool(p[2])})
+            elif p[0] == "line":
+                prims.append({"k": "line", "a": [round(v, 4) for v in p[1]],
+                              "b": [round(v, 4) for v in p[2]]})
+            elif p[0] == "circle":
+                style = p[3] if len(p) > 3 else None
+                prims.append({"k": "circle", "c": [round(v, 4) for v in p[1]],
+                              "r": round(p[2], 4),
+                              "dashed": style == "dashed", "filled": style is True})
+            elif p[0] == "text":
+                prims.append({"k": "text", "c": [round(v, 4) for v in p[1]],
+                              "s": p[2], "size": p[3]})
+        out[t] = prims
+    return {"symbols": out, "source": "USITT RP-2 (2006), plates pp.4-9"}

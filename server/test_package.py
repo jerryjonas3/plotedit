@@ -72,6 +72,27 @@ asc = eos_ascii.build("Test", {"Study": [1, 2]},
 check("85% written as hex Hd9", "1@Hd9" in asc, True)
 check("TimeUp written (or long fades collapse)", "$$TimeUp 5 0 0 0" in asc, True)
 
+print("\nsymbols — USITT RP-2 (2006)")
+from plotedit import symbols as sym
+# "S4 26" must not parse as 4 degrees — it did, once.
+check("S4 26 gets the 26-30 diagonal, one line",
+      sum(1 for p in sym.for_type("S4 26") if p[0] == "line"), 1)
+check("S4 19 gets the X, two lines",
+      sum(1 for p in sym.for_type("S4 19") if p[0] == "line"), 2)
+check("S4 36 carries no mark",
+      sum(1 for p in sym.for_type("S4 36") if p[0] == "line"), 0)
+check("Lustr = 7 dots, per 6.16",
+      sum(1 for p in sym.for_type("Lustr 26 EDLT") if p[0] == "circle"), 7)
+check("a mover gets a dashed swing circle",
+      any(p[0] == "circle" and len(p) > 3 and p[3] == "dashed"
+          for p in sym.for_type("Martin Mac Aura")), True)
+# The flare is the whole point: RP-2's lens housing opens out to a face WIDER
+# than the body. The first attempt had it narrowing, which read as a funnel.
+_pts = sym.enhanced_ers(26)[0][1]
+_face_w = _pts[0][1]                       # first point is the front face
+_body_w = max(c for _, c in _pts)
+check("the front face is the widest point", round(_face_w, 4), round(_body_w, 4))
+
 print("\npaperwork")
 check("Lightwright column aliases", len(paperwork.LW_COLUMNS), 37)
 
