@@ -73,10 +73,12 @@ than only in the docs, because the file is what somebody will open at tech.
 
 ## Open
 
-- **Symbols.** ✅ The standard was fetched 2026.09.23 — USITT RP-2 (2006), in
-  `docs/reference/`. **The current symbols are NOT RP-2** and the specific errors
-  are listed in `docs/SYMBOLS.md`. **Redraw from the document.** Jerry's markup is
-  now only the tiebreak where RP-2 leaves room, not the source of truth.
+- **Symbols.** ✅ Settled as a question, open as work. The standard is **USITT RP-2
+  (2006)**, in `docs/reference/` — Jerry has the same file, verified identical.
+  **The current symbols are not RP-2**; `docs/SYMBOLS.md` lists every difference
+  and the order to fix them in. RP-2 also covers **movers (§6.8), LED fixtures
+  (§6.16), the hexagon/rectangle/circle notation (§6.14) and three line weights
+  (§6.18)** — all of which the editor currently ignores.
 
 - **The Eos patch format.** Written to spec, never tested. Ten minutes with
   Nomad and a scratch show file settles it.
