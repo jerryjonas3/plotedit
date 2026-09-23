@@ -17,3 +17,15 @@ export async function compute(plot: Plot): Promise<Computed[]> {
   if (!r.ok) throw new Error(`compute failed: ${r.status} ${await r.text()}`);
   return (await r.json()).instruments as Computed[];
 }
+
+export interface FixtureRow {
+  field: number | null; beam: number | null; candela: number | null;
+  reference_lamp: string; family: string; modes: string[] | null; source: string;
+}
+
+/** The fixture table, so the inspector can offer real types rather than free text. */
+export async function fixtures(): Promise<Record<string, FixtureRow>> {
+  const r = await fetch("/api/fixtures");
+  if (!r.ok) throw new Error(`fixtures failed: ${r.status}`);
+  return (await r.json()).fixtures as Record<string, FixtureRow>;
+}

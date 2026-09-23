@@ -4,35 +4,63 @@
   <meta charset="utf-8">
   <title>plotedit</title>
   <style>
-    :root { --ink: #111; --quiet: #777; --line: #ddd; --bg: #fafaf9; }
+    :root { --ink:#111; --quiet:#777; --line:#ddd; --bg:#fafaf9; --sel:#1d6fa5; --warn:#a8410f; }
     * { box-sizing: border-box; }
-    body { margin: 0; font: 14px/1.4 system-ui, sans-serif; color: var(--ink);
-           display: grid; grid-template-rows: auto 1fr; height: 100vh; background: var(--bg); }
-    header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: #fff;
-             display: flex; gap: 18px; align-items: baseline; flex-wrap: wrap; }
-    h1 { font-size: 15px; margin: 0; font-weight: 700; }
-    .venue { color: var(--quiet); }
-    .controls { margin-left: auto; display: flex; gap: 14px; align-items: center; }
-    label { display: flex; gap: 5px; align-items: center; color: var(--quiet); }
-    main { display: grid; grid-template-columns: 1fr 380px; overflow: hidden; }
-    #canvas { overflow: auto; display: grid; place-items: center; padding: 16px; }
-    svg { background: #fff; border: 1px solid var(--line); }
-    aside { border-left: 1px solid var(--line); overflow: auto; background: #fff; padding: 12px 14px; }
-    table { border-collapse: collapse; width: 100%; font-size: 12px; }
-    th { text-align: left; font-weight: 600; color: var(--quiet); border-bottom: 1px solid var(--line);
-         padding: 4px 6px 4px 0; position: sticky; top: 0; background: #fff; }
-    td { padding: 3px 6px 3px 0; border-bottom: 1px solid #f2f2f2; white-space: nowrap; }
-    td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .warn { color: #a8410f; }
-    .src { font-size: 11px; color: var(--quiet); margin: 10px 0 0; line-height: 1.45; }
-    #err { color: #b00; padding: 16px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
+    body { margin:0; font:14px/1.4 system-ui,sans-serif; color:var(--ink);
+           display:grid; grid-template-rows:auto 1fr; height:100vh; background:var(--bg); }
+    header { padding:8px 14px; border-bottom:1px solid var(--line); background:#fff;
+             display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
+    h1 { font-size:15px; margin:0; font-weight:700; }
+    .venue { color:var(--quiet); font-size:13px; }
+    #dirty { color:var(--warn); font-size:12px; font-weight:600; }
+    .controls { margin-left:auto; display:flex; gap:12px; align-items:center; font-size:13px; }
+    label { display:flex; gap:4px; align-items:center; color:var(--quiet); }
+    button { font:inherit; font-size:13px; padding:3px 9px; border:1px solid var(--line);
+             background:#fff; border-radius:4px; cursor:pointer; }
+    button:disabled { opacity:.4; cursor:default; }
+    button.danger { color:var(--warn); border-color:#e8cdc0; margin-top:10px; width:100%; }
+    main { display:grid; grid-template-columns:1fr 340px; overflow:hidden; }
+    #canvas { overflow:auto; display:grid; place-items:center; padding:14px; }
+    svg { background:#fff; border:1px solid var(--line); touch-action:none; }
+    svg .hit { cursor:grab; }
+    svg .instrument.selected rect { stroke:var(--sel); stroke-width:.14; }
+    svg .instrument.selected circle { fill:var(--sel); }
+    svg .focus-handle.selected circle { stroke:var(--sel); }
+    aside { border-left:1px solid var(--line); overflow:auto; background:#fff;
+            display:grid; grid-template-rows:auto 1fr; }
+    .panel { padding:10px 12px; border-bottom:1px solid var(--line); }
+    .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em;
+                color:var(--quiet); margin:0 0 8px; }
+    .fields { display:grid; grid-template-columns:auto 1fr; gap:5px 8px; align-items:center; }
+    .fields label { font-size:12px; justify-self:end; }
+    .fields input, .fields select { font:inherit; font-size:12px; padding:2px 4px;
+                                    border:1px solid var(--line); border-radius:3px; width:100%; }
+    .computed { font-size:12px; background:#f6f7f8; border-radius:4px; padding:7px 9px;
+                margin-bottom:10px; line-height:1.5; }
+    .muted { color:var(--quiet); }
+    .warn { color:var(--warn); }
+    table { border-collapse:collapse; width:100%; font-size:12px; }
+    th { text-align:left; font-weight:600; color:var(--quiet); border-bottom:1px solid var(--line);
+         padding:4px 6px 4px 0; position:sticky; top:0; background:#fff; }
+    td { padding:3px 6px 3px 0; border-bottom:1px solid #f2f2f2; white-space:nowrap; }
+    td.num { text-align:right; font-variant-numeric:tabular-nums; }
+    tbody tr { cursor:pointer; }
+    tbody tr:hover { background:#f6f7f8; }
+    tbody tr.sel { background:#e7f0f6; }
+    tbody tr.warn td:first-child::before { content:"⚠ "; }
+    .src { font-size:11px; color:var(--quiet); margin:8px 0 0; line-height:1.45; }
+    #err { color:#b00; padding:16px; white-space:pre-wrap; font-family:ui-monospace,monospace; }
   </style>
 </head>
 <body>
   <header>
     <h1 id="show">plotedit</h1>
     <span class="venue" id="venue"></span>
+    <span id="dirty"></span>
     <div class="controls">
+      <button id="undo" title="⌘Z" disabled>Undo</button>
+      <button id="redo" title="⇧⌘Z" disabled>Redo</button>
+      <button id="save">Save .plot.json</button>
       <label><input type="checkbox" id="pools" checked> pools</label>
       <label><input type="checkbox" id="focus" checked> focus</label>
       <label><input type="checkbox" id="labels" checked> labels</label>
@@ -42,11 +70,15 @@
   <main>
     <div id="canvas"><svg id="plot"></svg></div>
     <aside>
-      <table id="schedule"><thead><tr>
-        <th>Pos</th><th>U</th><th>Ch</th><th>Type</th><th>Color</th>
-        <th class="num">Throw</th><th class="num">Pool</th><th class="num">fc</th>
-      </tr></thead><tbody></tbody></table>
-      <p class="src" id="notes"></p>
+      <div class="panel"><h2>Instrument</h2><div id="inspector"></div></div>
+      <div class="panel" style="overflow:auto">
+        <h2>Schedule</h2>
+        <table id="schedule"><thead><tr>
+          <th>Pos</th><th>U</th><th>Ch</th><th>Type</th><th>Color</th>
+          <th class="num">Throw</th><th class="num">Pool</th><th class="num">fc</th>
+        </tr></thead><tbody></tbody></table>
+        <p class="src" id="notes"></p>
+      </div>
     </aside>
   </main>
   <div id="err" hidden></div>

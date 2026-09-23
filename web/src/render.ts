@@ -31,6 +31,12 @@ export interface RenderOptions {
   showPools: boolean;
   showFocus: boolean;
   showLabels: boolean;
+  /** Index into plot.instruments, or null. */
+  selected?: number | null;
+}
+
+function isSelNow(opts: RenderOptions, i: number): boolean {
+  return opts.selected === i;
 }
 
 function el(name: string, attrs: Record<string, string | number>): SVGElement {
@@ -112,12 +118,27 @@ export function render(
         x1: inst.x, y1: inst.y, x2: inst.focusX!, y2: inst.focusY!,
         stroke: "#999", "stroke-width": W.focus, "stroke-dasharray": "0.5 0.35",
       }));
-      gFocus.appendChild(el("circle", {
+      const fh = el("g", { class: "focus-handle" + (isSelNow(opts, i) ? " selected" : "") });
+      fh.appendChild(el("circle", {
         cx: inst.focusX!, cy: inst.focusY!, r: 0.25,
         fill: "none", stroke: "#999", "stroke-width": W.focus,
       }));
+      fh.appendChild(el("circle", {
+        cx: inst.focusX!, cy: inst.focusY!, r: 0.9, fill: "transparent",
+        class: "hit", "data-index": String(i), "data-handle": "focus",
+      }));
+      gFocus.appendChild(fh);
     }
-    gInst.appendChild(symbol(inst, c));
+    const isSel = opts.selected === i;
+    const g = symbol(inst, c);
+    g.setAttribute("data-index", String(i));
+    if (isSel) g.classList.add("selected");
+    // A generous invisible disc so a 9-inch symbol is still easy to grab.
+    g.appendChild(el("circle", {
+      cx: inst.x, cy: inst.y, r: 1.1, fill: "transparent",
+      class: "hit", "data-index": String(i), "data-handle": "body",
+    }));
+    gInst.appendChild(g);
     if (opts.showLabels) gText.appendChild(labels(inst, c));
   });
 }

@@ -46,6 +46,19 @@ measure true. `geometry.ts` holds the first, `scaled_pdf.py` the second, and
 `test_agreement.py` checks they agree about the numbers even though they differ
 about the units.
 
+## 2026.09.23 — Snapshot undo, and a drag is one step
+
+A plot is a few dozen instruments, so history is an array of deep clones. Edits
+sharing a coalesce key merge into one entry, which is what makes a drag undo in
+one go rather than two hundred.
+
+## 2026.09.23 — Instruments snap to pipes
+
+Units hang on pipes. A unit at y = 20.3 when the pipe is at 20 is wrong on paper
+and wrong in the room, and it is invisible until the plot is printed. Snapping
+also sets the instrument's `position`, so the schedule stays true without anyone
+retyping it. Alt-drag opts out. Dragging far past the end of a pipe does not snap.
+
 ## Open
 
 - **Symbols.** The designer's own convention is Field Template / SoftSymbols for ETC

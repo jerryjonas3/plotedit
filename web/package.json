@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "tsx src/geometry.test.ts"
+    "test": "tsx src/geometry.test.ts",
+    "test:store": "tsx src/store.test.ts",
+    "test:all": "npm test && npm run test:store"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

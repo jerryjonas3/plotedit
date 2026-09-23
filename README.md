@@ -19,7 +19,7 @@ and still openable in twenty years.
 
 ## Status
 
-**Renders a plot; cannot edit one yet.** Steps 1–3 of `docs/NEXT.md` are done.
+**Draws and edits a plot.** Steps 1–4 of `docs/NEXT.md` are done; import and export are next.
 The computation half was already working and is in `server/plotedit/`:
 
 | Module | Does |
@@ -60,6 +60,7 @@ cd web
 npm install
 npm run dev          # http://localhost:5173 — needs the service running
 npm test             # the coordinate transform
+npm run test:store   # undo, selection, pipe snapping
 ```
 
 Both halves must agree about the numbers:

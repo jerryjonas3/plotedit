@@ -92,12 +92,54 @@ its reference output no matter what the plot asked for. The Lustr units read
 **`server/test_agreement.py` now pins it:** both paths start from the same
 `.plot.json` and every throw, pool and footcandle must match.
 
-## 4. Editing  ← next
+## 4. Editing ✅ done 2026.09.23
 
-Drag to move, click to select, edit the record in a side table. Both views on
-one record.
+| File | |
+|---|---|
+| `web/src/store.ts` | one plot, one selection, an undo stack, and pipe snapping. Own test: `npm run test:store` |
+| `web/src/interact.ts` | pointer and keyboard — drag, select, nudge, delete, undo |
+| `web/src/inspector.ts` | the selected record, editable, nineteen fields |
 
-## 5. Import and export
+**Verified in the browser:** dragging unit 1 from GRID C onto GRID D re-set its
+`position` by itself, and the server recomputed — throw 13'-4" → 16'-5", pool
+5'-11" → 7'-4", level **179 fc → 118 fc**. One undo restored all of it and left
+the stack empty. Changing a color in the inspector took unit 3 from 185 fc to
+**72 fc through R80 at 9%**.
+
+### Decisions
+
+**A whole drag is one undo step.** `store.begin(key)` coalesces consecutive edits
+sharing a key; `commit()` ends the run. Eight pointer moves, one undo.
+
+**Snapshots are deep clones of the whole plot.** A plot is a few dozen
+instruments. No diffing, no proxies, nothing to debug at two in the morning
+during a tech.
+
+**⭐ Instruments snap to pipes, and set their own `position`.** A unit at y = 20.3
+when the pipe is at 20 is wrong on paper and wrong in the room, and nobody
+notices until it is printed. Alt-drag places one off a pipe deliberately.
+Dragging *far* past the end of a pipe does not snap back — silently yanking a
+unit seven feet is worse than leaving it where it was put.
+
+**Focus is a separate handle.** Aiming a unit and moving it are different
+decisions; conflating them is how a focus gets lost while tidying a hang.
+
+**Positions round to the nearest inch.** Sub-inch precision on a light plot is a
+lie.
+
+**Photometric fields recompute; paperwork fields do not.** Type, trim, focus,
+color, lamp and mode hit the server, debounced. Purpose and notes do not — a
+round trip per keystroke is noise.
+
+**Edits commit on `change`, not `input`**, so half-typed values never reach the
+server.
+
+### Keyboard
+
+`↑↓←→` nudge an inch · `⇧` + arrow nudges a foot · `Delete` removes ·
+`Esc` deselects · `⌘Z` / `⇧⌘Z` undo and redo
+
+## 5. Import and export  ← next
 
 DXF ground plan in. Plot PDF, schedule, hookup, DXF and Eos patch out —
 all five already exist server-side.
