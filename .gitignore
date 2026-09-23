@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# macOS
+.DS_Store
+
+# Output — plots and paperwork are generated, not committed
+out/
+*.pdf
+*.dxf
+!samples/*.dxf
+
+# Editor
+.vscode/
+.idea/

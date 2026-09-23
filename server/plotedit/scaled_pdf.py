@@ -1,0 +1,346 @@
+#!/usr/bin/env python3
+"""
+scaled_pdf.py — draw theatre paperwork to architectural scale, as PDF.
+
+Amy's drawing tool. ReportLab writes in PostScript points (72 pt = 1 inch
+exactly), so a drawing made here measures true on paper — provided it is
+printed at 100% / "Actual size", never "Fit to page".
+
+Real-world input is FEET. Convert with ft(feet, inches=0).
+
+    from scaled_pdf import Sheet, ft
+    s = Sheet("plan.pdf", page="TABLOID", scale="1/4", landscape=True,
+              show="Without Consent", venue="Louis Bluver Theatre at the Drake",
+              sheet="Light Plot — plan", rev="A")
+    s.origin(ft(2), ft(2))                    # where real-world (0,0) sits on the page
+    s.rect(0, 0, ft(33), ft(38), label="Stage floor 33' x 38'")
+    s.pipe(0, ft(10), ft(33), label="Pipe 1 — trim 14'")
+    s.unit(ft(5), ft(10), 1, ch=1, kind="S4 26")
+    s.dim(0, -ft(1), ft(33), -ft(1))          # a dimension line
+    s.finish()                                # adds scale bar, 1-inch check, title block
+
+Scales: "1/8", "1/4", "3/8", "1/2", "3/4", "1" (inches on paper per foot),
+or any float (paper inches per real foot). Pages: LETTER, LEGAL, TABLOID
+(11x17), ARCH_A..ARCH_E, A4, A3. Custom: page=(w_in, h_in).
+
+DXF: pass dxf="plan.dxf" to also write the geometry in feet, layered. Read a
+venue's drawing under the plot with s.import_dxf(path, layers=[...], units="in").
+Run dxf_bridge.dxf_info(path) first to see its units and layers.
+
+Verify a PDF you did not make here: measure the scale bar with any PDF
+reader's measuring tool, or run  scaled_pdf.py --check file.pdf  which
+reads the 1-inch check bar and reports its width in points (want 72.0).
+"""
+import sys, math
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from reportlab.lib.colors import black, grey, white, HexColor
+
+PAGES = {  # inches, portrait
+    "LETTER": (8.5, 11), "LEGAL": (8.5, 14), "TABLOID": (11, 17),
+    "ARCH_A": (9, 12), "ARCH_B": (12, 18), "ARCH_C": (18, 24),
+    "ARCH_D": (24, 36), "ARCH_E": (36, 48),
+    "A4": (8.27, 11.69), "A3": (11.69, 16.54),
+}
+SCALES = {"1/8": 0.125, "1/4": 0.25, "3/8": 0.375, "1/2": 0.5, "3/4": 0.75, "1": 1.0}
+GREEN, BROWN = HexColor("#256948"), HexColor("#994C00")   # Twin Oaks palette
+
+def ft(feet, inches=0):
+    """Real-world length in feet (decimal). ft(12, 6) == 12.5"""
+    return feet + inches / 12.0
+
+
+class Sheet:
+    def __init__(self, path, page="TABLOID", scale="1/4", landscape=True,
+                 show="", venue="", sheet="", rev="A", designer="Design: Jerry Jonas",
+                 margin_in=0.5, dxf=None):
+        w, h = PAGES[page] if isinstance(page, str) else page
+        if landscape: w, h = h, w
+        self.page_pt = (w * inch, h * inch)
+        self.c = canvas.Canvas(path, pagesize=self.page_pt)
+        self.path = path
+        self.paper_in_per_ft = SCALES[scale] if isinstance(scale, str) else float(scale)
+        self.scale_label = (f'{scale}" = 1\'-0"' if isinstance(scale, str)
+                            else f'{scale}" = 1\'-0"')
+        self.pt_per_ft = self.paper_in_per_ft * inch       # the whole trick
+        self.margin = margin_in * inch
+        self.ox, self.oy = self.margin, self.margin           # page pt where real (0,0) sits
+        self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev, designer=designer)
+        self.c.setLineJoin(1); self.c.setLineCap(1)
+        self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
+        self.warnings = []
+        self.base_note = None
+        self.dxf_path = dxf
+        self.dxf = None
+        if dxf:
+            from dxf_bridge import DxfOut
+            self.dxf = DxfOut()
+
+    # ---- coordinates -------------------------------------------------
+    def origin(self, x_ft, y_ft):
+        """Place real-world (0,0) at this many feet in from the page's lower-left margin."""
+        self.ox = self.margin + x_ft * self.pt_per_ft
+        self.oy = self.margin + y_ft * self.pt_per_ft
+
+    def import_dxf(self, path, **kw):
+        """Draw a venue's DXF under the plot as the base drawing. See dxf_bridge.import_into."""
+        from dxf_bridge import import_into
+        if self.dxf: self.dxf.layer = "BASE"
+        ext = import_into(self, path, **kw)
+        if self.dxf: self.dxf.layer = "POSITIONS"
+        return ext
+
+    def layer(self, name):
+        """Set the DXF layer for what is drawn next (BASE, POSITIONS, UNITS, TEXT, DIMS, NOTES)."""
+        if self.dxf: self.dxf.layer = name
+
+    def P(self, x_ft, y_ft):
+        """Real feet -> page points. Records extents so finish() can warn about clipping."""
+        px, py = self.ox + x_ft * self.pt_per_ft, self.oy + y_ft * self.pt_per_ft
+        b = self._bounds
+        b[0], b[1], b[2], b[3] = min(b[0], px), min(b[1], py), max(b[2], px), max(b[3], py)
+        return px, py
+
+    def L(self, feet):
+        return feet * self.pt_per_ft
+
+    # ---- primitives (all args in real feet) --------------------------
+    def line(self, x1, y1, x2, y2, width=0.75, dash=None, color=black):
+        c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
+        if dash: c.setDash(*dash)
+        c.line(*self.P(x1, y1), *self.P(x2, y2)); c.restoreState()
+        if self.dxf: self.dxf.line(x1, y1, x2, y2)
+
+    def rect(self, x, y, w, h, width=1.0, label=None, fill=None, color=black):
+        c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
+        if fill: c.setFillColor(fill)
+        px, py = self.P(x, y); self.P(x + w, y + h)   # second call records the far corner
+        c.rect(px, py, self.L(w), self.L(h), stroke=1, fill=1 if fill else 0)
+        c.restoreState()
+        if self.dxf: self.dxf.rect(x, y, w, h)
+        if label: self.text(x + w / 2, y + h / 2, label, size=8, center=True, color=grey)
+
+    def circle(self, x, y, r, width=0.75, fill=None, color=black, dash=None):
+        c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
+        if dash: c.setDash(*dash)
+        if fill: c.setFillColor(fill)
+        self.P(x - r, y - r); self.P(x + r, y + r)
+        c.circle(*self.P(x, y), self.L(r), stroke=1, fill=1 if fill else 0); c.restoreState()
+        if self.dxf: self.dxf.circle(x, y, r)
+
+    def text(self, x, y, s, size=8, center=False, color=black, rotate=0, bold=False):
+        c = self.c; c.saveState(); c.setFillColor(color)
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        px, py = self.P(x, y); c.translate(px, py); c.rotate(rotate)
+        (c.drawCentredString if center else c.drawString)(0, -size / 3 if center else 0, s)
+        c.restoreState()
+        if self.dxf: self.dxf.text(x, y, s, size / self.pt_per_ft, rotate=rotate, center=center)
+
+    # ---- theatre objects ----------------------------------------------
+    def pipe(self, x1, y, x2, label=None, width=2.0):
+        """A hanging position drawn as a heavy line, with its label above."""
+        self.layer("POSITIONS")
+        self.line(x1, y, x2, y, width=width)
+        if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
+
+    def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
+             trim=None, focus_h=5.5, lamp=None, show_pool=True, annotate=False):
+        """A lighting instrument: circle body, unit number inside, channel below,
+        gel/type beside, optional focus arrow to a real-world point.
+
+        With trim (hang height, ft) and focus_to, the photometrics are worked out:
+        throw, elevation, pan, field/beam pool at focus_h (head height, default 5'-6")
+        and centre-beam footcandles if the fixture is in photometrics.FIXTURES.
+        show_pool draws the field pool at the focus point; annotate prints the
+        numbers beside it. Returns the dict (or None if no trim/focus given).
+        Everything is recorded in self.units for the schedule and the section."""
+        self.layer("UNITS")
+        r = r if r is not None else ft(0, 9)             # 9-inch body reads at 1/4"
+        self.circle(x, y, r, width=1.0, fill=white)
+        self.text(x, y, str(num), size=7, center=True, bold=True)
+        if ch is not None:
+            self.text(x, y - r - ft(0, 8), f"ch {ch}", size=6, center=True)
+        side = []
+        if kind: side.append(kind)
+        if color_gel: side.append(color_gel)
+        if side: self.text(x + r + ft(0, 3), y - ft(0, 2), " · ".join(side), size=6)
+        result = None
+        if focus_to:
+            fx, fy = focus_to
+            self.line(x, y, fx, fy, width=0.5, dash=(3, 3), color=grey)
+            self.circle(fx, fy, ft(0, 3), width=0.5, color=grey)
+            if trim is not None:
+                import photometrics as ph
+                a = ph.aim((x, y, trim), (fx, fy, focus_h))
+                result = dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim, focus=(fx, fy),
+                              focus_h=focus_h, **a)
+                if kind in ph.FIXTURES:
+                    pl = ph.pool(kind, a["throw"], a["elevation"]); result.update(pl)
+                    fc, note = ph.footcandles(kind, a["throw"], lamp, gel=color_gel if color_gel and color_gel.upper() in ph.GELS else None)
+                    result["fc"], result["fc_note"] = fc, note
+                    if color_gel and color_gel.upper() not in ph.GELS:
+                        result["fc_note"] += f" — {color_gel} not in gels.csv, level is for open white"
+                    if show_pool and pl.get("field"):
+                        self.layer("NOTES")
+                        self.circle(fx, fy, pl["field"] / 2, width=0.4, dash=(2, 2), color=grey)
+                        self.layer("UNITS")
+                if annotate:
+                    t = f"{ph.fmt_ft(a['throw'])} @ {a['elevation']:.0f}°"
+                    if result.get("field"): t += f" · {ph.fmt_ft(result['field'])} pool"
+                    if result.get("fc"): t += f" · {result['fc']:.0f} fc"
+                    self.text(fx + ft(0, 6), fy - ft(1), t, size=5, color=grey)
+        if not hasattr(self, "units"): self.units = []
+        self.units.append(result or dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim, focus=focus_to))
+        return result
+
+    def dim(self, x1, y1, x2, y2, text=None, offset_ft=0.0):
+        """Dimension line with ticks and a distance label (feet-inches)."""
+        import math
+        self.layer("DIMS")
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if text is None:
+            whole = int(length); inches = round((length - whole) * 12)
+            if inches == 12: whole, inches = whole + 1, 0
+            text = f"{whole}'-{inches}\""
+        self.line(x1, y1, x2, y2, width=0.5)
+        nx, ny = (-dy / length, dx / length) if length else (0, 1)
+        t = ft(0, 4)
+        for (x, y) in ((x1, y1), (x2, y2)):
+            self.line(x - nx * t, y - ny * t, x + nx * t, y + ny * t, width=0.5)
+        ang = math.degrees(math.atan2(dy, dx))
+        self.text(x1 + dx / 2 + nx * ft(0, 6), y1 + dy / 2 + ny * ft(0, 6), text,
+                  size=7, center=True, rotate=ang)
+
+    def note(self, x, y, s, size=7):
+        self.layer("NOTES"); self.text(x, y, s, size=size, color=BROWN)
+
+    # ---- sheet furniture ----------------------------------------------
+    def finish(self):
+        """Scale bar, one-inch check, title block, then save."""
+        c = self.c; W, H = self.page_pt; m = self.margin
+        # clipping check — a drawing that runs off the sheet is worse than no drawing
+        x0b, y0b, x1b, y1b = self._bounds
+        if x1b > -1e8 and (x0b < m or y0b < m or x1b > W - m or y1b > H - m - 1.3 * inch):
+            real_w = (x1b - x0b) / self.pt_per_ft; real_h = (y1b - y0b) / self.pt_per_ft
+            avail_w = (W - 2 * m) / inch; avail_h = (H - 2 * m - 1.3 * inch) / inch
+            fit = min(avail_w / real_w, avail_h / real_h) if real_w and real_h else 0
+            best = max((k for k, v in SCALES.items() if v <= fit), key=lambda k: SCALES[k], default=None)
+            msg = (f"CLIPPED: drawing spans {real_w:.1f}' x {real_h:.1f}' but the sheet holds "
+                   f"{avail_w/self.paper_in_per_ft:.1f}' x {avail_h/self.paper_in_per_ft:.1f}' at {self.scale_label}. "
+                   + (f'Largest standard scale that fits this page: {best}" = 1\'-0". ' if best else "")
+                   + "Or use a bigger sheet, or rotate it.")
+            self.warnings.append(msg); print("⚠", msg, file=sys.stderr)
+        self.dxf, _dxf = None, self.dxf          # sheet furniture stays off the DXF
+        # border
+        c.setLineWidth(1.5); c.rect(m, m, W - 2 * m, H - 2 * m)
+        if self.base_note:
+            c.setFillColor(grey); c.setFont("Helvetica", 6); c.drawString(m + 6, m + 6, self.base_note)
+        # title block, lower right
+        tb_w, tb_h = 4.0 * inch, 1.1 * inch
+        x0, y0 = W - m - tb_w, m
+        c.setLineWidth(1.0); c.rect(x0, y0, tb_w, tb_h)
+        c.setFillColor(GREEN); c.setFont("Helvetica-Bold", 11)
+        c.drawString(x0 + 6, y0 + tb_h - 15, self.meta["show"] or "Untitled")
+        c.setFillColor(black); c.setFont("Helvetica", 8)
+        from reportlab.pdfbase.pdfmetrics import stringWidth
+        for i, key in enumerate(("venue", "sheet")):
+            t = self.meta[key]
+            if stringWidth(t, "Helvetica", 8) > tb_w - 12:
+                while stringWidth(t + "…", "Helvetica", 8) > tb_w - 12: t = t[:-1]
+                t += "…"
+            c.drawString(x0 + 6, y0 + tb_h - 27 - 12 * i, t)
+        import datetime
+        c.drawString(x0 + 6, y0 + tb_h - 51, f"Scale {self.scale_label}   Rev {self.meta['rev']}   "
+                                              f"{datetime.date.today().strftime('%Y.%m.%d')}")
+        c.setFillColor(BROWN); c.setFont("Helvetica-Bold", 8)
+        c.drawString(x0 + 6, y0 + 6, self.meta["designer"])
+        c.setFillColor(grey); c.setFont("Helvetica", 6)
+        c.drawRightString(x0 + tb_w - 6, y0 + 6, "Twin Oaks Studios — print at 100% / Actual size")
+        # scale bar: 0 to 10 ft in 1-ft ticks, left of title block
+        sx, sy = x0 - 0.4 * inch - 10 * self.pt_per_ft, m + 0.35 * inch
+        c.setStrokeColor(black); c.setFillColor(black); c.setLineWidth(1)
+        for i in range(10):
+            c.rect(sx + i * self.pt_per_ft, sy, self.pt_per_ft, 5, stroke=1, fill=(i % 2 == 0))
+        c.setFont("Helvetica", 6)
+        for i in (0, 5, 10):
+            c.drawCentredString(sx + i * self.pt_per_ft, sy - 8, f"{i}'")
+        c.drawString(sx, sy + 9, f"Scale {self.scale_label}")
+        # one-inch check bar: exactly 72 pt, tagged so --check can find it
+        cx, cy = sx, sy + 0.32 * inch
+        c.setLineWidth(1); c.rect(cx, cy, 72, 4, stroke=1, fill=0)
+        c.drawString(cx + 76, cy, 'this bar is 1" when printed at 100%')
+        c.save()
+        if _dxf and self.dxf_path: _dxf.save(self.dxf_path)
+
+
+def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", landscape=True,
+            axis="y", head_h=5.5, **meta):
+    """Side elevation from a list of unit dicts (as Sheet.units records them).
+
+    axis="y": the cut runs upstage–downstage; horizontal position is each unit's y.
+    axis="x": the cut runs across the stage; horizontal position is each unit's x.
+    Draws the deck, the grid/trim, each unit at its trim, the beam's centre line to
+    the focus point at head height, and the field-edge lines to the deck.
+    """
+    import photometrics as ph
+    s = Sheet(path, page=page, scale=scale, landscape=landscape,
+              sheet=meta.pop("sheet", "Section"), **meta)
+    s.origin(ft(3), ft(3))
+    s.layer("BASE")
+    s.rect(0, -ft(0, 4), deck_length, ft(0, 4), width=1.2, fill=grey)          # the deck, 4" thick
+    s.line(0, grid_height, deck_length, grid_height, width=0.5, dash=(4, 4), color=grey)
+    s.text(deck_length + ft(0, 6), grid_height, f"grid {ph.fmt_ft(grid_height)}", size=6, color=grey)
+    s.line(0, head_h, deck_length, head_h, width=0.3, dash=(1, 3), color=grey)
+    s.text(deck_length + ft(0, 6), head_h, f"head height {ph.fmt_ft(head_h)}", size=6, color=grey)
+    for u in units:
+        if u.get("trim") is None or not u.get("focus"): continue
+        h = u["y"] if axis == "y" else u["x"]
+        fh = u["focus"][1] if axis == "y" else u["focus"][0]
+        s.layer("POSITIONS"); s.circle(h, u["trim"], ft(0, 5), width=1.0, fill=white)
+        s.text(h, u["trim"], str(u["num"]), size=6, center=True, bold=True)
+        s.text(h, u["trim"] + ft(0, 10), f"trim {ph.fmt_ft(u['trim'])}", size=5, center=True, color=grey)
+        s.layer("NOTES"); s.line(h, u["trim"], fh, head_h, width=0.6, dash=(3, 2))
+        s.circle(fh, head_h, ft(0, 3), width=0.5)
+        f = ph.FIXTURES.get(u.get("kind"))
+        if f and f["field"]:
+            e = math.radians(u["elevation"]); half = math.radians(f["field"]) / 2
+            direction = 1 if fh >= h else -1
+            for ang in (e - half, e + half):
+                if ang <= 0.01: continue
+                run = u["trim"] / math.tan(ang)                                # to the deck
+                end = h + direction * run
+                if 0 <= end <= deck_length:
+                    s.line(h, u["trim"], end, 0, width=0.4, color=grey)
+                else:                                                          # leaves the deck: stop at the edge
+                    edge = deck_length if direction > 0 else 0
+                    frac = (edge - h) / (end - h) if end != h else 1
+                    s.line(h, u["trim"], edge, u["trim"] * (1 - frac), width=0.4, color=grey, dash=(1, 2))
+            lab = f"{u['kind']} · {ph.fmt_ft(u['throw'])} @ {u['elevation']:.0f}°"
+            if u.get("fc"): lab += f" · {u['fc']:.0f} fc"
+            s.text(fh, -ft(1, 2), lab, size=5, center=True, color=grey)
+    s.finish()
+    return s
+
+
+def check(path):
+    """Find the 1-inch check bar and report its width in points (want 72.0)."""
+    import fitz
+    doc = fitz.open(path)
+    for pno, page in enumerate(doc):
+        for d in page.get_drawings():
+            for item in d["items"]:
+                if item[0] == "re":
+                    r = item[1]
+                    if 3 <= r.height <= 5 and 60 <= r.width <= 84:
+                        print(f"page {pno+1}: check bar {r.width:.2f} pt wide "
+                              f"({'OK' if abs(r.width-72) < 0.05 else 'OFF'} — want 72.00)")
+                        return r.width
+    print("no check bar found"); return None
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--check":
+        check(sys.argv[2])
+    else:
+        print(__doc__)

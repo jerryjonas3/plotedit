@@ -1,0 +1,9 @@
+# The computation half — already working, copied from My AI Brain/my-skills/plot
+reportlab>=4.0        # architectural-scale PDF
+ezdxf>=1.4            # DXF in and out
+openpyxl>=3.1         # Lightwright XLSX exports
+PyMuPDF>=1.24         # reading PDFs (datasheets, checking our own output)
+
+# The service wrapper — not written yet
+fastapi>=0.115
+uvicorn[standard]>=0.30
