@@ -212,11 +212,24 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
   **All that remains is a hazer and a strobe, which are not luminaires.** That is
   the correct floor, not a gap.
 
-- **🔴 Ask Altman for the Spectra Cyc IES file.** Altman publishes NO candela,
-  footcandle or beam figures anywhere; their own specification says *"IES
-  Photometric files shall be available from the manufacturer."* One email gets
-  real numbers for eight instruments in the archive. Until then the Spectra Cyc
-  resolves, draws, and says why it has no level.
+- ~~Ask Altman for the Spectra Cyc IES file.~~ ✅ **Jerry found them on Altman's
+  support page, 2026.09.23.** No email needed — Altman publish IES for the
+  Spectra Cyc **100 and 200** (not the 50). `ies.py` parses LM-63, and the
+  Spectra Cyc 100 is now the one fixture in the table whose figures come from a
+  **real 46 × 73 goniometric measurement** rather than a datasheet table:
+  4,612 cd, 4,727 lm, 94.1 W, peak at 70° off nadir. The datasheet corroborates
+  the lumens exactly.
+
+- **🔴 Were the Wizard of Oz cycs 50s or 100s?** The paperwork says
+  `Altman Spectra CYC 50` at 50w — but in Lightwright the load comes from the
+  library entry for the named fixture, so the name and the wattage are ONE fact,
+  not two. **Jerry believes they were 100s.** Both models are in the table; the
+  alias still points the paperwork name at the 50, which has no photometrics.
+  **Settle it and the alias changes, and four instruments gain real numbers.**
+
+- **More IES files are worth having.** Altman publish them for several fixtures;
+  ETC publish IES for the whole Source Four and ColorSource range. Anywhere a
+  datasheet is thin, the IES is not.
 
 - **Symbols.** Still the open question from day one. Jerry's convention is Field
   Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are

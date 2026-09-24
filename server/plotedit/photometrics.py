@@ -181,8 +181,32 @@ FIXTURES = {
                    family="Cyc", lumens=1661, colors=4, spacing_ft=4.0,
                    source="Altman SSCYC50 datasheet rev2 2020-10-08 + specification "
                           "2020-07-31: asymmetrical, NO photometrics published. "
-                          "Request the IES file from Altman to get real figures. "
+                          "Altman publishes IES for the 100 and 200 but NOT the 50 — see "
+                          "'Altman Spectra Cyc 100 RGBA', whose figures are real. "
                           "Designed for 4-foot centres."),
+
+    # ⭐ Altman Spectra Cyc 100 — the ONE fixture here whose figures come from a
+    # real goniometric measurement rather than a datasheet table. Altman publish
+    # no numbers for the Spectra Cyc range, but they DO publish IES files for the
+    # 100 and 200: a 46 x 73 measurement by Radiant Vision Systems, 2018.
+    # Parsed by ies.py; the datasheet corroborates the lumens exactly.
+    #
+    # ⚠ Asymmetric on purpose — 0.91 asymmetry, peak intensity at 70° off nadir,
+    # because it stands at the base of a cyc and throws UP it. The beam and field
+    # angles below describe the vertical plane through that peak. They are NOT
+    # comparable to an ellipsoidal's, and wash_spacing() must not be used on it.
+    "Altman Spectra Cyc 100 RGBA": dict(field=86.5, beam=32.4, cd=4612, ref_lamp="LED RGBA",
+                   family="Cyc", lumens=4727, watts=94.1, colors=4, spacing_ft=4.0,
+                   asymmetric=True, peak_vertical_deg=70.0,
+                   source="Altman SSCYC100-RGBA IES, Radiant Vision Systems 2018-04-20 "
+                          "(46x73 goniometric); datasheet SSCYC100 rev1 confirms 4,727 lm / 100 W. "
+                          "ASYMMETRIC — angles are the vertical plane through the peak at 70°."),
+    "Altman Spectra Cyc 100 RGBW": dict(field=86.5, beam=32.4, cd=4739, ref_lamp="LED RGBW",
+                   family="Cyc", lumens=4856, watts=94.6, colors=4, spacing_ft=4.0,
+                   asymmetric=True, peak_vertical_deg=70.0,
+                   source="Altman SSCYC100-RGBW IES, Radiant Vision Systems 2018-04-09 "
+                          "(46x73 goniometric); datasheet confirms 4,856 lm / 100 W. "
+                          "ASYMMETRIC — angles are the vertical plane through the peak at 70°."),
 
     "SHEHDS 19": dict(field=19.0, beam=None, cd=None, ref_lamp="LED 350W", family="LED",
                    source="SHEHDS 350W RGBW Profile manual: 'Beam Angle 19°'. No output data published — measure it."),

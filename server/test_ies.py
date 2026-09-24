@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""The IES parser, against Altman's real Spectra Cyc 100 measurement.
+
+    cd server && python3 test_ies.py
+
+Altman publish no photometric numbers in any datasheet for the Spectra Cyc range,
+but they do publish IES files for the 100 and 200. This is how those become
+usable — and the datasheet corroborates the parse exactly.
+"""
+import os
+import sys
+
+from plotedit.ies import read
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+IES = os.path.join(HERE, "..", "..", "..", "Documents", "AI Brain", "My-AI-Brain",
+                   "My AI Brain", "my-files (knowledge)", "fixture-manuals", "ies")
+FAILS = []
+
+
+def check(label, got, want):
+    ok = got == want
+    print(f"  {'ok  ' if ok else 'FAIL'} {label:<50} {got}")
+    if not ok:
+        FAILS.append(f"{label}: got {got!r}, wanted {want!r}")
+
+
+path = os.path.join(IES, "SSCYC100-RGBA_2018-04-22.ies")
+if not os.path.exists(path):
+    print(f"skipped — no IES file at {path}")
+    sys.exit(0)
+
+p = read(path)
+print("Altman Spectra Cyc 100 RGBA")
+check("manufacturer", p["keywords"]["MANUFAC"], "ALTMAN")
+check("lumens match the datasheet's 4,727", p["lumens"], 4727.0)
+check("watts", p["watts"], 94.1)
+check("max candela", round(p["max_candela"]), 4612)
+check("Type C photometry", p["photometric_type"], "Type C")
+check("46 vertical angles", len(p["vertical_angles"]), 46)
+check("73 horizontal angles", len(p["horizontal_angles"]), 73)
+
+print("\nit is asymmetric, and says so")
+check("not symmetric", p["symmetric"], False)
+check("strongly so", p["asymmetry"] > 0.5, True)
+# A cyc light stands at the base of the cloth and throws UP it, so peak
+# intensity is well off nadir. That is the fixture working as designed, not an
+# error in the file.
+check("peak 70° off nadir", p["peak_vertical_deg"], 70.0)
+
+print("\nbad input is refused")
+try:
+    read("not an ies file\nat all\n")
+    check("a non-IES file raises", "no error", "ValueError")
+except ValueError:
+    check("a non-IES file raises", "ValueError", "ValueError")
+
+print()
+if FAILS:
+    print(f"{len(FAILS)} FAILED")
+    for f in FAILS:
+        print("   ", f)
+    sys.exit(1)
+print("all passed")

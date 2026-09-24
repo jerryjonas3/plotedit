@@ -77,7 +77,12 @@ ALIASES = {
     "s4 led 19": "Lustr 19 EDLT",
     "s4 led 50": "Lustr 50 LT",
     "spectra cyc 50": "Altman Spectra Cyc 50",
-    "spectra cyc": "Altman Spectra Cyc 50",
+    "spectra cyc 100": "Altman Spectra Cyc 100 RGBA",
+    "spectra cyc 100 rgba": "Altman Spectra Cyc 100 RGBA",
+    "spectra cyc 100 rgbw": "Altman Spectra Cyc 100 RGBW",
+    # bare "Spectra Cyc" with no model resolves to the 100, the only one with
+    # real measured photometrics
+    "spectra cyc": "Altman Spectra Cyc 100 RGBA",
 }
 
 # Real fixtures with no photometrics on file, and why. The photometric table is

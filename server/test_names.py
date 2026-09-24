@@ -74,6 +74,20 @@ check("Altman note names the way to get real figures",
       "IES" in _row["source"], True)
 check("...and the 4-foot centres, which change a plot", _row["spacing_ft"], 4.0)
 
+print("\nAltman Spectra Cyc — the 100 has a real goniometric measurement")
+k, row, _ = ph.lookup("Spectra Cyc 100")
+check("resolves to the RGBA", k, "Altman Spectra Cyc 100 RGBA")
+check("candela from the IES file", row["cd"], 4612)
+check("lumens match the datasheet", row["lumens"], 4727)
+check("marked asymmetric", row["asymmetric"], True)
+check("peak is 70° off nadir — it throws UP a cyc", row["peak_vertical_deg"], 70.0)
+check("and a level can be computed",
+      round(ph.footcandles("Spectra Cyc 100", 14)[0]), 24)
+# The 50 still has nothing; Altman publish IES for the 100 and 200 only.
+_, row50, _ = ph.lookup("Altman Spectra CYC 50")
+check("the 50 still has no candela", row50["cd"], None)
+check("...and points at the 100, which does", "100" in row50["source"], True)
+
 print("\nreal fixtures with no data give a REASON, not silence")
 for raw, fragment in [
     ("Altman 6in Fres", "no datasheet"),
