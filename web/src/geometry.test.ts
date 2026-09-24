@@ -1,5 +1,6 @@
 /** Run: cd web && npm test */
-import { toScreen, toPlot, len, fitView, fohExtent, fmtFt, svgTransform, notationAnchor, symbolRadius, type View } from "./geometry.js";
+import { toScreen, toPlot, len, fitView, fohExtent, fmtFt, svgTransform, notationAnchor, symbolRadius,
+         symbolTransform, lensDirection, type View } from "./geometry.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -113,6 +114,35 @@ console.log("\nthe canvas makes room for the boom elevations");
   check("and its stage-right wall", toScreen({ x: 33, y: 0 }, v2).x <= 800, true);
   const v0 = fitView(33, 38, 800, 600, 3, 0, 0);
   check("no booms, no extra space", +v0.panX.toFixed(4), +(-(800 / v0.scale - 33) / 2).toFixed(4));
+}
+
+console.log("\nan instrument points where it is aimed");
+// 🔴 Jerry, 2026.09.24: "the instruments on the US DS electric are pointing the
+// wrong way when they are focused." render.ts wrote rotate(-pan), which agrees
+// with symbols.draw() at 0 and 180 — where sin is zero — and MIRRORS it at ±90.
+//
+// ⚠ This checks where the LENS lands after SVG's own rotation matrix, not which
+// angle we chose to write. Asserting the angle would just restate the code; the
+// question is which way the light ends up facing.
+//
+// The convention is symbols.draw()'s: 0 aims downstage (-y), 90 stage right.
+for (const [deg, want] of [
+  [0, { x: 0, y: -1 }], [90, { x: 1, y: 0 }],
+  [180, { x: 0, y: 1 }], [270, { x: -1, y: 0 }],
+] as [number, { x: number; y: number }][]) {
+  check(`aimed at ${deg}deg the lens faces ${JSON.stringify(want)}`,
+        round(lensDirection(deg)), round(want));
+}
+check("off-axis too", round(lensDirection(45)), { x: 0.7071, y: -0.7071 });
+
+// And the transform render() actually writes carries that same angle, so the
+// check above is about the drawing rather than about an unused function.
+{
+  const t = symbolTransform(5.5, 20, 90);
+  check("the transform places the unit", t.startsWith("translate(5.5 20)"), true);
+  const deg = Number(/rotate\(([-\d.]+)\)/.exec(t)![1]);
+  check("...and rotates it the way the lens test assumes",
+        round(lensDirection(deg)), { x: 1, y: 0 });
 }
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }

@@ -9,7 +9,8 @@
  * carries the scale and the y flip, so the markup reads in the units of the
  * room — which matters when something looks wrong on screen.
  */
-import { svgTransform, counterFlip, fmtFt, notationAnchor, symbolRadius, type View } from "./geometry.js";
+import { svgTransform, counterFlip, fmtFt, notationAnchor, symbolRadius,
+         symbolTransform, type View } from "./geometry.js";
 import { symbolKey, isVertical, isFoh, type Plot, type Instrument } from "./plot.js";
 import type { SymbolPrim, BoomElevation, PositionLabel } from "./api.js";
 
@@ -404,7 +405,10 @@ function symbol(inst: Instrument, c: Computed | undefined,
   const truePan = c?.pan ?? 0;
   const pan = (symbolAngle ?? "orthogonal").startsWith("orth")
     ? Math.round(truePan / 90) * 90 : truePan;
-  const body = el("g", { transform: `translate(${inst.x} ${inst.y}) rotate(${-pan})` });
+  // 🔴 NOT -pan. See symbolTransform: negating the angle agrees with the paper
+  // at 0 and 180 and mirrors it at ±90, so every sideways unit pointed the
+  // wrong way.
+  const body = el("g", { transform: symbolTransform(inst.x, inst.y, pan) });
 
   if (!prims) {
     // The server has not answered yet, or the type is unknown. Draw a plain
@@ -576,7 +580,9 @@ function elevation(b: BoomElevation, all: Instrument[],
       && (i.position ?? "").trim().toUpperCase() === b.name);
     const st = el("g", {
       class: "instrument" + (idx >= 0 && idx === selected ? " selected" : ""),
-      transform: `translate(${x + b.unit_gap} ${uy}) rotate(-90)`,
+      // ⚠ +90, matching scaled_pdf's boom_elevation(rotate_deg=90): the units
+      // point AWAY from the pipe. This had the same mirrored sign as the plan.
+      transform: symbolTransform(x + b.unit_gap, uy, 90),
     });
     // The same halo in the elevation — it is the only place a boom unit can be
     // selected, so it is the only place the selection can show.

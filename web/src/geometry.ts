@@ -170,3 +170,43 @@ export function symbolRadius(prims: readonly unknown[] | undefined): number {
   }
   return best;
 }
+
+/** The transform that places and aims an instrument symbol.
+ *
+ * 🔴 Jerry, 2026.09.24: "the instruments on the US DS electric are pointing the
+ * wrong way when they are focused."
+ *
+ * render.ts wrote `rotate(-pan)`. SVG's rotate(θ) sends (x, y) to
+ * (x·cosθ − y·sinθ, x·sinθ + y·cosθ), and a symbol's nose sits at local
+ * (a, c) = (−1, 0), plotted at (c, a) = (0, −1). Negating the angle therefore
+ * agrees with symbols.draw() at 0° and 180° — where sin is zero — and MIRRORS
+ * it at ±90°:
+ *
+ *      pan    paper      screen, with -pan
+ *        0   (0, −1)     (0, −1)   same
+ *       90   (+1, 0)     (−1, 0)   OPPOSITE
+ *      180   (0, +1)     (0, +1)   same
+ *      270   (−1, 0)     (+1, 0)   OPPOSITE
+ *
+ * ⚠ It survived because nothing drawn in plan had ever aimed sideways. Every
+ * unit in the sample aims up or downstage, and boom units — which do aim across
+ * — stopped being drawn in plan when they moved to the §6.12 elevations. The
+ * first pipe running up and downstage put five units at pan ±90 and the error
+ * appeared at once.
+ */
+export function symbolTransform(x: number, y: number, drawnDeg: number): string {
+  return `translate(${x} ${y}) rotate(${drawnDeg})`;
+}
+
+/** Where the LENS points, for a symbol placed by symbolTransform.
+ *
+ * This applies SVG's own rotation matrix to the nose, so it is a statement
+ * about what the browser will draw — not a restatement of the angle we chose.
+ * It has to agree with symbols.draw(): 0° aims downstage, 90° stage right.
+ */
+export function lensDirection(drawnDeg: number): Pt {
+  const r = (drawnDeg * Math.PI) / 180;
+  const cos = Math.cos(r), sin = Math.sin(r);
+  const nx = 0, ny = -1;                       // the nose in the symbol's own frame
+  return { x: nx * cos - ny * sin, y: nx * sin + ny * cos };
+}
