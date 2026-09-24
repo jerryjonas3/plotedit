@@ -547,20 +547,22 @@ def _where(label, **kw):
     sym.notation(r, 0.0, 0.0, **kw)
     return next(((x, y) for x, y, t in r.texts if t == label), None)
 
-# ⚠ NOT at the origin. The origin is the yoke and the yoke is clamped to the
-# pipe, so a number drawn there has a heavy batten line straight through it.
-_at0 = _where("7", unit=7, rotate_deg=0.0)
+# The number goes at the SYMBOL'S CENTRE, which unit() measures per fixture —
+# an ERS's centre sits forward of its yoke, a PAR's almost on it.
+_C = (lambda lo_hi: (lo_hi[0] + lo_hi[1]) / 2)(sym._extent(sym.for_type("S4 26")))
+check("an S4's centre is forward of its yoke", _C < 0, True)
+
+_at0 = _where("7", unit=7, rotate_deg=0.0, body_center=_C)
 check("the unit number is drawn", _at0 is not None, True)
-check("...and NOT at the yoke", _at0 != (0.0, 0.0), True)
-check("...but toward the BACK of the instrument (+y when it points -y)",
-      _at0[1] > 0, True)
+check("...at the centre, not the yoke", round(_at0[1], 2) != 0.0, True)
+check("...which for an ERS is toward the lens", _at0[1] < 0, True)
 
 # It must follow the symbol round, or it lands outside the body the moment a
 # unit is rotated to its focus.
-_at90 = _where("7", unit=7, rotate_deg=90.0)
-_at180 = _where("7", unit=7, rotate_deg=180.0)
+_at90 = _where("7", unit=7, rotate_deg=90.0, body_center=_C)
+_at180 = _where("7", unit=7, rotate_deg=180.0, body_center=_C)
 check("rotating 90° moves it sideways", abs(_at90[0]) > abs(_at90[1]), True)
-check("rotating 180° flips it", _at180[1] < 0, True)
+check("rotating 180° flips it", _at180[1] > _at0[1], True)
 # ⚠ Measure the ALONG-AXIS offset only. There is also a small fixed nudge that
 # centres the text on its own baseline, and that one must NOT rotate — the text
 # stays horizontal (RP-2 p.1: "the associated text should be properly oriented
@@ -572,9 +574,61 @@ check("0° and 180° are symmetric about the baseline nudge",
 check("...and neither strays sideways", (_at0[0], _at180[0]), (0.0, 0.0))
 
 # §6.14.2 puts the wattage below the number, still inside — further back.
-_w0 = _where("575", unit=7, wattage=575, rotate_deg=0.0)
+_w0 = _where("575", unit=7, wattage=575, rotate_deg=0.0, body_center=_C)
 check("the wattage is drawn too", _w0 is not None, True)
 check("...further back than the number", _w0[1] > _at0[1], True)
+check("...and the number still clears the pipe at the yoke",
+      abs(_at0[1]) > 0.05, True)
+
+
+print("\nthe instrument is drawn as if it sits ABOVE the pipe")
+# Jerry, 2026.09.23: "the instrument has to be drawn so that the pipe does not go
+# through it — as if the instrument is above it, even though it's not." Two
+# payoffs: the symbol reads as one object, and the body becomes white space the
+# unit number can live in.
+
+
+class _Order:
+    """Records the ORDER of drawing calls, which is what occlusion depends on."""
+    def __init__(self):
+        self.calls = []
+    def fill_poly(self, pts, **k):
+        self.calls.append(("fill", len(pts)))
+    def line(self, *a, **k):
+        self.calls.append(("line", None))
+    def circle(self, *a, **k):
+        self.calls.append(("circle", None))
+    def text(self, *a, **k):
+        self.calls.append(("text", None))
+
+
+_o = _Order()
+sym.draw(_o, sym.for_type("S4 26"), 0, 0)
+_kinds = [k for k, _ in _o.calls]
+check("the body is filled", "fill" in _kinds, True)
+# ⭐ Every fill must come BEFORE every stroke, or the paint covers the outline.
+check("...before anything is stroked",
+      max(i for i, k in enumerate(_kinds) if k == "fill")
+      < min(i for i, k in enumerate(_kinds) if k != "fill"), True)
+
+# Only CLOSED shapes are filled — an open outline has no inside, and filling it
+# would paint a wedge of white across the drawing.
+_o2 = _Order()
+sym.draw(_o2, [("poly", [(0, 0), (1, 0), (1, 1)], False)], 0, 0)
+check("an open poly is NOT filled", [k for k, _ in _o2.calls].count("fill"), 0)
+
+# A sheet without fill_poly must still draw — the section and any other caller
+# should degrade to outlines rather than raise.
+class _NoFill:
+    def line(self, *a, **k): pass
+    def circle(self, *a, **k): pass
+    def text(self, *a, **k): pass
+try:
+    sym.draw(_NoFill(), sym.for_type("S4 26"), 0, 0)
+    _ok = True
+except Exception:
+    _ok = False
+check("a sheet with no fill_poly still draws", _ok, True)
 
 print()
 if FAILS:

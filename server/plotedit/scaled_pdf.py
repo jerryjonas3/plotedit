@@ -181,6 +181,33 @@ class Sheet:
         c.circle(*self.P(x, y), self.L(r), stroke=1, fill=1 if fill else 0); c.restoreState()
         if self.dxf: self.dxf.circle(x, y, r)
 
+    def fill_poly(self, points, color=white):
+        """Paint a closed polygon with no outline — used to OCCLUDE what is under it.
+
+        ⭐ An instrument is drawn as if it sits ABOVE the pipe, even though it
+        hangs below: the batten must not run through the symbol (Jerry,
+        2026.09.23). That is what makes the body a place you can write a unit
+        number. Nothing is stroked here — the outline is drawn afterwards by the
+        symbol's own lines, so the DXF export still gets real geometry rather
+        than a filled blob.
+        """
+        if len(points) < 3:
+            return
+        c = self.c
+        c.saveState()
+        c.setFillColor(color)
+        path = c.beginPath()
+        first = True
+        for x, y in points:
+            px, py = self.P(x, y)
+            if first:
+                path.moveTo(px, py); first = False
+            else:
+                path.lineTo(px, py)
+        path.close()
+        c.drawPath(path, stroke=0, fill=1)
+        c.restoreState()
+
     def text(self, x, y, s, size=8, center=False, color=black, rotate=0, bold=False):
         c = self.c; c.saveState(); c.setFillColor(color)
         c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
@@ -412,11 +439,28 @@ class Sheet:
         if (symbol_angle or "orthogonal").startswith("orth"):
             draw_deg = round(pan / 90.0) * 90.0
 
-        _prims = _sym.for_type(kind, lens_rotation)
+        _base = _sym.for_type(kind, lens_rotation)
+        # The centre comes from the BARE instrument. Accessories hang off the
+        # nose, so measuring the accessorised symbol would drag the "centre"
+        # forward out of the body and put the number on a barn door.
+        _lo, _hi = _sym._extent(_base)
+        _center = (_lo + _hi) / 2.0
+        _prims = _base
         if accessories:
             _prims, _unknown = _sym.with_accessories(_prims, accessories)
             for w in _unknown:
                 self.warnings.append(f"unit {num}: {w}")
+        # ⭐ The focus leader goes UNDER the symbol, for the same reason the pipe
+        # does: the instrument is drawn as if it sits above everything it is
+        # attached to. Drawn after, the leader runs across the body and through
+        # the unit number — which is exactly the mess that putting the number
+        # inside the body was meant to avoid.
+        if focus_to:
+            self.layer("NOTES")
+            self.line(x, y, focus_to[0], focus_to[1], color=grey, style="leader")
+            self.circle(focus_to[0], focus_to[1], ft(0, 3), color=grey, style="leader")
+            self.layer("UNITS")
+
         _sym.draw(self, _prims, x, y, rotate_deg=draw_deg)
 
         # §6.14 notation. RP-2 allows leaving categories out rather than
@@ -430,12 +474,11 @@ class Sheet:
         _clear = _sym.radius(_prims) + ft(0, 3)
         _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
                       circuit=circuit, dimmer=dimmer, wattage=wattage,
-                      control=control, rotate_deg=draw_deg, above=_clear)
+                      control=control, rotate_deg=draw_deg,
+                      body_center=_center, above=_clear)
         result = None
         if focus_to:
             fx, fy = focus_to
-            self.line(x, y, fx, fy, color=grey, style="leader")
-            self.circle(fx, fy, ft(0, 3), color=grey, style="leader")
             if trim is not None:
                 from . import photometrics as ph
                 a = ph.aim((x, y, trim), (fx, fy, focus_h))

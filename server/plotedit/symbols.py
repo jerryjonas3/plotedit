@@ -604,6 +604,16 @@ def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):
         lx, ly = pc, pa
         return (x + lx * ca - ly * sa, y + lx * sa + ly * ca)
 
+    # ⭐ Paint every closed body FIRST, in white, so the instrument occludes the
+    # pipe it hangs from. Jerry, 2026.09.23: "the instrument has to be drawn so
+    # that the pipe does not go through it — as if the instrument is above it,
+    # even though it's not." Two payoffs: the symbol reads as one object, and the
+    # body becomes white space a unit number can live in.
+    if hasattr(sheet, "fill_poly"):
+        for p in prims:
+            if p[0] == "poly" and p[2]:
+                sheet.fill_poly([T(*q) for q in p[1]])
+
     for p in prims:
         kind = p[0]
         if kind == "poly":
@@ -698,7 +708,7 @@ CONTROL_MODELS = ("dimmer-per-circuit", "hard-and-soft-patch", "no-soft-patch")
 
 def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
              color=None, purpose=None, unit=None, wattage=None,
-             control="dimmer-per-circuit", rotate_deg=0.0,
+             control="dimmer-per-circuit", rotate_deg=0.0, body_center=0.0,
              size=0.42, gap=0.30, above=1.0):
     """§6.14.1 — the SHAPE of the container carries the meaning.
 
@@ -760,10 +770,10 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
         return (x - d * _sa, y + d * _ca)
 
     if unit is not None:
-        ux, uy = _along(size * 0.62)
+        ux, uy = _along(body_center)
         sheet.text(ux, uy - size * 0.2, str(unit), size=7, center=True, bold=True)
     if wattage:
-        wx, wy = _along(size * 1.25)
+        wx, wy = _along(body_center + size * 0.9)
         sheet.text(wx, wy - size * 0.16, str(wattage), size=5, center=True)
 
     # below the symbol: circuit (hex), dimmer (rect), channel (circle)
