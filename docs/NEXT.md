@@ -652,3 +652,39 @@ both "down and upstage" and "down and downstage", so half the rig was drawn
 aiming backwards while every number on the sheet stayed correct. It now comes
 from the real direction vector, and the tests check the nose direction in all
 three cases.
+
+---
+
+## The instrument key — 2026.09.23
+
+**`key.py` + `plot_to_key.py`**, to RP-2 §5.1's list. §5.0: *"Placement is
+acceptable in any location that does not conflict with other information"* — so
+it renders on its own sheet, and `key.draw()` is the same function, ready to drop
+onto the plot once there is room.
+
+**⭐ A key is not a parts list. It is the drawing's own dictionary** — it says
+what each shape means so a stranger can read the plot without asking the
+designer. That is why §5.1 asks for the SYMBOLS and not just names, and why they
+are drawn at the plot's own scale: a key drawn at a different size teaches a
+shape the reader will never see again.
+
+To the list: every luminaire with its count and description · **field and beam
+angles** · wattage · every notation explained, and the explanation changes with
+the house's control model · colours with transmission · **colour manufacturer
+designations, but only the ones actually used** (a key explaining L = Lee on a
+plot with no Lee wastes the reader's attention) · accessories with their symbols.
+
+**⚠ It reports what is ON THE PLOT, never the fixture table.** A key listing
+instruments nobody hung is a key nobody finishes reading. And a type the tool
+cannot identify is **flagged in the key** rather than quietly given no angle —
+the key is what someone reads instead of asking.
+
+**On beam spread:** §5.1 says give it "if the numeric value is not part of the
+luminaire's name". It is given always, because `S4 26` names the **nominal**
+barrel while the measured field is 25° and the beam 18°. The name is the product;
+these are the light.
+
+**The layout bug worth remembering:** the first version spaced rows by a constant
+and drew the symbols nose-up, so a 1'-8" ellipsoidal overlapped the row above it.
+Rows are spaced by each symbol's own radius now. **A key whose symbols collide
+teaches the wrong shape, which is worse than no key.**
