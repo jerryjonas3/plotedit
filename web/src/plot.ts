@@ -107,7 +107,19 @@ export interface Room {
   basePlan?: string;
 }
 
+/** How the HOUSE gets power to a lamp — RP-2 §6.14.1, and it changes the plot's
+ *  notation, not just its data.
+ *
+ *  "dimmer-per-circuit" is most houses (Jerry, 2026.09.23): the circuit is
+ *  hard-wired to its own dimmer, so circuit and dimmer are ONE number and RP-2
+ *  draws a single hexagon labelled "Circuit & Dimmer". Drawing two containers
+ *  there is not harmlessly redundant — it tells the electrician there is a patch
+ *  to make, and there is not. */
+export type ControlModel = "dimmer-per-circuit" | "hard-and-soft-patch" | "no-soft-patch";
+
 export interface Plot {
+  /** The house's control model. Defaults to dimmer-per-circuit. */
+  control?: ControlModel;
   /** Bump when the shape changes incompatibly. */
   formatVersion: 1;
   show: string;

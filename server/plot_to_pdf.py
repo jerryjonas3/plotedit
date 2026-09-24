@@ -52,7 +52,8 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    mode=inst.get("mode"),
                    lens_rotation=inst.get("lensRotation"),
                    accessories=inst.get("accessories"),
-                   circuit=inst.get("circuit"), dimmer=inst.get("dimmer"))
+                   circuit=inst.get("circuit"), dimmer=inst.get("dimmer"),
+                   control=plot.get("control", "dimmer-per-circuit"))
         rows.append(r)
 
     if room.get("source"):

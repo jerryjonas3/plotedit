@@ -260,6 +260,53 @@ check("more units than circuits is flagged",
 check("...and the twofer it made is named",
       any("twofer" in m for m in _notes), True)
 
+
+print("\ndimmer-per-circuit: the circuit and the dimmer are ONE number")
+# Jerry, 2026.09.23: "most houses have circuit per dimmer." RP-2 6.14.1 notates
+# the three control models differently, and in this one a second container tells
+# the electrician there is a patch to make when there is not.
+check("the three models are named", len(sym.CONTROL_MODELS), 3)
+_pp = [{"name": "E1", "x1": 0, "y1": 16, "x2": 33, "y2": 16,
+        "circuits": [3, 4], "circuitSource": "rep plot"}]
+_ii = [{"unit": 1, "position": "E1", "circuit": 3, "dimmer": 3},
+       {"unit": 2, "position": "E1", "circuit": 4, "dimmer": 112}]
+check("circuit != dimmer is caught in a dimmer-per-circuit house",
+      any("one number" in m for m in C.check(_ii, _pp)), True)
+check("...and is fine in a patch house",
+      any("one number" in m for m in C.check(_ii, _pp, control="hard-and-soft-patch")),
+      False)
+
+print("\nload: a tungsten unit's watts belong to its LAMP")
+# The same Source Four is 575W or 750W depending on what is in it, so a wattage
+# stored against the fixture would be wrong for half the rig.
+check("HPL 575 is 575 watts", ph.lamp_watts("HPL 575"), 575.0)
+check("HPL 750 is 750", ph.lamp_watts("HPL 750"), 750.0)
+check("the long-life 575X is still 575", ph.lamp_watts("HPL 575X"), 575.0)
+# ⭐ The one that matters. A loose number-search finds 3200 in "Regulated 3200K"
+# and calls it 3200 watts — a number that looks real, lands in a load total and
+# trips a breaker. An LED MODE IS NOT A LAMP.
+check("an LED mode is NOT a lamp", ph.lamp_watts("Regulated 3200K"), None)
+check("nor is a bare colour temperature", ph.lamp_watts("5600K"), None)
+check("nor is a mode with no number", ph.lamp_watts("Boost"), None)
+
+_load = [{"unit": u, "position": "E1", "circuit": 3, "type": "S4 26", "lamp": "HPL 575"}
+         for u in (1, 2, 3, 4)]
+_rows, _notes = C.load(_load, _pp, dimmer_watts=2400)
+check("four 575s is 2300W", _rows[0]["watts"], 2300.0)
+check("...which is inside 2400", _rows[0]["headroom_pct"] > 0, True)
+_rows, _notes = C.load(_load + [dict(_load[0], unit=5, lamp="HPL 750")], _pp,
+                       dimmer_watts=2400)
+check("a fifth unit puts it over", any("is OVER" in m for m in _notes), True)
+
+# ⚠ Without a rating nothing is judged. A capacity check against a number nobody
+# confirmed reads as a pass, which is worse than no check at all.
+check("no rating means no verdict",
+      any("nothing is judged" in m for m in C.load(_load, _pp)[1]), True)
+check("units with no wattage are named, and the total called a floor",
+      any("a floor, not a total" in m
+          for m in C.load([{"unit": 9, "position": "E1", "circuit": 3,
+                            "type": "SHEHDS 19"}], _pp)[1]), True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

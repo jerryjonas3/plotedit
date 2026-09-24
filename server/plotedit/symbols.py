@@ -613,14 +613,36 @@ def for_type(kind, lens_rotation=None):
     return enhanced_ers(deg)
 
 
+# §6.14.1 gives THREE house control models, and they are notated differently.
+# Jerry, 2026.09.23: "most houses have circuit per dimmer" — so that is the
+# default here, and it is the one where the third container is WRONG rather than
+# merely absent.
+CONTROL_MODELS = ("dimmer-per-circuit", "hard-and-soft-patch", "no-soft-patch")
+
+
 def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
              color=None, purpose=None, unit=None, wattage=None,
+             control="dimmer-per-circuit",
              size=0.42, gap=0.30, above=1.0):
     """§6.14.1 — the SHAPE of the container carries the meaning.
 
         hexagon    circuit
         rectangle  dimmer (in a patch-panel house)
         circle     channel
+
+    ⭐ How many containers there are depends on the HOUSE, per §6.14.1:
+
+      `dimmer-per-circuit`   Most houses (Jerry, 2026.09.23). The circuit is
+                             hard-wired to its own dimmer, so the two numbers are
+                             ONE fact. RP-2 draws a single hexagon and labels it
+                             "Circuit & Dimmer". **Drawing two containers here is
+                             not tidy-but-redundant — it tells the electrician
+                             there is a patch to make, and there is not.**
+      `hard-and-soft-patch`  Hexagon (circuit), rectangle (dimmer), circle
+                             (channel). All three, because all three differ.
+      `no-soft-patch`        Hexagon (circuit) and circle (dimmer). The console
+                             addresses dimmers directly; there is no channel
+                             number distinct from the dimmer.
 
     §6.14.2 stacks them below the symbol, with focus and color above it.
 
@@ -646,6 +668,14 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     if wattage:
         sheet.text(x, by, str(wattage), size=5.5, center=True)
         by -= gap * 0.8
+
+    # In a dimmer-per-circuit house the circuit and the dimmer are one number,
+    # so a dimmer that merely repeats the circuit is not drawn twice.
+    if control == "dimmer-per-circuit":
+        if circuit is None and dimmer is not None:
+            circuit, dimmer = dimmer, None
+        elif dimmer is not None and str(dimmer) == str(circuit):
+            dimmer = None
 
     if circuit is not None:
         pts = [(x + size * 0.58 * _m.cos(a), by - size * 0.5 + size * 0.58 * _m.sin(a))

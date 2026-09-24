@@ -296,6 +296,7 @@ class Sheet:
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, circuit=None, dimmer=None,
+             control="dimmer-per-circuit",
              show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
@@ -338,7 +339,8 @@ class Sheet:
         # §6.14.1: hexagon = circuit, rectangle = dimmer, circle = channel. The
         # SHAPE carries the meaning, so a circuit must never be drawn in a circle.
         _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
-                      circuit=circuit, dimmer=dimmer, above=ft(0, 11))
+                      circuit=circuit, dimmer=dimmer, control=control,
+                      above=ft(0, 11))
         result = None
         if focus_to:
             fx, fy = focus_to

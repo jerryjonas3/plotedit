@@ -332,6 +332,46 @@ So the module **records what the house says and checks the plot against it**:
 The circuit is drawn in a **hexagon** (§6.14.1 — the shape carries the meaning)
 and has a column on both the instrument schedule and the hookup.
 
+### ✅ Dimmer per circuit — 2026.09.23
+
+**Jerry: *"most houses have circuit per dimmer. We need to account for that."***
+
+RP-2 §6.14.1 gives **three control models and notates them differently**, so this
+changes the drawing, not only the data:
+
+| `control` | Containers | |
+|---|---|---|
+| **`dimmer-per-circuit`** *(default)* | hexagon + circle | The circuit is hard-wired to its own dimmer. **One number, not two** — RP-2 labels the hexagon "Circuit & Dimmer" |
+| `hard-and-soft-patch` | hexagon + rectangle + circle | All three differ, so all three are drawn |
+| `no-soft-patch` | hexagon + circle | The console addresses dimmers directly |
+
+**Drawing two containers in a dimmer-per-circuit house is not harmlessly
+redundant — it tells the electrician there is a patch to make, and there is
+not.** A dimmer that merely repeats the circuit is dropped, and a plot that gives
+them *different* numbers is reported: either the control model is wrong or one of
+them is a typo.
+
+**And the load follows.** With no patch to hide behind, **the load on a circuit
+IS the load on a dimmer.** `circuits.load()` totals watts per circuit and, given
+the house's per-dimmer rating, reports headroom. The 2026.09 fault was a pack
+over capacity, and this is the arithmetic that would have shown it.
+
+- **The rating is never assumed.** 2400W is the common 20-amp figure and it is
+  also wrong in plenty of buildings. Without it, loads are reported and nothing
+  is judged — a capacity check against an unconfirmed number reads as a *pass*.
+- **A tungsten unit's watts belong to its LAMP**, not its body: the same Source
+  Four is 575W or 750W depending on what is in it. `lamp_watts()` reads it off
+  the lamp name, which is exact rather than inferred.
+- ⚠ **And it refuses to read a number out of just any string.** "Regulated 3200K"
+  is an LED output mode; a loose search finds 3200 in it and calls it 3200 watts
+  — a number that looks real, lands in a load total and trips a breaker. A lamp
+  name has to look like one.
+
+**🔴 Only 2 of 47 fixtures carry a wattage** (the two Spectra Cycs, from their
+IES). Tungsten is covered by the lamp name, but **every LED's draw has to come
+from its datasheet** — ETC's are already on file. Until then an LED counts as
+zero and the total is reported as *a floor, not a total*.
+
 ### Still to do
 
 - Auto-numbering along a position, once the direction is known.

@@ -221,6 +221,32 @@ LAMP_MF = {
     "HPL 575X": {"S4 36": 0.56},          # long-life; others not extracted
 }
 
+def lamp_watts(lamp):
+    """Watts from a lamp name — "HPL 575" is 575W, and that is exact.
+
+    ⭐ For a tungsten fixture the wattage belongs to the LAMP, not the body. The
+    same Source Four is 575W or 750W depending on what is in it, so a wattage
+    stored against the fixture would be wrong for half the rig. Reading it off
+    the lamp name is not a guess: it is what the name means.
+
+    Returns None for an LED mode or anything without a number, because an LED's
+    draw belongs to the fixture and has to come from its datasheet.
+
+    ⚠ It must NOT read a number out of just any string. "Regulated 3200K" is an
+    LED output mode, and a loose search finds 3200 in it and calls it 3200 watts
+    — a number that looks real, lands in a load total and trips a breaker. So a
+    lamp name has to LOOK like one: a short letter code followed by its wattage,
+    as every tungsten lamp is named (HPL 575, FEL 1000, EHG 750). Anything with
+    a Kelvin figure is a colour temperature and is refused outright.
+    """
+    import re as _re
+    t = str(lamp or "").strip()
+    if not t or _re.search(r"\d\s*K\b", t, _re.I):
+        return None
+    m = _re.match(r"^[A-Za-z]{2,4}[\s-]*(\d{2,4})", t)
+    return float(m.group(1)) if m else None
+
+
 FIELD_ANGLES_S4 = [5, 10, 14, 19, 26, 36, 50, 70, 90]   # the barrel family, nominal
 
 
