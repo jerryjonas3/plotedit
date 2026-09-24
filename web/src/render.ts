@@ -17,6 +17,10 @@ const NS = "http://www.w3.org/2000/svg";
 
 /** What the server said about each instrument, keyed by array index. */
 export interface Computed {
+  /** Load, in watts, and where the figure came from. Present even when the unit
+   *  could not be computed — a unit with no trim still draws current. */
+  watts?: number | null;
+  watts_note?: string;
   /** The REAL pool: an ellipse on a horizontal plane. A cone only cuts a circle
    *  when it points straight down, and at 30° elevation a 26° field lands more
    *  than twice as long as it is wide. `angle` is the plan direction of the

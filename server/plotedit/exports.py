@@ -22,6 +22,8 @@ import csv
 import io
 from typing import Any, Dict, List
 
+from . import photometrics as ph
+
 
 # --------------------------------------------------------------- helpers
 
@@ -72,6 +74,57 @@ def _accessories(inst) -> str:
     return " + ".join(str(x) for x in a if str(x).strip())
 
 
+def _watts(inst: Dict[str, Any]) -> tuple:
+    """(watts, why) for one instrument, for the load columns.
+
+    ⭐ Jerry, 2026.09.24: "let's add the load (wattage) to the instrument
+    schedule and channel report." The schedule has HAD a Wattage column all
+    along — it read `inst["wattage"]`, a field nothing ever fills, so every row
+    came out blank while photometrics.watts_for() knew the answer.
+
+    ⚠ An explicit wattage on the instrument WINS. It is the only way to say
+    "this one has a 750 in it" about a fixture whose family says 575, and a
+    computed figure that overrode it would quietly contradict the plot, where a
+    750 is drawn with a blackened rear.
+
+    ⚠ Unknown is NEVER zero. A blank cell in a load column is read as "nothing
+    on that circuit", which is the one wrong answer that matters: it is how a
+    dimmer gets loaded past its rating on paper and trips in the room.
+    """
+    own = inst.get("wattage")
+    if own not in (None, ""):
+        try:
+            return float(own), "on the instrument"
+        except (TypeError, ValueError):
+            return None, f"{own!r} is not a wattage"
+    return ph.watts_for(inst.get("type", ""), inst.get("lamp"), inst.get("mode"))
+
+
+def _watt_cell(w) -> str:
+    """How a wattage prints. UNKNOWN says so, in words a reader cannot skim
+    past as an empty cell."""
+    return "UNKNOWN" if w is None else f"{w:g}"
+
+
+def _load_total(instruments: List[Dict[str, Any]]) -> List[List[Any]]:
+    """The total row, and the truth about how complete it is.
+
+    ⚠ A total printed beside unknown units is a total of SOME of them, and a
+    reader comparing it to a dimmer rating has no way to tell. It says how many
+    it could not count, every time.
+    """
+    known = [w for w, _ in (_watts(i) for i in instruments) if w is not None]
+    missing = len(instruments) - len(known)
+    total = sum(known)
+    rows: List[List[Any]] = [[], [f"TOTAL LOAD", f"{total:g} W",
+                                  f"{len(known)} of {len(instruments)} units"]]
+    if missing:
+        rows.append(["", "", f"⚠ {missing} unit{'s' if missing > 1 else ''} "
+                             f"{'have' if missing > 1 else 'has'} no wattage on file "
+                             f"— this total is INCOMPLETE"])
+    return rows
+
+
 def schedule_csv(plot: Dict[str, Any]) -> str:
     """The instrument schedule: what hangs where, in hanging order."""
     rows: List[List[Any]] = [[f"{plot.get('show', '')} — Instrument Schedule"],
@@ -83,13 +136,14 @@ def schedule_csv(plot: Dict[str, Any]) -> str:
         rows.append([i.get("position", ""), i.get("unit", ""), i.get("channel", ""),
                      i.get("circuit", ""), i.get("dimmer", ""), i.get("address", ""),
                      i.get("type", ""),
-                     i.get("wattage", ""), i.get("color", ""), i.get("gobo", ""),
+                     _watt_cell(_watts(i)[0]), i.get("color", ""), i.get("gobo", ""),
                      i.get("purpose", ""), _accessories(i), i.get("notes", "")])
+    rows += _load_total(plot["instruments"])
     return _csv(rows)
 
 
-HOOKUP_COLUMNS = ["Channel", "Position", "Unit", "Type", "Color", "Purpose",
-                  "Circuit", "Dimmer", "Address"]
+HOOKUP_COLUMNS = ["Channel", "Position", "Unit", "Type", "Watts", "Color",
+                  "Purpose", "Circuit", "Dimmer", "Address"]
 
 
 def hookup_csv(plot: Dict[str, Any]) -> str:
@@ -101,8 +155,10 @@ def hookup_csv(plot: Dict[str, Any]) -> str:
                              [], HOOKUP_COLUMNS]
     for i in _sorted_for_hookup(plot["instruments"]):
         rows.append([i.get("channel", ""), i.get("position", ""), i.get("unit", ""),
-                     i.get("type", ""), i.get("color", ""), i.get("purpose", ""),
+                     i.get("type", ""), _watt_cell(_watts(i)[0]),
+                     i.get("color", ""), i.get("purpose", ""),
                      i.get("circuit", ""), i.get("dimmer", ""), i.get("address", "")])
+    rows += _load_total(plot["instruments"])
     return _csv(rows)
 
 

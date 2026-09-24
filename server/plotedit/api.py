@@ -143,6 +143,12 @@ def compute(req: ComputeRequest) -> Dict[str, Any]:
     for i, inst in enumerate(req.instruments):
         row: Dict[str, Any] = {"index": i, "unit": inst.unit, "channel": inst.channel,
                                "type": inst.type, "computed": False}
+        # ⭐ The LOAD, on every row — before the early returns, because a unit
+        # with no trim still draws current. Wattage is a fact about the fixture
+        # and its lamp; it does not wait on a focus point, and a load table that
+        # skipped un-aimed units would under-report the circuit they are on.
+        _w, _wnote = ph.watts_for(inst.type, inst.lamp, inst.mode)
+        row["watts"], row["watts_note"] = _w, _wnote
         if inst.type not in ph.FIXTURES:
             row["note"] = f"{inst.type} is not in the fixture table"
             results.append(row); continue

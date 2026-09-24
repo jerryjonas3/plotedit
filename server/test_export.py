@@ -27,7 +27,10 @@ def check(label, got, want):
 
 print("schedule — hanging order")
 sched = exports.schedule_csv(plot).splitlines()
-rows = [r.split(",") for r in sched[5:]]
+# ⚠ The report ends with a blank line and a TOTAL LOAD row, so the data stops
+# before them. Slicing to the end used to be the same thing and is not any more.
+_end = next(k for k, r in enumerate(sched) if r.startswith("TOTAL LOAD"))
+rows = [r.split(",") for r in sched[5:_end] if r.strip()]
 check("every instrument present", len(rows), len(plot["instruments"]))
 check("sorted by position then unit", [r[0] for r in rows][:4],
       ["GRID B", "GRID B", "GRID C", "GRID C"])
@@ -41,7 +44,9 @@ check("circuit sits beside channel, not beside address",
       _col("Circuit") - _col("Channel"), 1)
 
 print("\nhookup — channel order")
-hook = [r.split(",") for r in exports.hookup_csv(plot).splitlines()[5:]]
+_hlines = exports.hookup_csv(plot).splitlines()
+_hend = next(k for k, r in enumerate(_hlines) if r.startswith("TOTAL LOAD"))
+hook = [r.split(",") for r in _hlines[5:_hend] if r.strip()]
 check("channels ascend", [int(r[0]) for r in hook], sorted(int(r[0]) for r in hook))
 check("starts at channel 1", hook[0][0], "1")
 
@@ -166,6 +171,43 @@ check("inches converted to feet", g["extents"], [0.0, 0.0, 33.0, 38.0])
 
 r = client.post("/import/dxf", files={"file": ("x.dxf", b"not a dxf", "application/dxf")})
 check("a bad file is refused with a reason", r.status_code, 400)
+
+print("\nthe load is on the schedule and the hookup")
+# ⭐ Jerry, 2026.09.24: "let's add the load (wattage) to the instrument schedule
+# and channel report." The schedule had HAD a Wattage column all along — it read
+# inst["wattage"], a field nothing ever fills, so every row came out blank while
+# photometrics.watts_for() knew the answer.
+_sched = exports.schedule_csv(plot)
+_hook = exports.hookup_csv(plot)
+check("the schedule still has a Wattage column", "Wattage" in _sched.splitlines()[4], True)
+check("...and it is no longer empty", ",575," in _sched, True)
+check("the hookup has a Watts column now", "Watts" in _hook.splitlines()[4], True)
+check("...and it is filled", ",575," in _hook, True)
+check("both carry a total", "TOTAL LOAD" in _sched and "TOTAL LOAD" in _hook, True)
+
+# 🔴 UNKNOWN IS NEVER ZERO, and a total beside unknown units says so. A blank
+# cell in a load column reads as "nothing on that circuit" — the one wrong
+# answer that matters, because it is how a dimmer is loaded past its rating on
+# paper and trips in the room.
+_mixed = {**plot, "instruments": [
+    {"unit": 1, "channel": 1, "type": "S4 26", "position": "P"},
+    {"unit": 2, "channel": 2, "type": "Not A Real Fixture", "position": "P"},
+]}
+_m = exports.schedule_csv(_mixed)
+check("a fixture with no wattage says UNKNOWN", "UNKNOWN" in _m, True)
+check("...never a blank cell", ",,," in _m.splitlines()[6].split("Not A Real Fixture")[1][:6], False)
+check("...and the total counts only what it knows", "TOTAL LOAD,575 W,1 of 2 units" in _m, True)
+check("...and says the total is incomplete", "INCOMPLETE" in _m, True)
+check("...in grammar a reader does not trip over", "1 unit has no wattage" in _m, True)
+
+# ⚠ An explicit wattage on the instrument WINS. It is the only way to say "this
+# one has a 750 in it" about a fixture whose family says 575 — and the plot
+# draws that unit with a blackened rear, so a computed figure overriding it
+# would put the paperwork and the drawing in contradiction.
+_override = {**plot, "instruments": [
+    {"unit": 1, "channel": 1, "type": "S4 26", "position": "P", "wattage": 750}]}
+check("an explicit wattage beats the computed one",
+      "TOTAL LOAD,750 W" in exports.schedule_csv(_override), True)
 
 print()
 if FAILS:

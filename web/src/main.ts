@@ -81,6 +81,10 @@ function fillTable() {
       [inst.position ?? "", false], [String(inst.unit), false],
       [inst.channel !== undefined ? String(inst.channel) : "", false],
       [inst.type, false], [inst.color ?? "—", false],
+      // ⚠ UNKNOWN, never a blank. An empty cell in a load column reads as
+      // "nothing on that circuit", which is how a dimmer gets loaded past its
+      // rating on paper.
+      [c ? (c.watts != null ? `${c.watts}` : "UNKNOWN") : "—", true],
       [c?.throw_ft ?? "—", true], [c?.field_ft ?? "—", true],
       [c?.footcandles != null ? String(c.footcandles) : "—", true],
     ];
