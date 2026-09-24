@@ -53,6 +53,12 @@ check("the CYC resolves", _key, "ColorSource CYC")
 check("...but has no beam angle, by design", _row["field"], None)
 check("...and says so", "asymmetrical" in _row["source"], True)
 
+print("\nSource Four LED — Jerry confirmed these were Lustrs (Wizard of Oz, 2022)")
+check("'ETC Source4 LED 26deg'", fn.resolve("ETC Source4 LED 26deg", ph.FIXTURES)[0],
+      "Lustr 26 EDLT")
+check("...and computes a level",
+      round(ph.footcandles("ETC Source4 LED 26deg", 14, mode="Regulated 3200K")[0]), 273)
+
 print("\ncyc units — asymmetric, so no beam angle exists to publish")
 for raw, key in [("ETC ColorSource CYC", "ColorSource CYC"),
                  ("Altman Spectra CYC 50", "Altman Spectra Cyc 50")]:
@@ -72,7 +78,6 @@ print("\nreal fixtures with no data give a REASON, not silence")
 for raw, fragment in [
     ("Altman 6in Fres", "no datasheet"),
     ("Blizzard Lighting AtmosFEAR Tour HZ", "not a luminaire"),
-    ("ETC Source4 LED 26deg", "EDLT only"),
     ("ETC Source4 Jr Zoom", "different fixture"),
 ]:
     key, note = fn.resolve(raw, ph.FIXTURES)

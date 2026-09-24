@@ -67,6 +67,15 @@ ALIASES = {
     "colorsource spot 26": "ColorSource Spot 26 EDLT",
     "colorsource spot 36": "ColorSource Spot 36 EDLT",
     "colorsource cyc": "ColorSource CYC",
+    # Source Four LED. Jerry confirmed 2026.09.23 that the eight on Wizard of Oz
+    # (2022) were Lustrs — the 140w load distinguishes them from the 166w
+    # ColorSource units in the same rig.
+    # ⚠ ETC publishes 19/26/36 as EDLT ONLY, so these resolve to the EDLT rows.
+    # A Lustr on a standard tube reads a little lower.
+    "s4 led 26": "Lustr 26 EDLT",
+    "s4 led 36": "Lustr 36 EDLT",
+    "s4 led 19": "Lustr 19 EDLT",
+    "s4 led 50": "Lustr 50 LT",
     "spectra cyc 50": "Altman Spectra Cyc 50",
     "spectra cyc": "Altman Spectra Cyc 50",
 }
@@ -75,8 +84,6 @@ ALIASES = {
 # built from ETC datasheets; nothing else has been fetched.
 NO_DATA = {
     "s4 jr zoom": "Source Four Jr — a different fixture; no datasheet fetched",
-    "s4 led 26": "Source Four LED, tube unstated — ETC publishes 19/26/36 as EDLT only",
-    "s4 led 36": "Source Four LED, tube unstated — ETC publishes 19/26/36 as EDLT only",
     "lekolite 26": "Strand LekoLite — no datasheet fetched",
     "lekolite 40": "Strand LekoLite — no datasheet fetched",
     "6in fres": "Altman 6\" Fresnel — no datasheet fetched",

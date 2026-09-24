@@ -203,12 +203,14 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
   pp, all nine lenses plus the zooms, three output modes) and the CYC datasheet.
   **The archive is now at 91%**, 221 of 242 instruments.
 
-  **Altman Spectra Cyc added 2026.09.23 — the archive is at 95%**, 229 of 242.
+  **The archive is at 98%** — 237 of 242 instruments. The last ambiguous name,
+  `ETC Source4 LED 26deg`, was settled by asking: Jerry confirmed the eight on
+  *Wizard of Oz* (2022) were **Lustrs**. The paperwork itself had already
+  narrowed it — they load at 140w against 166w for the ColorSource units in the
+  same rig, so they were a different fixture — but only he could say which array.
 
-  **Still unresolved, each for a real reason:** `ETC Source4 LED 26deg` (which
-  array? which tube? ETC publishes 19/26/36 as EDLT only — resolving it would be
-  a guess) · a hazer and a strobe, which are not luminaires. **That is the floor
-  without asking Jerry which fixture he actually had.**
+  **All that remains is a hazer and a strobe, which are not luminaires.** That is
+  the correct floor, not a gap.
 
 - **🔴 Ask Altman for the Spectra Cyc IES file.** Altman publishes NO candela,
   footcandle or beam figures anywhere; their own specification says *"IES
