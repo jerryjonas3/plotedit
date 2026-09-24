@@ -1,100 +1,117 @@
 # plotedit
 
-A light plot editor. Draw the plot, get the paperwork.
+A light plot editor that draws to **USITT RP-2 (2006)** — the symbols, the
+notation, the line weights and the section checklist — and computes what the
+rig actually does: throws, beam angles, the shape of each pool on the floor, and
+footcandles through gel.
 
-**Not a CAD program.** The ground plan comes in as DXF; this never draws architecture.
-See [docs/SPEC.md](docs/SPEC.md) for what it is, what it is not, and why it is
-TypeScript over Python rather than Rust.
+It runs entirely on your own machine. Nothing is uploaded anywhere.
 
-## Why it exists
-
-Vectorworks is subscription-only and Lightwright has followed. A designer lighting
-ten units on a pipe in a 75-seat room pays a professional-tier subscription to do it.
-The tools exist for large productions; nobody serves the small room.
-
-It also fixes a real problem: a `.vwx` file needs a live subscription to open. Two
-shows in this designer's own archive are locked inside drawings nothing on the
-machine can read. **A plot here is plain JSON** — readable in a text editor, diffable,
-and still openable in twenty years.
-
-## Status
-
-**Draws a plot, edits it, imports a ground plan and exports the paperwork.**
-All five steps of `docs/NEXT.md` are done. What is left is in the list at its end.
-The computation half was already working and is in `server/plotedit/`:
-
-| Module | Does |
-|---|---|
-| `photometrics.py` | Throw, elevation, pan, beam and field pools, footcandles, gel transmission, wash spacing, lens choice |
-| `scaled_pdf.py` | Architectural-scale PDF with a scale bar and a 1-inch check; section drawings; warns rather than clipping |
-| `dxf_bridge.py` | DXF in (a venue's ground plan as the base drawing) and DXF out |
-| `paperwork.py` | Reads Lightwright XLSX exports, Vectorworks/Lightwright SLData XML, and `.lw6` vocabularies |
-| `make-eos-asc.py` | USITT ASCII cue and patch files that ETC Eos actually imports |
-
-**What is missing is interaction** — clicking and dragging instead of editing a script.
-That is what this repo is for.
-
-## Layout
-
-```
-server/plotedit/   the Python that does the work, plus a FastAPI wrapper
-web/src/           the TypeScript front end
-symbols/           instrument symbols, drawn to USITT RP-2
-samples/           a test ground plan and a test plot
-docs/SPEC.md       scope, architecture, the instrument record, v1 vs later
-```
+---
 
 ## Running it
 
-The service runs; the front end does not exist yet.
+**You need Python 3.10 or newer.** Nothing else, if you downloaded a release.
 
-```bash
-cd server
-pip install -r requirements.txt
-uvicorn plotedit.api:app --reload      # http://localhost:8000/docs for the API browser
-python3 test_package.py                # the computation half
-python3 test_api.py                    # the service
+1. Download the latest release and unzip it.
+2. **Double-click `run.command`.**
+3. Your browser opens on the editor.
+
+The first run takes a minute while it sets itself up. After that it starts in a
+few seconds. Leave the terminal window open while you work — closing it, or
+pressing ctrl-C, stops the program.
+
+> **macOS may refuse to open it the first time** — "cannot be opened because it
+> is from an unidentified developer". Right-click `run.command` → **Open** →
+> **Open**. You only have to do that once. This is macOS being careful about
+> anything downloaded from the internet, and it applies to any unsigned program.
+
+Everything it installs goes in a `.venv` folder inside the one you unzipped.
+It touches nothing else on your computer, and deleting that folder removes every
+trace of it except the plots you saved.
+
+### If you cloned the repository instead
+
+A clone has no built editor in it, so you also need
+[Node](https://nodejs.org). `run.command` will build it for you the first time.
+
+---
+
+## Where your plots go
+
+In a `plots` folder next to `run.command`. **Save** writes the file you are
+working on; **Save As…** starts a new one; **Open…** lists what is there.
+
+To keep them somewhere else — a show folder, or Dropbox — set `PLOTEDIT_PLOTS`
+to that path before starting.
+
+---
+
+## What it does
+
+- **Draws the plot** to RP-2: symbols by fixture family with the beam angle
+  marked in the lens, circuit/dimmer/channel in the right containers, accessories
+  at the gate or at the nose, and three line weights that mean what the standard
+  says they mean.
+- **Booms in elevation** (§6.12), beside the plot, compressed with a break mark —
+  and the labelled heights stay true, because the break says the paper is short,
+  never that a number is approximate.
+- **Pools as ellipses**, not circles. A cone only cuts a circle when it points
+  straight down; at 30° a 26° field lands more than twice as long as it is wide,
+  and the long end is the one that reaches the scenery. Cut them at head height,
+  at a face, at seated height, or at the deck.
+- **A section** to the RP-2 §3 checklist, which states what it does *not* show
+  rather than implying a clearance it has not checked.
+- **Exports**: PDF and DXF of the plot, instrument schedule, channel hookup, and
+  an Eos patch file.
+- **Picks the paper for you.** The sheet defaults to ARCH D landscape at the
+  largest standard scale where nothing runs off the edge, and it tells you which
+  sheet to move to if a drawing will not fit.
+
+## What it does not do
+
+- **It does not check clearance.** It draws the room and the rig. Masking,
+  scenery and rigging points are not in it, so a trim it accepts may still hang
+  into a border.
+- **It does not invent circuit numbers.** Circuits depend on the house and have
+  no set order; it records what the house told you and checks the plot against
+  it.
+- **The Eos export has never been tested against a console.** It is written to
+  the ASCII spec and nothing more. Treat it as a draft.
+
+Every figure it prints names its source, and anything it could not work out says
+so instead of being left blank.
+
+---
+
+## Typing measurements
+
+Anywhere it shows a length it also accepts one, in any of these forms:
+
+```
+1'6"      1'-6"      1' 6"      18"      1.5
 ```
 
-```bash
-cd web
-npm install
-npm run dev          # http://localhost:5173 — needs the service running
-npm test             # the coordinate transform
-npm run test:store   # undo, selection, pipe snapping
-```
+Blank means "not known", and the checks say so out loud rather than assuming
+zero — a grid height of 0 would be a claim that the ceiling is on the floor.
 
-Both halves must agree about the numbers:
+---
+
+## Developing it
 
 ```bash
-cd server
-python3 test_package.py      # the computation half
-python3 test_api.py          # the service
-python3 test_agreement.py    # screen and paper must agree
-python3 test_export.py       # exports, and DXF import
+cd server && python3 -m uvicorn plotedit.api:app --reload    # the API, :8000
+cd web && npm install && npm run dev                          # the editor, :5173
 ```
 
-Eventually: one command, opens a browser tab, no network.
-
-## Data sources
-
-Photometrics come from ETC's own datasheets; gel transmissions from Rosco's product
-pages and the myColor swatch app. **Every fixture row names its source.** Where two
-sources disagree — the ETC Europe spread table of 2000 and the modern US datasheets
-differ on the 26° and 36° — both are kept and the preferred one is marked.
-
-## Names
-
-Paperwork calls a fixture `ETC Source4 36deg`; the photometric table calls it
-`S4 36`. **None of the 38 distinct instrument names in the source archive matched
-a table key** — plots imported from Lightwright drew correctly and were silently
-unlit, every throw computed and every pool and level blank.
-
-`server/plotedit/fixture_names.py` resolves them: normalise, then explicit
-aliases, then a list of real fixtures with no photometrics on file and the reason
-why. **81% of the archive resolves**; the remainder say what is missing rather
-than returning nothing.
+Tests — all of them should pass before anything is committed:
 
 ```bash
-cd server && python3 test_names.py
+cd server && for f in test_*.py; do python3 "$f"; done
+cd server && python3 verify_suites.py      # breaks each suite to prove it fails
+cd web && npx tsc --noEmit && npm run test:all
 ```
+
+`verify_suites.py` is worth knowing about: it breaks each test suite on purpose
+and requires it to fail *and* name what broke. A suite that passes when the code
+is wrong is worse than no suite, and this repo has had two.

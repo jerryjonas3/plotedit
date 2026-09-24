@@ -28,3 +28,7 @@ web/node_modules/
 
 # Plots a designer saves from the editor. User data, not repo content.
 plots/
+
+# The built editor. NOT committed — it is a build artifact, and a stale one in
+# git is worse than none. The release workflow builds it into the download.
+web/dist/

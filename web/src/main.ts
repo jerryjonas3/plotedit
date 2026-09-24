@@ -365,12 +365,32 @@ Is the Python service running?
 
 async function boot() {
   try {
-    const r = await fetch("/bluver.plot.json");
-    if (!r.ok) throw new Error(`cannot load the sample plot: ${r.status}`);
-    const json: unknown = await r.json();
-    if (!isPlot(json)) throw new Error("that file is not a plot (formatVersion must be 1)");
+    // ⭐ Open what you were last working on. Starting on the bundled sample
+    // every time means a designer's first act at every session is to find their
+    // own plot again — and, for anyone who has just downloaded this, it means
+    // their work disappears the moment they reload.
+    let opened: Plot | null = null;
+    try {
+      const { plots } = await listPlots();          // newest first
+      const newest = plots[0];
+      if (newest) {
+        opened = await loadPlot(newest.name);
+        savedAs = newest.name;
+      }
+    } catch {
+      // No server answer, or no plots folder yet. The sample below is a fine
+      // first screen; it is not worth refusing to start over.
+    }
 
-    store = new Store(json as Plot);
+    if (!opened) {
+      const r = await fetch("/bluver.plot.json");
+      if (!r.ok) throw new Error(`cannot load the sample plot: ${r.status}`);
+      const json: unknown = await r.json();
+      if (!isPlot(json)) throw new Error("that file is not a plot (formatVersion must be 1)");
+      opened = json as Plot;
+    }
+
+    store = new Store(opened);
     fixtureTable = await fixtures();
 
     paintChrome();
