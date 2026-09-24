@@ -3,6 +3,7 @@ import { Store, snapToPosition } from "./store.js";
 import { plotFileName, type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
+import { deleteMessage, describeUnit } from "./confirm.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -156,6 +157,25 @@ check("one unit alone uses a sensible default step", nextBoomHeight([12]), 8);
   check("...having never repeated a height", new Set(hs).size, hs.length);
 }
 check("a boom with no room at all refuses", nextBoomHeight([2, 1]), undefined);
+
+console.log("\nevery delete asks, and the question NAMES the thing");
+// ⚠ "Are you sure?" on its own asks the reader to remember what they just
+// clicked — which is exactly what someone about to delete the wrong thing has
+// got wrong. The message has to say WHICH unit.
+check("a unit is named by number, position and channel",
+      describeUnit({ unit: 3, channel: 33, position: "GRID C", type: "S4 36" }),
+      "unit 3 on GRID C (channel 33, S4 36)");
+check("...and reads sensibly with nothing but a number",
+      describeUnit({ unit: 7 }), "unit 7");
+check("...and channel 0 is a channel, not a missing one",
+      describeUnit({ unit: 7, channel: 0 }), "unit 7 (channel 0)");
+
+check("the question leads with the subject",
+      deleteMessage("unit 3 on GRID C").split("\n")[0], "Delete unit 3 on GRID C?");
+check("...and says it can be undone",
+      deleteMessage("unit 3").includes("undone"), true);
+check("...and carries the consequence when there is one",
+      deleteMessage("the position GRID C", "4 units will be KEPT.").includes("4 units"), true);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

@@ -6,6 +6,7 @@
  * a round trip per keystroke while typing a purpose is noise.
  */
 import { isVertical, type Instrument } from "./plot.js";
+import { confirmDelete, describeUnit } from "./confirm.js";
 import type { Store } from "./store.js";
 import type { Computed } from "./render.js";
 
@@ -180,7 +181,11 @@ export function renderInspector(
   const del = document.createElement("button");
   del.className = "danger";
   del.textContent = "Delete instrument";
-  del.addEventListener("click", () => { store.remove(i); deps.onPhotometricChange(); });
+  del.addEventListener("click", () => {
+    if (!confirmDelete(describeUnit(inst))) return;
+    store.remove(i);
+    deps.onPhotometricChange();
+  });
   host.appendChild(del);
 }
 

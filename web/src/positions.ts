@@ -13,6 +13,7 @@ import type { Plot, Position } from "./plot.js";
 import { isVertical } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
+import { confirmDelete } from "./confirm.js";
 
 const TYPES = ["electric", "pipe", "grid", "catwalk", "truss",
                "boom", "box-boom", "ladder", "tormentor"] as const;
@@ -302,11 +303,14 @@ export function renderPositions(
       const name = p.name.trim().toLowerCase();
       const on = plot.instruments.filter(
         i => (i.position ?? "").trim().toLowerCase() === name).length;
-      // ⚠ Ask when it costs something. Deleting a pipe with a rig on it is not
-      // the same action as deleting an empty one.
-      if (on && !confirm(
-        `${p.name} has ${on} unit${on > 1 ? "s" : ""} on it.\n\n` +
-        `Delete the position? The units are KEPT but lose their position.`)) return;
+      // ⚠ ALWAYS ask, not only when units hang on it. An empty pipe used to
+      // vanish on one click, and a position carries its trim, its width, its
+      // circuits and its mount — none of which is obvious from the row, and all
+      // of which is typing to get back.
+      if (!confirmDelete(
+        `the position ${p.name}`,
+        on ? `${on} unit${on > 1 ? "s" : ""} on it will be KEPT, but lose their position.`
+           : undefined)) return;
       const orphaned = store.removePosition(idx);
       if (orphaned.length) {
         alert(`${p.name} deleted. ${orphaned.join(", ")} now ` +

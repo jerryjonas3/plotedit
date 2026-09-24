@@ -10,6 +10,7 @@
  */
 import { toPlot, type View } from "./geometry.js";
 import { Store, snapToPosition } from "./store.js";
+import { confirmDelete, describeUnit } from "./confirm.js";
 
 export interface DragContext {
   /** Current view, read fresh on every pointerdown — it changes with zoom. */
@@ -114,7 +115,12 @@ export function attachKeyboard(store: Store, ctx: DragContext): void {
 
     if (e.key === "Escape") { store.select(null); return; }
     if (e.key === "Delete" || e.key === "Backspace") {
+      // 🔴 This was the worst of the three: one keystroke, no dialog, and
+      // Backspace is a key people press out of habit when a field is not
+      // focused. It asks now like every other delete.
       e.preventDefault();
+      const inst = store.plot.instruments[i];
+      if (inst && !confirmDelete(describeUnit(inst))) return;
       store.remove(i);
       ctx.onChange(); ctx.onSettled();
       return;
