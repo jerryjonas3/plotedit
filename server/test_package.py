@@ -926,6 +926,51 @@ check("...and a plot with no trims stays quiet",
       P.headroom({"room": {}, "positions": [{"name": "E", "x1": 0, "y1": 1,
                                              "x2": 9, "y2": 1}], "instruments": []}), [])
 
+# ---------------------------------------------------------------- the sheet
+# ⭐ A drawing that runs off the paper is worse than no drawing, so the guard
+# that says so has to be USEFUL. It reported "the sheet holds 40.0' x 58.8'" and
+# left the reader to work backwards from two numbers to a paper size — Jerry,
+# 2026.09.24: "do we know what size sheet it is referring to?" It did not.
+#
+# 🔴 And the advice has to be TRUE. "Use a bigger sheet" is not advice; naming a
+# sheet that still does not fit is worse than saying nothing, so the sheet the
+# message names is rendered and must come out clean.
+import re as _re
+import tempfile as _tf
+import plot_to_pdf as _P
+
+_SAMPLE = os.path.join(os.path.dirname(__file__), "..", "samples", "bluver.plot.json")
+_tmp = _tf.mkdtemp()
+
+def _render(page, landscape, scale):
+    sheet, _ = _P.render(_SAMPLE, os.path.join(_tmp, f"{page}-{landscape}-{scale.replace('/','_')}.pdf"),
+                         page=page, landscape=landscape, scale=scale)
+    return [w for w in sheet.warnings if "CLIPPED" in w]
+
+_over = _render("TABLOID", False, "1/4")
+check("a drawing that overruns is reported", bool(_over), True)
+_msg = _over[0] if _over else ""
+check("...and the message NAMES the sheet", "TABLOID portrait" in _msg, True)
+check("...with its size in inches", '11" x 17"' in _msg, True)
+check("...and says which edge", "off the RIGHT" in _msg, True)
+
+# The sheet it recommends, rendered. If that still clips, the advice sent the
+# reader to buy paper that does not help.
+_m = _re.search(r"Or keep .*? on (\w+) (portrait|landscape)", _msg)
+check("...and names a sheet to move to", bool(_m), True)
+if _m:
+    _again = _render(_m.group(1), _m.group(2) == "landscape", "1/4")
+    check(f"...and {_m.group(1)} {_m.group(2)} really does fit", _again, [])
+
+# The largest scale it offers, on the ORIGINAL sheet, must also fit.
+_s = _re.search(r"fits this sheet: ([\d/]+)\"", _msg)
+check("...and names a scale that fits", bool(_s), True)
+if _s:
+    check(f"...and {_s.group(1)}\" really does fit TABLOID portrait",
+          _render("TABLOID", False, _s.group(1)), [])
+
+check("a drawing that fits is not reported", _render("ARCH_D", True, "1/2"), [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

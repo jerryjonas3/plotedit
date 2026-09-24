@@ -99,6 +99,13 @@ class Sheet:
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
         self.page_pt = (w * inch, h * inch)
+        # ⚠ Remember WHICH sheet. The clipping guard could only say "the sheet
+        # holds 40.0' x 58.8'" and leave the reader to work backwards from two
+        # numbers to a paper size — Jerry, 2026.09.24: "do we know what size
+        # sheet it is referring to?" It did not, because nothing kept the name.
+        self.page_name = page if isinstance(page, str) else "custom"
+        self.landscape = bool(landscape)
+        self.page_in = (w, h)
         self.c = canvas.Canvas(path, pagesize=self.page_pt)
         self.path = path
         self.paper_in_per_ft = SCALES[scale] if isinstance(scale, str) else float(scale)
@@ -690,10 +697,26 @@ class Sheet:
             if y1b > H - m - 1.3 * inch:
                 over.append(f"{(y1b - (H - m - 1.3 * inch)) / self.pt_per_ft:.1f}' off the TOP")
             edges = ("; ".join(over) + ". ") if over else ""
-            msg = (f"CLIPPED: {edges}drawing spans {real_w:.1f}' x {real_h:.1f}' but the sheet holds "
+            # ⭐ And name a sheet that WOULD work. "Use a bigger sheet" leaves the
+            # reader to test paper sizes by hand; the table is right here, so
+            # the smallest one that fits at this scale is a lookup.
+            need_w = real_w * self.paper_in_per_ft + 2 * (m / inch)
+            need_h = real_h * self.paper_in_per_ft + 2 * (m / inch) + 1.3
+            bigger = None
+            for _name, (_pw, _ph) in sorted(PAGES.items(), key=lambda kv: kv[1][0] * kv[1][1]):
+                for _w, _h, _o in ((_pw, _ph, "portrait"), (_ph, _pw, "landscape")):
+                    if _w >= need_w and _h >= need_h:
+                        bigger = f'{_name} {_o} ({_w:g}" x {_h:g}")'
+                        break
+                if bigger:
+                    break
+            here = (f'{self.page_name} {"landscape" if self.landscape else "portrait"} '
+                    f'({self.page_in[0]:g}" x {self.page_in[1]:g}")')
+            msg = (f"CLIPPED: {edges}drawing spans {real_w:.1f}' x {real_h:.1f}' but {here} holds "
                    f"{avail_w/self.paper_in_per_ft:.1f}' x {avail_h/self.paper_in_per_ft:.1f}' at {self.scale_label}. "
-                   + (f'Largest standard scale that fits this page: {best}" = 1\'-0". ' if best else "")
-                   + "Or use a bigger sheet, or rotate it.")
+                   + (f'Largest standard scale that fits this sheet: {best}" = 1\'-0". ' if best else "")
+                   + (f"Or keep {self.scale_label} on {bigger}."
+                      if bigger else "No standard sheet holds it at this scale."))
             self.warnings.append(msg); print("⚠", msg, file=sys.stderr)
         self.dxf, _dxf = None, self.dxf          # sheet furniture stays off the DXF
         # border
