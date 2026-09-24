@@ -53,6 +53,21 @@ check("the CYC resolves", _key, "ColorSource CYC")
 check("...but has no beam angle, by design", _row["field"], None)
 check("...and says so", "asymmetrical" in _row["source"], True)
 
+print("\ncyc units — asymmetric, so no beam angle exists to publish")
+for raw, key in [("ETC ColorSource CYC", "ColorSource CYC"),
+                 ("Altman Spectra CYC 50", "Altman Spectra Cyc 50")]:
+    k, row, _ = ph.lookup(raw)
+    check(f"{raw!r} resolves", k, key)
+    check("   ...with no beam angle", row["field"], None)
+    check("   ...and the note says why", any(w in row["source"].lower()
+          for w in ("asymmetric", "no photometrics")), True)
+# Altman publishes nothing at all — their own spec says the IES file is available
+# on request. That is an ACTION, and it belongs in the note.
+_, _row, _ = ph.lookup("Altman Spectra CYC 50")
+check("Altman note names the way to get real figures",
+      "IES" in _row["source"], True)
+check("...and the 4-foot centres, which change a plot", _row["spacing_ft"], 4.0)
+
 print("\nreal fixtures with no data give a REASON, not silence")
 for raw, fragment in [
     ("Altman 6in Fres", "no datasheet"),

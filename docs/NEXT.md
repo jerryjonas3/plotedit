@@ -203,10 +203,18 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
   pp, all nine lenses plus the zooms, three output modes) and the CYC datasheet.
   **The archive is now at 91%**, 221 of 242 instruments.
 
-  **Still unresolved, and each for a real reason:** `Altman Spectra CYC 50` (no
-  datasheet fetched) · `ETC Source4 LED 26deg` (which array? which tube? ETC
-  publishes 19/26/36 as EDLT only — resolving it would be a guess) · a hazer and
-  a strobe, which are not luminaires.
+  **Altman Spectra Cyc added 2026.09.23 — the archive is at 95%**, 229 of 242.
+
+  **Still unresolved, each for a real reason:** `ETC Source4 LED 26deg` (which
+  array? which tube? ETC publishes 19/26/36 as EDLT only — resolving it would be
+  a guess) · a hazer and a strobe, which are not luminaires. **That is the floor
+  without asking Jerry which fixture he actually had.**
+
+- **🔴 Ask Altman for the Spectra Cyc IES file.** Altman publishes NO candela,
+  footcandle or beam figures anywhere; their own specification says *"IES
+  Photometric files shall be available from the manufacturer."* One email gets
+  real numbers for eight instruments in the archive. Until then the Spectra Cyc
+  resolves, draws, and says why it has no level.
 
 - **Symbols.** Still the open question from day one. Jerry's convention is Field
   Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are

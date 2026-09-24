@@ -67,6 +67,8 @@ ALIASES = {
     "colorsource spot 26": "ColorSource Spot 26 EDLT",
     "colorsource spot 36": "ColorSource Spot 36 EDLT",
     "colorsource cyc": "ColorSource CYC",
+    "spectra cyc 50": "Altman Spectra Cyc 50",
+    "spectra cyc": "Altman Spectra Cyc 50",
 }
 
 # Real fixtures with no photometrics on file, and why. The photometric table is
@@ -83,7 +85,6 @@ NO_DATA = {
     "3 cell sky cyc right": "Altman Sky Cyc — not on file",
     "3 cell sky cyc center": "Altman Sky Cyc — not on file",
     "3 cell sky cyc left": "Altman Sky Cyc — not on file",
-    "spectra cyc 50": "Altman Spectra Cyc — not on file",
     "atmosfear tour hz": "a hazer — not a luminaire",
     "color strike m": "a strobe/blinder — not on file",
     "bt strobe 3000": "a strobe — not on file",

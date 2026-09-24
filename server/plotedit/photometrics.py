@@ -168,6 +168,22 @@ FIXTURES = {
                    source="ETC ColorSource CYC datasheet revE: asymmetrical, "
                           "no beam angle published; 4,117 max lumens"),
 
+    # ⚠ Altman Spectra Cyc 50 — like the ColorSource CYC, an asymmetric cyc light
+    # with NO published beam angle. Worse: Altman publishes no candela and no
+    # footcandle figures at all. Their own specification says "IES Photometric
+    # files shall be available FROM THE MANUFACTURER" — on request, not on the
+    # web. Both the datasheet and the spec are on file and neither carries a
+    # number worth computing from.
+    #
+    # What IS known and useful: 1,661 max lumens (RGBA), 50 W, and — the one
+    # fact that changes a plot — Altman designs it for use on FOUR-FOOT CENTRES.
+    "Altman Spectra Cyc 50": dict(field=None, beam=None, cd=None, ref_lamp="LED",
+                   family="Cyc", lumens=1661, colors=4, spacing_ft=4.0,
+                   source="Altman SSCYC50 datasheet rev2 2020-10-08 + specification "
+                          "2020-07-31: asymmetrical, NO photometrics published. "
+                          "Request the IES file from Altman to get real figures. "
+                          "Designed for 4-foot centres."),
+
     "SHEHDS 19": dict(field=19.0, beam=None, cd=None, ref_lamp="LED 350W", family="LED",
                    source="SHEHDS 350W RGBW Profile manual: 'Beam Angle 19°'. No output data published — measure it."),
 }
