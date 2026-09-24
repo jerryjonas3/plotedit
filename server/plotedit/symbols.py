@@ -802,11 +802,52 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     import math as _m
     from reportlab.lib.colors import black
 
+    _r = _m.radians(rotate_deg)
+    _sa, _ca = _m.sin(_r), _m.cos(_r)
+
+    def _along(d):
+        return (x - d * _sa, y + d * _ca)
+
+
     # above the symbol: color, then purpose (focus)
-    ay = y + above
+    # ⭐ COLOUR AND FOCUS GO IN FRONT, ACROSS THE LENS — §6.14.2 draws them beyond
+    # the lens end, and Jerry, 2026.09.24: "the colour label should be along the
+    # width of the lens in the front."
+    #
+    # ⚠ They used to sit at a fixed +y regardless of where the unit pointed, so
+    # on a unit aimed downstage they landed BEHIND it. Front is -a, whichever way
+    # the symbol has turned.
+    # ⭐ COLOUR AND FOCUS GO IN FRONT, ACROSS THE LENS. Jerry, 2026.09.24: "the
+    # colour label should be along the width of the lens in the front." §6.14.2
+    # draws them beyond the lens of an instrument that points up the page.
+    #
+    # ⚠ Each further line steps FURTHER OUT ALONG THE AXIS, not down the page.
+    # Stepping down the page walks the second line back toward the unit on
+    # anything aimed upstage — the same class of error as the stack below.
+    #
+    # ⚠ `above` clears the SYMBOL, not the label. A label anchored exactly at the
+    # clearance still overlaps, because the glyphs grow back toward the unit:
+    # "R52+R119" sat on the top hat of the GRID C unit. How far it reaches
+    # depends on which way the unit aims — a unit pointing downstage needs the
+    # cap height, one pointing stage left needs half the STRING WIDTH, which for
+    # a two-colour string is several times more.
+    _tp = getattr(sheet, "pt_per_ft", None)
+
+    def _pad(text, pt=7):
+        """Half the label's own footprint along the instrument axis, in feet."""
+        if not _tp:
+            return 0.0
+        w = sheet.c.stringWidth(text, "Helvetica", pt) / _tp
+        h = pt / _tp
+        return abs(_sa) * w / 2 + abs(_ca) * h / 2
+
+    d = -above
     for text in [t for t in (color, purpose) if t]:
-        sheet.text(x, ay, text, size=7, center=True)
-        ay += 0.32
+        pad = _pad(text)
+        d -= pad
+        fx, fy = _along(d)
+        sheet.text(fx, fy, text, size=7, center=True)
+        d -= pad + (7 / _tp * 0.45 if _tp else 0.32)
 
     # ⭐ §6.14.2 puts the INSTRUMENT NUMBER INSIDE THE BODY, with the wattage
     # just below it in the barrel — not in the stack underneath. Jerry asked for
@@ -825,12 +866,6 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     # The offset therefore has to follow the symbol as it rotates. In draw()'s
     # frame a point (pa, 0) lands at (x - pa·sin θ, y + pa·cos θ), so moving
     # +pa goes toward the back of the instrument whichever way it points.
-    _r = _m.radians(rotate_deg)
-    _sa, _ca = _m.sin(_r), _m.cos(_r)
-
-    def _along(d):
-        return (x - d * _sa, y + d * _ca)
-
     if unit is not None:
         ux, uy = _along(body_center)
         sheet.text(ux, uy - size * 0.2, str(unit), size=7, center=True, bold=True)
@@ -841,8 +876,16 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     # instead. `wattage` is kept in the signature so callers do not break, and
     # ignored on purpose.
 
-    # below the symbol: circuit (hex), dimmer (rect), channel (circle)
-    by = y - above
+    # ⭐ THE STACK GOES BEHIND THE LIGHT — §6.14.2 puts circuit, dimmer and
+    # channel below an instrument that points up, i.e. off its back. Jerry,
+    # 2026.09.24: "the channel number should be behind the light, not in front."
+    #
+    # ⚠ It used to run to a fixed -y, which is the FRONT for a unit aimed
+    # downstage — so the channel sat in the beam. Behind is +a.
+    # ⚠ Every container steps FURTHER BEHIND along the axis. Stepping down the
+    # page put the second and third containers back through the instrument on
+    # anything aimed downstage, where behind is +y.
+    d = above + size * 0.5
 
     # In a dimmer-per-circuit house the circuit and the dimmer are one number,
     # so a dimmer that merely repeats the circuit is not drawn twice.
@@ -852,20 +895,26 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
         elif dimmer is not None and str(dimmer) == str(circuit):
             dimmer = None
 
+    # The containers themselves stay UPRIGHT and the text horizontal (RP-2 p.1:
+    # "the associated text should be properly oriented with the rest of the text
+    # in the drawing"). Only where the stack SITS follows the symbol.
     if circuit is not None:
-        pts = [(x + size * 0.58 * _m.cos(a), by - size * 0.5 + size * 0.58 * _m.sin(a))
+        cx, cy = _along(d)
+        pts = [(cx + size * 0.58 * _m.cos(a), cy + size * 0.58 * _m.sin(a))
                for a in [_m.radians(30 + 60 * i) for i in range(6)]]
         for i in range(6):
             p, q = pts[i], pts[(i + 1) % 6]
             sheet.line(p[0], p[1], q[0], q[1], width=0.6)
-        sheet.text(x, by - size * 0.62, str(circuit), size=6, center=True)
-        by -= size + gap * 0.5
+        sheet.text(cx, cy - size * 0.12, str(circuit), size=6, center=True)
+        d += size + gap * 0.5
 
     if dimmer is not None:
-        sheet.rect(x - size * 0.62, by - size, size * 1.24, size * 0.82, width=0.6)
-        sheet.text(x, by - size * 0.74, str(dimmer), size=6, center=True)
-        by -= size + gap * 0.5
+        cx, cy = _along(d)
+        sheet.rect(cx - size * 0.62, cy - size * 0.41, size * 1.24, size * 0.82, width=0.6)
+        sheet.text(cx, cy - size * 0.24, str(dimmer), size=6, center=True)
+        d += size + gap * 0.5
 
     if channel is not None:
-        sheet.circle(x, by - size * 0.5, size * 0.52, width=0.6)
-        sheet.text(x, by - size * 0.62, str(channel), size=6, center=True)
+        cx, cy = _along(d)
+        sheet.circle(cx, cy, size * 0.52, width=0.6)
+        sheet.text(cx, cy - size * 0.12, str(channel), size=6, center=True)

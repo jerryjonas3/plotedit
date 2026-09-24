@@ -114,3 +114,52 @@ export function fmtFt(feet: number | null | undefined): string {
   if (inches === 12) { whole += 1; inches = 0; }
   return `${neg ? "-" : ""}${whole}'-${inches}"`;
 }
+
+/** Where a piece of notation sits relative to an instrument, in FEET.
+ *
+ * ⭐ Front and back belong to the INSTRUMENT, not to the page. `d` is measured
+ * along the unit's own axis: positive is BEHIND the light (where RP-2 §6.14.2
+ * puts circuit, dimmer and channel), negative is in FRONT, beyond the lens
+ * (colour and focus).
+ *
+ * ⚠ This lived twice — as fixed page offsets in render.ts and as `_along` in
+ * symbols.py — and the two drifted: the screen put the channel 1.5 ft down the
+ * PAGE whatever way the unit aimed, so a unit focused downstage had its channel
+ * number sitting in its own beam and its colour behind it. One formula, tested
+ * on both sides, is what stops that.
+ *
+ * @param drawnDeg the angle the SYMBOL is drawn at — after any orthogonal
+ *   snap. Not the true pan, or the label follows a rotation the reader cannot
+ *   see.
+ */
+export function notationAnchor(x: number, y: number, drawnDeg: number, d: number): Pt {
+  const r = (drawnDeg * Math.PI) / 180;
+  return { x: x - d * Math.sin(r), y: y + d * Math.cos(r) };
+}
+
+/** The farthest any part of a symbol reaches from its yoke, in FEET.
+ *
+ * The mirror of symbols.py's `radius()`. Notation has to clear the symbol, and
+ * symbols are not one size — an ERS is 1'-8" long, a striplight is six feet,
+ * and an accessory on the nose adds more. A fixed offset put the channel circle
+ * on top of every ellipsoidal on the paper; the screen had the same constant.
+ *
+ * ⚠ Match each kind explicitly. A fall-through default is what made the Python
+ * version unpack a point LIST as one pair when the "fill" primitive arrived.
+ */
+export function symbolRadius(prims: readonly unknown[] | undefined): number {
+  let best = 0;
+  for (const raw of prims ?? []) {
+    const p = raw as { k: string; pts?: [number, number][]; a?: [number, number];
+                       b?: [number, number]; c?: [number, number]; r?: number };
+    let pts: [number, number][] = [];
+    let pad = 0;
+    if (p.k === "poly" || p.k === "fill") pts = p.pts ?? [];
+    else if (p.k === "line") pts = [p.a, p.b].filter(Boolean) as [number, number][];
+    else if (p.k === "circle") { pts = p.c ? [p.c] : []; pad = p.r ?? 0; }
+    else if (p.k === "text") pts = p.c ? [p.c] : [];
+    else continue;
+    for (const [a, c] of pts) best = Math.max(best, Math.hypot(a, c) + pad);
+  }
+  return best;
+}

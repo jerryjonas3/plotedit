@@ -98,6 +98,48 @@ if _ortho != _focus:
 else:
     print(f"  ok   both display modes give identical numbers for {len(_ortho)} units")
 
+# ---------------------------------------------------------------- notation
+# ⭐ The screen and the paper must agree about WHERE a label goes, not only
+# about the numbers on it. They agreed on every figure and still drew different
+# pictures three times in one day: the unit number, the trims, the throw and fc.
+#
+# The rule, RP-2 §6.14.2 and Jerry 2026.09.24: "the channel number should be
+# behind the light, not in front. The colour label should be along the width of
+# the lens in the front." Front and back belong to the INSTRUMENT — 0° points
+# toward -y, so a fixed page offset is wrong for three quarters of a rig.
+#
+# The browser's half of this is `notationAnchor` in web/src/geometry.ts, tested
+# the same way in geometry.test.ts. If you change one, change both.
+from plotedit import symbols as _sym
+
+class _Rec:
+    """A sheet that records text instead of drawing it."""
+    def __init__(self): self.t = []
+    def text(self, x, y, s, **k): self.t.append((str(s), x, y))
+    def line(self, *a, **k): pass
+    def rect(self, *a, **k): pass
+    def circle(self, *a, **k): pass
+
+print()
+for _name, _deg, _fx, _fy in [("downstage", 0, 0, -1), ("upstage", 180, 0, 1),
+                              ("stage right", 90, 1, 0), ("stage left", 270, -1, 0)]:
+    _r = _Rec()
+    _sym.notation(_r, 0, 0, channel=12, circuit=34, color="R33", unit=3, rotate_deg=_deg)
+    _at = dict((s, (x, y)) for s, x, y in _r.t)
+    _c, _h = _at.get("R33"), _at.get("12")
+    if not _c or not _h:
+        fails.append(f"aimed {_name}: notation drew no colour or no channel")
+        continue
+    # Positive dot with the front vector means in front of the lens.
+    _cd = _c[0] * _fx + _c[1] * _fy
+    _hd = _h[0] * _fx + _h[1] * _fy
+    ok = _cd > 0.5 and _hd < -0.5
+    print(f"  {'ok  ' if ok else 'FAIL'} aimed {_name:<12} colour {_cd:+.2f} ahead, "
+          f"channel {_hd:+.2f}")
+    if not ok:
+        fails.append(f"aimed {_name}: colour {_cd:+.2f} / channel {_hd:+.2f} — colour "
+                     f"must be in FRONT (+) and the channel BEHIND (-)")
+
 # The suite's verdict comes LAST, so anything added after it still counts. It
 # used to sit in the middle, which meant an appended check could fail while the
 # suite exited 0 — the same defect found in test_package.py the same day.

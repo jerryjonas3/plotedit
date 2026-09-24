@@ -9,7 +9,7 @@
  * carries the scale and the y flip, so the markup reads in the units of the
  * room — which matters when something looks wrong on screen.
  */
-import { svgTransform, counterFlip, fmtFt, type View } from "./geometry.js";
+import { svgTransform, counterFlip, fmtFt, notationAnchor, symbolRadius, type View } from "./geometry.js";
 import { symbolKey, isVertical, isFoh, type Plot, type Instrument } from "./plot.js";
 import type { SymbolPrim } from "./api.js";
 
@@ -229,7 +229,8 @@ export function render(
       class: "hit", "data-index": String(i), "data-handle": "body",
     }));
     gInst.appendChild(g);
-    if (opts.showLabels) gText.appendChild(labels(inst, c, plot.symbolAngle));
+    if (opts.showLabels) gText.appendChild(
+      labels(inst, c, plot.symbolAngle, opts.symbols?.[symbolKey(inst)]));
   });
 }
 
@@ -313,7 +314,8 @@ function fieldOf(type: string): number | null {
  * the screen had not caught up, so the two drawings disagreed about the one
  * number an electrician reads first.
  */
-function labels(inst: Instrument, c?: Computed, symbolAngle?: string): SVGElement {
+function labels(inst: Instrument, c?: Computed, symbolAngle?: string,
+                prims?: SymbolPrim[]): SVGElement {
   const g = el("g", { class: "annot" });
   const add = (dx: number, dy: number, s: string, size: number, weight = "400", fill = "#111") => {
     const t = el("text", {
@@ -330,24 +332,49 @@ function labels(inst: Instrument, c?: Computed, symbolAngle?: string): SVGElemen
   const drawn = (symbolAngle ?? "orthogonal").startsWith("orth")
     ? Math.round((c?.pan ?? 0) / 90) * 90
     : (c?.pan ?? 0);
-  const rad = (drawn * Math.PI) / 180;
   const OFF = 0.17;   // ft toward the back of the body, matching scaled_pdf
-  add(-OFF * Math.sin(rad), OFF * Math.cos(rad),
-      String(inst.unit), TEXT * 0.7, "700");
+  const body = notationAnchor(0, 0, drawn, OFF);
+  add(body.x, body.y, String(inst.unit), TEXT * 0.7, "700");
+  // ⭐ THE STACK GOES BEHIND THE LIGHT, THE COLOUR IN FRONT ACROSS THE LENS.
+  // §6.14.2 draws circuit/dimmer/channel off the back of an instrument and the
+  // colour and focus beyond its lens. Jerry, 2026.09.24: "the channel number
+  // should be behind the light, not in front. The colour label should be along
+  // the width of the lens in the front."
+  //
+  // ⚠ Both used to sit at fixed page offsets — channel at -1.5 y, colour beside
+  // at +0.75 x — regardless of where the unit pointed. On a unit aimed
+  // downstage that put the channel IN THE BEAM. Front is along -axis, back is
+  // +axis, and both follow the symbol as it turns.
+  const behind = (d: number) => notationAnchor(inst.x, inst.y, drawn, d);
+  // Clear the SYMBOL by its own size, exactly as scaled_pdf does — a constant
+  // put the channel circle on the body of the long ones, and on anything with
+  // an accessory hung off the nose.
+  const clear = symbolRadius(prims) + 0.25;
+
   if (inst.channel !== undefined) {
-    g.appendChild(el("circle", { cx: inst.x, cy: inst.y - 1.5, r: 0.55,
+    const b = behind(clear + 0.21);   // = notation()'s above + size/2
+    g.appendChild(el("circle", { cx: b.x, cy: b.y, r: 0.55,
       fill: "#fff", stroke: "#111", "stroke-width": 0.07 }));
-    add(0, -1.7, String(inst.channel), TEXT * 0.62, "600");
+    add(b.x - inst.x, b.y - inst.y - 0.2, String(inst.channel), TEXT * 0.62, "600");
   }
-  const side: string[] = [];
-  if (inst.type) side.push(inst.type);
-  if (inst.color) side.push(inst.color);
-  if (side.length) {
+  // ⚠ COLOUR ONLY. The screen used to print the type here too — "S4 26 · R52+R119"
+  // — which the paper has never drawn: §6.14.2 puts colour and focus at the
+  // lens, and the TYPE is what the symbol and the key are for. The long string
+  // also ran back across the unit. Type is still in the inspector and the key.
+  if (inst.color) {
+    const size = TEXT * 0.5;
+    // Half the label's own footprint along the axis: a unit aimed downstage
+    // needs its cap height, one aimed stage left needs half its width.
+    const rad = (drawn * Math.PI) / 180;
+    const w = inst.color.length * size * 0.55;
+    const pad = Math.abs(Math.sin(rad)) * w / 2 + Math.abs(Math.cos(rad)) * size / 2;
+    const f = behind(-(clear + pad));
     const t = el("text", {
-      transform: counterFlip(inst.x + 0.75, inst.y - 0.1),
-      "font-size": TEXT * 0.5, "font-family": "system-ui, sans-serif", fill: "#555",
+      transform: counterFlip(f.x, f.y),
+      "font-size": size, "font-family": "system-ui, sans-serif", fill: "#555",
+      "text-anchor": "middle",
     });
-    t.textContent = side.join(" · ");
+    t.textContent = inst.color;
     g.appendChild(t);
   }
   // ⚠ NO throw, elevation or footcandles on the drawing. Jerry, 2026.09.24:

@@ -1,5 +1,5 @@
 /** Run: cd web && npm test */
-import { toScreen, toPlot, len, fitView, fohExtent, fmtFt, svgTransform, type View } from "./geometry.js";
+import { toScreen, toPlot, len, fitView, fohExtent, fmtFt, svgTransform, notationAnchor, symbolRadius, type View } from "./geometry.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -72,5 +72,34 @@ console.log();
 // could print failures and still exit 0. The same defect was found in two of the
 // Python suites on 2026.09.23; verify_suites.py checks those, and did not cover
 // these.
+console.log("\nnotation follows the instrument, not the page");
+// ⭐ Colour in FRONT of the lens, channel BEHIND — for every way a unit can aim.
+// The screen drew both at fixed page offsets until 2026.09.24, which put the
+// channel number inside the beam of anything focused downstage.
+// d > 0 is behind, d < 0 is in front.
+// 0° points the instrument toward -y (downstage) — symbols.draw()'s convention,
+// where local -a is the lens. Getting this backwards is exactly the bug.
+for (const [name, deg, front] of [
+  ["aimed downstage", 0, { x: 0, y: -1 }],
+  ["aimed upstage", 180, { x: 0, y: 1 }],
+  ["aimed stage right", 90, { x: 1, y: 0 }],
+  ["aimed stage left", 270, { x: -1, y: 0 }],
+] as [string, number, { x: number; y: number }][]) {
+  check(`${name}: colour at the lens`, round(notationAnchor(0, 0, deg, -1)), round(front));
+  check(`${name}: channel behind`, round(notationAnchor(0, 0, deg, 1)),
+        round({ x: -front.x, y: -front.y }));
+}
+check("off-axis follows the symbol", round(notationAnchor(10, 20, 45, -1)),
+      { x: 10.7071, y: 19.2929 });
+
+console.log("\nnotation clears the symbol by the symbol's own size");
+// The mirror of symbols.py radius(). An ERS reaches ~1 ft past its yoke; a
+// striplight reaches six.
+check("nothing", symbolRadius(undefined), 0);
+check("a body", +symbolRadius([{ k: "poly", pts: [[0.8, 0.3], [-0.9, 0.3]], closed: true }]).toFixed(4), 0.9487);
+check("a circle counts its radius", symbolRadius([{ k: "circle", c: [1, 0], r: 0.5 }]), 1.5);
+check("an unknown primitive is skipped, not unpacked", symbolRadius([{ k: "arc", pts: [[9, 9]] }]), 0);
+check("the farthest wins", symbolRadius([{ k: "line", a: [0, 0], b: [3, 4] }, { k: "circle", c: [0, 0], r: 1 }]), 5);
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
