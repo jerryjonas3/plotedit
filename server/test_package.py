@@ -175,26 +175,27 @@ check("the pipe sits inboard of the downstage edge",
       _cat["y1"] - _half * 0.55 > _cat["y1"] - _half, True)
 
 
-print("\nunit 1: stage right on a lateral position, downstage on a longitudinal one")
+print("\nRP-2 §2.3.2 numbering: stage left across a batten, top down on a boom")
 from plotedit import positions as P
 
-# ⚠ x increases toward STAGE RIGHT and y increases UPSTAGE (geometry.ts, and the
+# ⭐ RP-2 §2.3.2: battens number "from STAGE LEFT TO STAGE RIGHT"; vertical
+# positions "from top to bottom, downstage to upstage".
+#
+# ⚠ x increases toward stage right and y increases upstage (geometry.ts, and the
 # sample puts "Special SR" at x=22 against "Special SL" at x=11 in a 33' room).
-# So Jerry's two rules run in OPPOSITE directions: stage right is the MAXIMUM x,
-# farthest downstage is the MINIMUM y. These tests exist to catch a refactor
-# that makes them look symmetrical and reverses one.
+# So stage left is the MINIMUM x and downstage the MINIMUM y.
 _lat = {"name": "Elect 1", "x1": 0, "y1": 16, "x2": 33, "y2": 16}
 _lon = {"name": "Pipe SR", "x1": 28, "y1": 2, "x2": 28, "y2": 26}
 check("a wide position is lateral", P.axis(_lat), "lateral")
 check("a deep one is longitudinal", P.axis(_lon), "longitudinal")
-check("lateral defaults to stage right", P.number_from(_lat), "SR")
+check("lateral units number from stage left (RP-2 §2.3.2)",
+      P.number_from(_lat), "SL")
 check("longitudinal defaults to downstage", P.number_from(_lon), "DS")
 
 _i = [dict(unit=99, position="Elect 1", x=x, y=16) for x in (5, 12, 22, 30)]
 P.number(_i, _lat)
-check("unit 1 is the HIGHEST x — stage right",
-      next(i["x"] for i in _i if i["unit"] == 1), 30)
-check("...and unit 4 the lowest", next(i["x"] for i in _i if i["unit"] == 4), 5)
+check("unit 1 is the LOWEST x — stage left", next(i["x"] for i in _i if i["unit"] == 1), 5)
+check("...and unit 4 the highest", next(i["x"] for i in _i if i["unit"] == 4), 30)
 
 _j = [dict(unit=99, position="Pipe SR", x=28, y=y) for y in (4, 10, 18, 24)]
 P.number(_j, _lon)
@@ -202,10 +203,10 @@ check("unit 1 is the LOWEST y — farthest downstage",
       next(i["y"] for i in _j if i["unit"] == 1), 4)
 
 # The override Jerry asked for.
-check("an explicit numberFrom wins", P.number_from(dict(_lat, numberFrom="SL")), "SL")
+check("an explicit numberFrom wins", P.number_from(dict(_lat, numberFrom="SR")), "SR")
 _k = [dict(unit=99, position="Elect 1", x=x, y=16) for x in (5, 30)]
-P.number(_k, dict(_lat, numberFrom="SL"))
-check("...and reverses the order", next(i["x"] for i in _k if i["unit"] == 1), 5)
+P.number(_k, dict(_lat, numberFrom="SR"))
+check("...and reverses the order", next(i["x"] for i in _k if i["unit"] == 1), 30)
 
 # Two units at one coordinate cannot be ordered. Picking one is how a plot gets
 # hung backwards, so it must warn rather than choose.
@@ -463,14 +464,21 @@ check("an FOH position parallel to centerline numbers from the plaster line",
       P.number_from({"name": "FOH R", "x1": 28, "y1": -4, "x2": 28, "y2": -20,
                      "type": "pipe", "foh": True}), "PLASTER")
 
-# 🔴 The one place this tool knowingly disagrees with the standard.
-check("the divergence from RP-2 is recorded, not silently taken",
-      len(P.RP2_DIVERGENCE), 1)
-check("...and names both sides",
-      "stage left to stage right" in P.RP2_DIVERGENCE[0][1]
-      and "house left to house right" in P.RP2_DIVERGENCE[0][2], True)
-check("...and there is a line for the legend",
-      "RP-2" in P.rp2_divergence_note(), True)
+# ⭐ CHANNELS are a different thing and the standard does not cover them. RP-2
+# requires a channel to be shown and says channel hookups are "not addressed in
+# this document." Jerry's convention, 2026.09.23: house left to house right — so
+# channel 1 is at STAGE RIGHT, the maximum x.
+#
+# That is the REVERSE of RP-2's unit numbering across the same batten, and it is
+# deliberate: a unit number is read by someone under the pipe with a wrench, a
+# channel by someone in the house reading the plot. Different readers, and they
+# are allowed to run different ways.
+_ch = [{"unit": 1, "x": 5.0}, {"unit": 2, "x": 22.0}, {"unit": 3, "x": 30.0}]
+check("channels run house left to house right — stage right first",
+      [i["x"] for i in P.channel_order(_ch)], [30.0, 22.0, 5.0])
+check("...which is the opposite of the unit order", P.CHANNEL_FROM, "SR")
+check("...and the legend says the standard is silent on it",
+      "does not address channels" in P.channel_note(), True)
 
 print()
 if FAILS:

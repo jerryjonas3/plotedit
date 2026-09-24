@@ -1,32 +1,35 @@
 """Hanging positions: which way they run, and which end unit 1 is at.
 
-⭐ THE PRINCIPLE, in Jerry's words (2026.09.23):
+⭐ UNIT NUMBERS FOLLOW RP-2 §2.3.2, which is explicit:
 
-    "SR is unit 1 because the numbers actually go house left to house right —
-     easier to read, and visualize from the house."
+    "Luminaires on hanging positions perpendicular to centerline (e.g., battens)
+     are numbered from STAGE LEFT TO STAGE RIGHT."
+    "Luminaires on onstage booms or other vertical hanging positions are numbered
+     from top to bottom, downstage to upstage."
+    "Luminaires mounted on FOH positions parallel to centerline should number
+     starting with the units nearest to plaster line."
+    "Luminaires mounted on FOH positions non-parallel to centerline (box booms)
+     should number starting with the units closest to centerline."
 
-**Unit numbers run in the direction you READ the plot, standing in the house.**
-Left to right across a lateral position. Near to far — downstage to upstage — on
-one that runs up and down the stage. That is the whole rule, and it is a rule
-about legibility, not about geometry: the numbers are for a person holding the
-paper and looking at the room.
+⚠ CHANNELS ARE A DIFFERENT THING and are NOT covered by the standard. RP-2
+requires the channel to be shown on the plot and says outright that channel
+hookups are "not addressed in this document." Jerry's channel convention —
+**house left to house right**, so channel 1 is at stage right — is his own and
+does not conflict with anything. See `channel_order()`.
 
-Everything below is just that principle expressed in this file's coordinates.
+**Unit numbers and channel numbers therefore run in OPPOSITE directions across a
+batten**, which is correct and is not a bug: the unit number is for whoever hangs
+the rig, the channel is for whoever sits in the house and reads the plot.
+
+Coordinates, since the rules are expressed in them:
 
     x increases toward STAGE RIGHT.   y increases UPSTAGE.
     The origin is the downstage-LEFT corner of the room.
 
-Stage right is house left, so "house left to house right" means starting at the
-MAXIMUM x and counting down. Downstage is the MINIMUM y, so a longitudinal
-position starts at the minimum and counts up. **The two therefore move opposite
-ways along their axes** — which looks like an inconsistency and is not one. They
-are the same rule seen from the house.
-
-⚠ So if this is ever unified, unify it on the READING DIRECTION, not on the sign
-of a coordinate. A plot numbered backwards looks entirely correct until someone
-is up a ladder.
+So stage left is the MINIMUM x, stage right the maximum, and downstage the
+minimum y. Fixed in web/src/geometry.ts and corroborated by the sample plot,
+where "Special SR" sits at x=22 and "Special SL" at x=11 in a 33-foot room.
 """
-
 from typing import Any, Dict, List, Optional, Tuple
 
 # The four ends a position can be numbered from.
@@ -114,7 +117,7 @@ def number_from(pos: Dict[str, Any]) -> str:
     if a == "longitudinal" and pos.get("foh"):
         return FROM_PLASTER
 
-    return FROM_DS if a == "longitudinal" else FROM_SR
+    return FROM_DS if a == "longitudinal" else FROM_SL
 
 
 def _sort_key(pos: Dict[str, Any]):
@@ -185,12 +188,14 @@ def number(instruments: List[Dict[str, Any]], pos: Dict[str, Any],
 def describe(pos: Dict[str, Any]) -> str:
     """One line for the plot's notes, so the drawing states its own convention."""
     # Phrased from the house, because that is where it will be read.
-    end = {FROM_SR: "stage right — numbers read house left to house right",
-           FROM_SL: "stage left — numbers read house right to house left",
-           FROM_DS: "farthest downstage — numbers read front to back",
-           FROM_US: "farthest upstage — numbers read back to front",
-           FROM_TOP: "the highest unit — numbers read top to bottom",
-           FROM_BOTTOM: "the lowest unit — numbers read bottom to top"}[number_from(pos)]
+    end = {FROM_SR: "stage right (RP-2 numbers battens from stage LEFT — is this deliberate?)",
+           FROM_SL: "stage left — RP-2 §2.3.2",
+           FROM_DS: "farthest downstage",
+           FROM_US: "farthest upstage",
+           FROM_TOP: "the highest unit — top to bottom, downstage to upstage",
+           FROM_BOTTOM: "the lowest unit — bottom to top",
+           FROM_PLASTER: "nearest the plaster line — RP-2 §2.3.2, FOH",
+           FROM_CENTER: "nearest centerline — RP-2 §2.3.2, box boom"}[number_from(pos)]
     how = "set" if pos.get("numberFrom") else "default"
     return f"{pos.get('name', '?')}: unit 1 at {end} ({how})"
 
@@ -258,30 +263,31 @@ def check_booms(plot: Dict[str, Any]) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# 🔴 Where this tool departs from the standard, on purpose.
+# Conventions the standard does not cover.
 
-RP2_DIVERGENCE = [
-    (
-        "lateral numbering",
-        'RP-2 §2.3.2: "Luminaires on hanging positions perpendicular to '
-        'centerline (e.g., battens) are numbered from stage left to stage right."',
-        'Jerry, 2026.09.23: "unit 1 is stage right... the numbers actually go '
-        'house left to house right — easier to read, and visualize from the house."',
-        "These are OPPOSITE. Stage right is house left, so Jerry numbers a batten "
-        "in the reverse of RP-2's direction. The tool follows Jerry, because it is "
-        "his plot and he gave a reason. But a stranger reading the plot may expect "
-        "the standard, so a plot going to an unfamiliar house should SAY which way "
-        "it numbers.",
-    ),
-]
+# RP-2 requires a channel to be SHOWN and says channel hookups are "not
+# addressed in this document." So this is Jerry's own, recorded 2026.09.23:
+#
+#     "How I do channels... the numbers actually go house left to house right —
+#      easier to read, and visualize from the house."
+#
+# House left is stage right, so channel 1 sits at the MAXIMUM x.
+CHANNEL_FROM = FROM_SR
 
 
-def rp2_divergence_note():
-    """One line for a plot's legend, so the drawing states its own convention.
+def channel_order(instruments):
+    """Instruments in Jerry's channel order: house left to house right.
 
-    A convention that disagrees with the published standard is not a problem —
-    until it is unstated, and then it is somebody hanging a rig backwards.
+    ⚠ This is the reverse of RP-2's UNIT numbering across the same batten, and
+    that is deliberate rather than an inconsistency. A unit number is read by
+    someone standing under the pipe with a wrench; a channel number is read by
+    someone sitting in the house looking at the plot. They serve different people
+    and they are allowed to run different ways.
     """
-    return ("Unit numbering: unit 1 is STAGE RIGHT, reading house left to house "
-            "right. (RP-2 §2.3.2 numbers battens stage left to stage right; this "
-            "plot does not.)")
+    return sorted(instruments, key=lambda i: -(i.get("x") or 0.0))
+
+
+def channel_note():
+    """A line for the plot's legend, since the standard does not set this."""
+    return ("Channels run house left to house right. (RP-2 sets unit numbering "
+            "but does not address channels.)")
