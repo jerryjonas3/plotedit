@@ -13,8 +13,11 @@ import sys
 from plotedit.ies import read
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-IES = os.path.join(HERE, "..", "..", "..", "Documents", "AI Brain", "My-AI-Brain",
-                   "My AI Brain", "my-files (knowledge)", "fixture-manuals", "ies")
+# ⭐ Test data lives WITH the test. This used to climb out of the repo into a
+# folder on one laptop — so on CI the files were absent, the suite printed
+# "skipped", exited 0, and reported success while testing nothing.
+# verify_suites.py caught it on its first real run.
+IES = os.path.join(HERE, "testdata", "ies")
 FAILS = []
 
 
@@ -27,8 +30,12 @@ def check(label, got, want):
 
 path = os.path.join(IES, "SSCYC100-RGBA_2018-04-22.ies")
 if not os.path.exists(path):
-    print(f"skipped — no IES file at {path}")
-    sys.exit(0)
+    # ⚠ A missing fixture is a FAILURE, not a skip. The file is committed
+    # alongside this test, so its absence means something is broken — and a
+    # suite that exits 0 when it cannot run is worse than one that is missing,
+    # because it reports success.
+    print(f"FAILED: no IES file at {path} — it should be committed beside this test")
+    sys.exit(1)
 
 p = read(path)
 print("Altman Spectra Cyc 100 RGBA")
