@@ -61,18 +61,20 @@ check("...and computes a level",
 
 print("\ncyc units — asymmetric, so no beam angle exists to publish")
 for raw, key in [("ETC ColorSource CYC", "ColorSource CYC"),
-                 ("Altman Spectra CYC 50", "Altman Spectra Cyc 50")]:
+                 ("Altman Spectra Cyc 50", "Altman Spectra Cyc 50")]:
     k, row, _ = ph.lookup(raw)
     check(f"{raw!r} resolves", k, key)
     check("   ...with no beam angle", row["field"], None)
     check("   ...and the note says why", any(w in row["source"].lower()
           for w in ("asymmetric", "no photometrics")), True)
-# Altman publishes nothing at all — their own spec says the IES file is available
-# on request. That is an ACTION, and it belongs in the note.
-_, _row, _ = ph.lookup("Altman Spectra CYC 50")
+# Altman publishes nothing at all for the 50 — their own spec says the IES file
+# is available on request. Where to GET real figures belongs in the note.
+_, _row, _ = ph.lookup("Altman Spectra Cyc 50")
 check("Altman note names the way to get real figures",
       "IES" in _row["source"], True)
 check("...and the 4-foot centres, which change a plot", _row["spacing_ft"], 4.0)
+check("the 50 still has no candela", _row["cd"], None)
+check("...and points at the 100, which does", "100" in _row["source"], True)
 
 print("\nAltman Spectra Cyc — the 100 has a real goniometric measurement")
 k, row, _ = ph.lookup("Spectra Cyc 100")
@@ -83,10 +85,23 @@ check("marked asymmetric", row["asymmetric"], True)
 check("peak is 70° off nadir — it throws UP a cyc", row["peak_vertical_deg"], 70.0)
 check("and a level can be computed",
       round(ph.footcandles("Spectra Cyc 100", 14)[0]), 24)
-# The 50 still has nothing; Altman publish IES for the 100 and 200 only.
-_, row50, _ = ph.lookup("Altman Spectra CYC 50")
-check("the 50 still has no candela", row50["cd"], None)
-check("...and points at the 100, which does", "100" in row50["source"], True)
+
+print("\na CORRECTION overrides the paperwork, and says so out loud")
+# Jerry's Wizard of Oz rows read "Altman Spectra CYC 50". He confirmed
+# 2026.09.23 they were 100s. Lightwright's load comes from the library entry for
+# the typed name, so the name and the 50w are ONE fact, not two — which is why a
+# designer's memory can outrank a spreadsheet here.
+k, note = fn.resolve("Altman Spectra CYC 50")
+check("the paperwork name now resolves to the 100", k, "Altman Spectra Cyc 100 RGBA")
+check("the note leads with 'corrected'", note.startswith("corrected:"), True)
+check("...and dates the decision", "2026.09.23" in note, True)
+check("...and flags the RGBA/RGBW assumption", "RGBW" in note, True)
+# The real 50 must stay reachable. A correction is about ONE show's paperwork,
+# not a claim that the fixture does not exist.
+k50, _ = fn.resolve("Altman Spectra Cyc 50")
+check("the exact key still reaches the real 50", k50, "Altman Spectra Cyc 50")
+check("a level can now be computed for the Oz cycs",
+      round(ph.footcandles("Altman Spectra CYC 50", 14)[0]), 24)
 
 print("\nreal fixtures with no data give a REASON, not silence")
 for raw, fragment in [

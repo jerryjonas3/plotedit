@@ -76,13 +76,38 @@ ALIASES = {
     "s4 led 36": "Lustr 36 EDLT",
     "s4 led 19": "Lustr 19 EDLT",
     "s4 led 50": "Lustr 50 LT",
-    "spectra cyc 50": "Altman Spectra Cyc 50",
+    # ⚠ "spectra cyc 50" is NOT here — see CORRECTIONS below. Jerry's paperwork
+    # calls the Wizard of Oz units 50s and they were 100s.
     "spectra cyc 100": "Altman Spectra Cyc 100 RGBA",
     "spectra cyc 100 rgba": "Altman Spectra Cyc 100 RGBA",
     "spectra cyc 100 rgbw": "Altman Spectra Cyc 100 RGBW",
     # bare "Spectra Cyc" with no model resolves to the 100, the only one with
     # real measured photometrics
     "spectra cyc": "Altman Spectra Cyc 100 RGBA",
+}
+
+
+# ── Corrections ──────────────────────────────────────────────────────────────
+# Names in the paperwork that are WRONG, and what the fixture actually was.
+#
+# These sit apart from ALIASES deliberately. An alias says "this is another way
+# of writing the same fixture" — a spelling. A correction says "the paperwork is
+# mistaken" — a claim about the world. The second kind should be easy to find,
+# easy to question and easy to reverse, so it does not get buried among the
+# spellings and quietly outlive the reason for it.
+#
+# ⚠ Why a paperwork name can lose to a memory. In Lightwright the LOAD comes
+# from the library entry for whatever fixture name was typed. So a row reading
+# "Altman Spectra CYC 50 / 50w" is not the unit corroborating its own name — it
+# is the library repeating the name back. The name and the wattage are ONE fact,
+# not two, and one fact from 2022 does not outweigh the designer who hung them.
+CORRECTIONS = {
+    "spectra cyc 50": (
+        "Altman Spectra Cyc 100 RGBA",
+        "paperwork says 'Spectra Cyc 50'; Jerry confirmed 2026.09.23 that the "
+        "Wizard of Oz units were 100s. RGBA assumed — the RGBW is 3% brighter "
+        "and otherwise identical, and no row records which was hung.",
+    ),
 }
 
 # Real fixtures with no photometrics on file, and why. The photometric table is
@@ -130,6 +155,13 @@ def resolve(name, fixtures=None):
 
     if n in _GENERIC:
         return None, f"{raw!r} names a system, not a fixture type"
+
+    if n in CORRECTIONS:
+        key, why = CORRECTIONS[n]
+        # Lead with the word "corrected" so it cannot be mistaken for a
+        # spelling match in a report of 200 instruments.
+        return (key, f"corrected: {raw!r} read as {key!r} — {why}") if key in fixtures else (
+            None, f"correction for {raw!r} points at {key!r}, which is not in the table")
 
     if n in ALIASES:
         key = ALIASES[n]

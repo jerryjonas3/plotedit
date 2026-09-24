@@ -183,6 +183,8 @@ FIXTURES = {
                           "2020-07-31: asymmetrical, NO photometrics published. "
                           "Altman publishes IES for the 100 and 200 but NOT the 50 — see "
                           "'Altman Spectra Cyc 100 RGBA', whose figures are real. "
+                          "NOTE: Jerry's paperwork name 'Spectra Cyc 50' no longer resolves here - "
+                          "he confirmed 2026.09.23 the units were 100s. This row stays for a real 50. "
                           "Designed for 4-foot centres."),
 
     # ⭐ Altman Spectra Cyc 100 — the ONE fixture here whose figures come from a
