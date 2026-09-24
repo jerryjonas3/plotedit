@@ -10,7 +10,7 @@
  * seeing at once — unlike instruments, where a list of sixty would be a wall.
  */
 import type { Plot, Position } from "./plot.js";
-import { isVertical } from "./plot.js";
+import { isVertical, resolveEnds, runOf } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
 import { confirmDelete } from "./confirm.js";
@@ -186,12 +186,33 @@ export function renderPositions(
       box.appendChild(field("Y", p.y1, v => { const n = num(v);
         if (n === null || n === undefined) return; set({ y1: n, y2: n }); }, { feet: true }));
     } else {
-      box.appendChild(field("X1", p.x1, v => { const n = num(v);
-        if (n === null || n === undefined) return; set({ x1: n }); }, { feet: true }));
-      box.appendChild(field("Y1", p.y1, v => { const n = num(v);
-        if (n === null || n === undefined) return; set({ y1: n, y2: n }); }, { feet: true }));
-      box.appendChild(field("X2", p.x2, v => { const n = num(v);
-        if (n === null || n === undefined) return; set({ x2: n }); }, { feet: true }));
+      // ⭐ FOUR ENDS, THREE REQUIRED. Leaving one blank says the position does
+      // not move in that direction — blank X2 runs it up and downstage, blank
+      // Y2 runs it across. The old form offered X1/Y1/X2 and wrote y2 = y1
+      // behind the reader's back, so every position it could make ran
+      // stage-left to stage-right, and a pipe up the deck needed a text editor.
+      const end = (label: string, cur: number, key: "x1" | "y1" | "x2" | "y2") =>
+        field(label, cur, v => {
+          const n = num(v);
+          if (n === null) return;                  // nonsense; num() already said so
+          const next = { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, [key]: n };
+          const ends = resolveEnds(next.x1, next.y1, next.x2, next.y2,
+                                   { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2 });
+          if (!ends) {
+            deps.onStatus?.("A position needs at least X1 and Y1.", true);
+            return;
+          }
+          set(ends);
+          deps.onStatus?.(`${p.name} runs ${runOf(ends)}.`);
+        }, { feet: true, hint: label.endsWith("2")
+              ? "Clear this to make the position run the other way — a blank X2 "
+              + "runs it up and downstage, a blank Y2 runs it across."
+              : undefined });
+
+      box.appendChild(end("X1", p.x1, "x1"));
+      box.appendChild(end("Y1", p.y1, "y1"));
+      box.appendChild(end("X2", p.x2, "x2"));
+      box.appendChild(end("Y2", p.y2, "y2"));
       if ((p.type ?? "") === "catwalk" || (p.type ?? "") === "truss")
         box.appendChild(field("Width", p.width, v => { const n = num(v);
           if (n === null) return; set({ width: n }); }, { feet: true }));

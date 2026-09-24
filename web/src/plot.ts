@@ -288,3 +288,67 @@ export function newPlot(show = "Untitled"): Plot {
     instruments: [],
   };
 }
+
+
+/** The two ends of a position, from however many of the four the reader gave.
+ *
+ * ⭐ Jerry, 2026.09.24: "we need to be able to add grid pipes that are US to DS
+ * — can't do that in the UI now — we could have x1 x2 y1 y2 and only require 3
+ * values which would determine the direction."
+ *
+ * The form used to offer X1, Y1, X2 and write y2 = y1 behind the reader's back,
+ * so every position it could make ran stage-left to stage-right. A pipe up and
+ * down the deck could be drawn by hand-editing the JSON and no other way — and
+ * the rest of the tool already understood one: positions.axis() calls it
+ * `longitudinal` and numbers it from downstage, which is Jerry's own convention.
+ *
+ * ⭐ WHICH VALUE IS MISSING IS THE ANSWER. Leaving one blank says the position
+ * does not move in that direction:
+ *
+ *   x2 blank   the run is UP AND DOWNSTAGE — x does not change
+ *   y2 blank   the run is ACROSS — y does not change
+ *   both blank a POINT, which is what a boom is in plan
+ *   none blank a raked position, taken exactly as given
+ *
+ * ⚠ AND THE LENGTH SURVIVES THE TURN. Clearing X2 on a pipe that already runs
+ * across would otherwise leave no extent in either direction — a 33-foot
+ * electric would silently become a point. `previous` carries the run it had, so
+ * blanking an axis TURNS the pipe rather than erasing it. Without this the
+ * gesture the hint promises does the opposite of what it says.
+ *
+ * Returns null when x1 or y1 is missing, because there is no end to infer from.
+ */
+export interface Ends { x1: number; y1: number; x2: number; y2: number }
+
+export function resolveEnds(
+  x1?: number, y1?: number, x2?: number, y2?: number, previous?: Ends,
+): Ends | null {
+  if (x1 === undefined || y1 === undefined) return null;
+  const ran = previous
+    ? Math.hypot(previous.x2 - previous.x1, previous.y2 - previous.y1) : 0;
+
+  if (x2 === undefined && y2 === undefined) return { x1, y1, x2: x1, y2: y1 };
+
+  if (x2 === undefined) {
+    // Runs up and downstage. Keep whatever y-run was typed; if there is none,
+    // give it the length the pipe had before it was turned.
+    const dy = (y2 as number) - y1;
+    return { x1, y1, x2: x1, y2: dy !== 0 ? (y2 as number) : y1 + ran };
+  }
+  if (y2 === undefined) {
+    const dx = x2 - x1;
+    return { x1, y1, x2: dx !== 0 ? x2 : x1 + ran, y2: y1 };
+  }
+  return { x1, y1, x2, y2 };
+}
+
+/** How a position runs, for what to call it in the UI. Mirrors the naming in
+ *  positions.py, which decides the numbering from the same fact. */
+export function runOf(p: { x1: number; y1: number; x2: number; y2: number }):
+    "across" | "up-and-downstage" | "raked" | "a point" {
+  const dx = Math.abs(p.x2 - p.x1), dy = Math.abs(p.y2 - p.y1);
+  if (dx < 0.01 && dy < 0.01) return "a point";
+  if (dy < 0.01) return "across";
+  if (dx < 0.01) return "up-and-downstage";
+  return "raked";
+}

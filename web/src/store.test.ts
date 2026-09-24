@@ -1,6 +1,6 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
-import { plotFileName, newPlot, isPlot, type Plot } from "./plot.js";
+import { plotFileName, newPlot, isPlot, resolveEnds, runOf, type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
 import { deleteMessage, describeUnit } from "./confirm.js";
@@ -226,6 +226,43 @@ console.log("\na new plot is empty, and honest about it");
 
   check("two new plots do not share a room object", newPlot().room === p.room, false);
 }
+
+console.log("\nthree values decide which way a position runs");
+// ⭐ Jerry, 2026.09.24: "we need to be able to add grid pipes that are US to DS
+// — we could have x1 x2 y1 y2 and only require 3 values which would determine
+// the direction." The form offered X1, Y1, X2 and wrote y2 = y1 behind the
+// reader's back, so every position it could make ran stage-left to stage-right.
+const R = (a?: number, b?: number, c?: number, d?: number, prev?: any) =>
+  resolveEnds(a, b, c, d, prev);
+
+check("all four given are taken as given", R(0, 20, 33, 20), { x1: 0, y1: 20, x2: 33, y2: 20 });
+check("no Y2 runs it across", R(0, 20, 33), { x1: 0, y1: 20, x2: 33, y2: 20 });
+check("no X2 runs it up and downstage", R(6, 10, undefined, 30),
+      { x1: 6, y1: 10, x2: 6, y2: 30 });
+check("neither is a point — which is a boom in plan", R(6, 10),
+      { x1: 6, y1: 10, x2: 6, y2: 10 });
+check("a raked position survives", R(0, 10, 20, 30), { x1: 0, y1: 10, x2: 20, y2: 30 });
+check("no X1 is not a position", R(undefined, 10, 20, 30), null);
+
+// 🔴 THE LENGTH SURVIVES THE TURN. Clearing X2 on a pipe that already runs
+// across leaves no extent in EITHER direction, so a 33-foot electric would
+// silently become a point. Blanking an axis has to TURN the pipe, not erase it
+// — my first version did erase it, and the status line said "runs a point"
+// while the hint promised it would run up and downstage.
+const across = { x1: 0, y1: 36, x2: 33, y2: 36 };
+check("clearing X2 turns a 33ft pipe rather than collapsing it",
+      R(0, 36, undefined, 36, across), { x1: 0, y1: 36, x2: 0, y2: 69 });
+check("...and clearing Y2 turns it back",
+      R(0, 36, 0, undefined, { x1: 0, y1: 36, x2: 0, y2: 69 }),
+      { x1: 0, y1: 36, x2: 33, y2: 36 });
+check("a typed Y2 beats the remembered length",
+      R(0, 36, undefined, 50, across), { x1: 0, y1: 36, x2: 0, y2: 50 });
+
+console.log("\nand what the position is called");
+check("across", runOf({ x1: 0, y1: 20, x2: 33, y2: 20 }), "across");
+check("up and downstage", runOf({ x1: 6, y1: 10, x2: 6, y2: 30 }), "up-and-downstage");
+check("a point", runOf({ x1: 6, y1: 10, x2: 6, y2: 10 }), "a point");
+check("raked", runOf({ x1: 0, y1: 10, x2: 20, y2: 30 }), "raked");
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
