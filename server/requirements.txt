@@ -1,9 +1,21 @@
-# The computation half — already working, copied from My AI Brain/my-skills/plot
-reportlab>=4.0        # architectural-scale PDF
+# Runtime and test dependencies for the Python side.
+#
+# ⭐ ONE list. CI installs from this file, not from a list typed into the
+# workflow — that is how python-multipart got missed: FastAPI needs it for the
+# file-upload endpoints (/import/dxf) but never imports it by name, so a grep
+# for `import` statements did not see it, and it was already installed on the
+# laptop, which hid it completely.
+#
+# ⚠ A dependency list derived by reading the code will always miss the implicit
+# ones. If you add a dependency, add it HERE and nowhere else.
+
+reportlab>=4.0        # architectural-scale PDF — 72pt to the inch, so scale is arithmetic
 ezdxf>=1.4            # DXF in and out
 openpyxl>=3.1         # Lightwright XLSX exports
-PyMuPDF>=1.24         # reading PDFs (datasheets, checking our own output)
+PyMuPDF>=1.24         # reading PDFs back — datasheets, and checking our own output (imports as `fitz`)
 
-# The service wrapper — not written yet
+# The service
 fastapi>=0.115
 uvicorn[standard]>=0.30
+python-multipart>=0.0.9   # ⚠ NOT imported by name. FastAPI needs it for UploadFile/Form.
+httpx>=0.27               # fastapi.testclient, which the suites use
