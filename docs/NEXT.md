@@ -265,33 +265,39 @@ Done:
 
 ### ✅ Which end is unit 1 — answered 2026.09.23
 
-**Jerry: "unit 1 is stage right. Later we may want to be able to override that.
-On a pipe that runs US -> DS, I tend to have unit 1 be farthest DS."**
+**Jerry: *"SR is unit 1 because the numbers actually go house left to house
+right — easier to read, and visualize from the house."*** And: *"on a pipe that
+runs US -> DS, I tend to have unit 1 be farthest DS."*
 
-**⭐ Those two rules run in OPPOSITE directions in this coordinate system**, and
-that is the thing to remember. `geometry.ts` fixes **x increasing toward stage
-right and y increasing upstage**, with the origin at the downstage-LEFT corner —
-corroborated by the sample, where *Special SR* sits at x=22 and *Special SL* at
-x=11 in a 33-foot room. So:
+**⭐ The principle is the reading direction from the house, not the geometry.**
+Unit numbers run the way a person reads the plot while standing in the room:
+left to right across a lateral position, near to far on one running up and down
+the stage. It is a rule about legibility, and the coordinates are only how it
+gets expressed.
 
-| Position runs | Unit 1 is at | Which is |
+| Position runs | Unit 1 at | In this file's coordinates |
 |---|---|---|
-| Stage left–right (**lateral**) | stage right | the **maximum x** |
-| Upstage–downstage (**longitudinal**) | farthest downstage | the **minimum y** |
+| Stage left–right | stage right (= house left) | the maximum x, counting down |
+| Upstage–downstage | farthest downstage | the minimum y, counting up |
 
-They do **not** collapse into "start at one end of the axis." Any refactor that
-makes them look symmetrical will silently reverse one, and a plot numbered
-backwards looks entirely correct until someone is up a ladder. `test_package.py`
-pins both directions for exactly that reason.
+The two move opposite ways along their axes. **That looks like an inconsistency
+and is not one** — they are the same rule seen from the house. ⚠ So if this is
+ever unified, unify it on the **reading direction**, never on the sign of a
+coordinate.
+
+*(Corrected 2026.09.23: an earlier version of this note led with the coordinate
+mechanics and called the two rules opposites, which is true and is not the
+point. Jerry: "I don't really care about x and y, it's not used except for maybe
+hanging." The reason is what generalises to the cases nobody has coded yet.)*
 
 `positions.py` has `axis()`, `number_from()`, `order()`, `number()` and
-`describe()`. **`numberFrom` is the override Jerry asked for** — `SR`, `SL`,
-`DS` or `US` — and it always beats the default.
+`describe()`, which states the convention in words for the plot's own notes —
+*"Elect 1: unit 1 at stage right — numbers read house left to house right."*
+**`numberFrom`** (`SR`/`SL`/`DS`/`US`) is the override, and always wins.
 
-Two things it refuses to do quietly: **two units at the same coordinate warn**
-rather than being ordered arbitrarily, and **nothing renumbers automatically**,
-because on a hung plot a renumber is a different document from the one taped to
-the pipe.
+Two refusals: **two units at one coordinate warn** rather than being ordered
+arbitrarily, and **nothing renumbers automatically**, because on a hung plot a
+renumber is a different document from the one taped to the pipe.
 
 ### Still to do
 

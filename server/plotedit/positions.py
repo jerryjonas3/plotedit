@@ -1,25 +1,32 @@
 """Hanging positions: which way they run, and which end unit 1 is at.
 
-⚠ THE COORDINATE CONVENTION, because the numbering rules depend entirely on it
-and getting it backwards is invisible until someone is up a ladder:
+⭐ THE PRINCIPLE, in Jerry's words (2026.09.23):
+
+    "SR is unit 1 because the numbers actually go house left to house right —
+     easier to read, and visualize from the house."
+
+**Unit numbers run in the direction you READ the plot, standing in the house.**
+Left to right across a lateral position. Near to far — downstage to upstage — on
+one that runs up and down the stage. That is the whole rule, and it is a rule
+about legibility, not about geometry: the numbers are for a person holding the
+paper and looking at the room.
+
+Everything below is just that principle expressed in this file's coordinates.
 
     x increases toward STAGE RIGHT.   y increases UPSTAGE.
     The origin is the downstage-LEFT corner of the room.
 
-So stage right is the HIGH-x end, and downstage is the LOW-y end. That is fixed
-in web/src/geometry.ts and corroborated by the sample plot, where "Special SR"
-sits at x=22 and "Special SL" at x=11 in a 33-foot room.
+Stage right is house left, so "house left to house right" means starting at the
+MAXIMUM x and counting down. Downstage is the MINIMUM y, so a longitudinal
+position starts at the minimum and counts up. **The two therefore move opposite
+ways along their axes** — which looks like an inconsistency and is not one. They
+are the same rule seen from the house.
 
-Jerry's rules, 2026.09.23:
-
-    "unit 1 is stage right"
-    "on a pipe that runs US -> DS, I tend to have unit 1 be farthest DS"
-
-⭐ Those two rules run in OPPOSITE directions in this coordinate system. Stage
-right is the maximum x; downstage is the minimum y. They do not collapse into
-"start at one end of the axis", and any refactor that tries to make them look
-symmetrical will silently reverse one of them.
+⚠ So if this is ever unified, unify it on the READING DIRECTION, not on the sign
+of a coordinate. A plot numbered backwards looks entirely correct until someone
+is up a ladder.
 """
+
 from typing import Any, Dict, List, Optional, Tuple
 
 # The four ends a position can be numbered from.
@@ -36,10 +43,11 @@ def axis(pos: Dict[str, Any]) -> str:
 def number_from(pos: Dict[str, Any]) -> str:
     """Which end unit 1 sits at. An explicit `numberFrom` always wins.
 
-    The default is Jerry's habit: stage right on a lateral position, farthest
-    downstage on one that runs upstage-downstage. He asked for the override
-    2026.09.23 — "later we may want to be able to override that" — so the field
-    exists now and simply defaults.
+    The default is the reading direction from the house: house left to house
+    right across a lateral position (so stage right first), near to far on a
+    longitudinal one (so downstage first). Jerry asked for the override the same
+    day — "later we may want to be able to override that" — so the field exists
+    now and simply defaults.
     """
     explicit = (pos.get("numberFrom") or "").strip().upper()
     if explicit in (FROM_SR, FROM_SL, FROM_DS, FROM_US):
@@ -93,7 +101,10 @@ def number(instruments: List[Dict[str, Any]], pos: Dict[str, Any],
 
 def describe(pos: Dict[str, Any]) -> str:
     """One line for the plot's notes, so the drawing states its own convention."""
-    end = {FROM_SR: "stage right", FROM_SL: "stage left",
-           FROM_DS: "farthest downstage", FROM_US: "farthest upstage"}[number_from(pos)]
+    # Phrased from the house, because that is where it will be read.
+    end = {FROM_SR: "stage right — numbers read house left to house right",
+           FROM_SL: "stage left — numbers read house right to house left",
+           FROM_DS: "farthest downstage — numbers read front to back",
+           FROM_US: "farthest upstage — numbers read back to front"}[number_from(pos)]
     how = "set" if pos.get("numberFrom") else "default"
-    return f"{pos.get('name', '?')}: unit 1 at {end} ({axis(pos)}, {how})"
+    return f"{pos.get('name', '?')}: unit 1 at {end} ({how})"
