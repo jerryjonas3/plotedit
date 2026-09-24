@@ -91,6 +91,7 @@
       font-family:inherit; font-size:14px; line-height:20px; letter-spacing:.1px; font-weight:500;
       display:inline-flex; align-items:center; gap:6px;
       height:32px; padding:0 14px; border-radius:var(--shape-full);
+      white-space:nowrap; flex:0 0 auto;
       border:none; background:none; color:var(--primary); cursor:pointer;
       position:relative; overflow:hidden; transition:box-shadow .15s, background-color .15s;
     }
@@ -308,6 +309,8 @@
         <button id="redo" class="icon" title="Redo (⇧⌘Z)" disabled>
           <span class="material-symbols-outlined">redo</span></button>
         <div class="divider"></div>
+        <button id="new" class="outlined" title="New plot (start over)">
+          <span class="material-symbols-outlined">note_add</span>New</button>
         <select id="open" title="Open a saved plot"><option value="">Open…</option></select>
         <button id="save" class="filled" title="Save (⌘S)">
           <span class="material-symbols-outlined">save</span>Save</button>

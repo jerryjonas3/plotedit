@@ -1,6 +1,6 @@
 /** Load a plot, draw it, let it be edited. */
 import { fitView, fohExtent, type View } from "./geometry.js";
-import { isPlot, symbolKey, plotFileName, type Plot } from "./plot.js";
+import { isPlot, symbolKey, plotFileName, newPlot, type Plot } from "./plot.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels, savePlot, listPlots, loadPlot,
@@ -330,26 +330,50 @@ async function refreshOpenList(): Promise<void> {
   }
 }
 
+/** Ask before throwing away unsaved work. `what` completes "…and lose them?" */
+function mayDiscard(what: string): boolean {
+  if (!store.dirty) return true;
+  return window.confirm(
+    `This plot has unsaved changes.\n\n${what} and lose them?`);
+}
+
+/** Put a different plot in the editor.
+ *
+ * ⚠ Shared by Open and New, because both have to do the SAME five things — a
+ * fresh store, a fresh subscription, the pointer and keyboard handlers
+ * reattached to it, the symbol cache emptied, and a recompute. New was written
+ * as a copy of Open first, and copy number three is where one of them quietly
+ * stops re-attaching a handler and dragging silently edits the plot you closed.
+ */
+async function adoptPlot(plot: Plot, savedName: string | null): Promise<void> {
+  store = new Store(plot);
+  savedAs = savedName;
+  store.subscribe(paint);
+  attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
+  attachKeyboard(store, { view, onChange: draw, onSettled: () => recompute() });
+  symbolCache = {};
+  await recompute(0);
+}
+
 async function openPlot(name: string): Promise<void> {
-  // ⚠ Ask before throwing away unsaved work. The old download-based save never
-  // had an Open, so this question never came up.
-  if (store.dirty && !window.confirm(
-        "This plot has unsaved changes. Open a different one and lose them?")) {
-    return;
-  }
+  if (!mayDiscard("Open a different plot")) return;
   try {
-    const plot = await loadPlot(name);
-    store = new Store(plot);
-    savedAs = name;
-    store.subscribe(paint);
-    attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
-    attachKeyboard(store, { view, onChange: draw, onSettled: () => recompute() });
-    symbolCache = {};
-    await recompute(0);
+    await adoptPlot(await loadPlot(name), name);
     status(`Opened ${name}`);
   } catch (e) {
     status(e instanceof Error ? e.message : String(e), true);
   }
+}
+
+async function newFile(): Promise<void> {
+  if (!mayDiscard("Start a new plot")) return;
+  const show = window.prompt("What is the show called?", "Untitled");
+  if (show === null) return;                 // cancelled is not an error
+  // ⚠ savedAs is null, so the first Save ASKS where to put it rather than
+  // overwriting whatever was open a moment ago.
+  await adoptPlot(newPlot(show.trim() || "Untitled"), null);
+  status("New plot — set the room and the venue in Show & Venue, "
+         + "then add a position.");
 }
 
 function status(msg: string, bad = false) {
@@ -461,6 +485,7 @@ async function boot() {
     });
     $("undo").addEventListener("click", () => { store.undo(); recompute(); });
     $("redo").addEventListener("click", () => { store.redo(); recompute(); });
+    $("new").addEventListener("click", () => void newFile());
     $("save").addEventListener("click", () => void save());
     $("saveas").addEventListener("click", () => void saveAs());
     $("open").addEventListener("change", (e) => {

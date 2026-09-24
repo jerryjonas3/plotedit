@@ -1,6 +1,6 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
-import { plotFileName, type Plot } from "./plot.js";
+import { plotFileName, newPlot, isPlot, type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
 import { deleteMessage, describeUnit } from "./confirm.js";
@@ -202,6 +202,30 @@ check("spaces are empty too", parseFeet("   "), undefined);
 check("nonsense is refused, not treated as empty", parseFeet("about 6"), null);
 check("...so is a stray word", parseFeet("6ft"), null);
 check("...and 5'14\" is a typo, not 6'2\"", parseFeet("5'14\""), null);
+
+console.log("\na new plot is empty, and honest about it");
+{
+  const p = newPlot("Studio Test");
+  check("it is a valid plot", isPlot(p), true);
+  check("named what was asked", p.show, "Studio Test");
+  check("no instruments", p.instruments.length, 0);
+  check("no positions", p.positions.length, 0);
+
+  // 🔴 No designer, no studio. Those print in the TITLE BLOCK, and a new plot
+  // inheriting whoever used the tool last would put one person's name on
+  // another person's drawing.
+  check("nobody's name on it", p.designer, undefined);
+  check("nobody's studio either", p.studio, undefined);
+
+  // ⚠ The room has a size because the canvas has to fit to something, but the
+  // size is NOT a measurement and the plot says so — that text prints across
+  // the top of the drawing until it is replaced.
+  check("the room has a workable size", p.room.width > 0 && p.room.depth > 0, true);
+  check("...and says it is not measured",
+        (p.room.source ?? "").includes("NOT MEASURED"), true);
+
+  check("two new plots do not share a room object", newPlot().room === p.room, false);
+}
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

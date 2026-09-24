@@ -254,3 +254,37 @@ export function plotFileName(show: string): string {
     .slice(0, 80);
   return `${stem || "plot"}.plot.json`;
 }
+
+/** An empty plot, ready to be drawn on.
+ *
+ * ⭐ Jerry, 2026.09.24: "we need a new file feature." Until now the only way to
+ * start was to open somebody else's plot and delete their rig out of it — which
+ * is how a stranger's first plot ends up carrying a stray position, a leftover
+ * gel and a designer's name in the title block.
+ *
+ * ⚠ The room has a SIZE, because it has to: the canvas fits itself to the room
+ * and a plot with no dimensions has nothing to draw or scale against. 30' x 40'
+ * is a starting point, not a measurement — `source` says exactly that, so the
+ * figure cannot be mistaken for something anyone checked, and it prints that way
+ * on the plot until it is replaced.
+ *
+ * ⚠ No designer and no studio. Those print in the title block, and a new plot
+ * inheriting whoever used the tool last would put one person's name on another
+ * person's drawing. They are typed in Show & Venue.
+ */
+export function newPlot(show = "Untitled"): Plot {
+  return {
+    formatVersion: 1,
+    show,
+    date: new Date().toISOString().slice(0, 10),
+    revision: "A",
+    control: "dimmer-per-circuit",
+    room: {
+      width: 30,
+      depth: 40,
+      source: "NOT MEASURED — a starting size. Set the room in Show & Venue.",
+    },
+    positions: [],
+    instruments: [],
+  };
+}
