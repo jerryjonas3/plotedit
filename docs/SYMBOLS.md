@@ -171,10 +171,23 @@ same will be true of something else in the standard within a few years.
 4-panel, top hat, half hat. The other six accessories on that plate (scrollers,
 CYM mixer, douser, sightline, rigging point) are not drawn; nobody has asked.
 
-**⚠ Accessories are drawn but not yet attached.** The data model carries no
-accessory field, so a barn door cannot yet be put on an instrument — only drawn
-beside one. §6.14.2 puts a gate accessory INSIDE the body and these go at the
-front; both need a field before they mean anything on a plot.
+**✅ Accessories attach, as of 2026.09.23.** An instrument carries
+`"accessories": ["top hat", "gobo"]` — a list, because a unit routinely has two.
+
+**The designer says only WHAT is on the unit; where the mark goes is the
+drawing's job.** RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the
+body and front-of-lens ones (barn doors, hats) at the nose, and that split is
+physical, not stylistic. Making the user choose the placement would be asking
+them to know the standard in order to use the tool.
+
+Front accessories stack nose-outward so two never land on top of each other.
+**An accessory the tool cannot draw is reported, never dropped** — it reaches
+`sheet.warnings` and the `/symbols` reply — because a barn door that vanishes
+quietly is a barn door nobody packs. Scrollers, CYM mixers, dousers, sightlines
+and rigging points are on the plate but not drawn; nobody has asked.
+
+**They change nothing photometric.** A top hat controls spill, not output, and
+no figure in the tool pretends otherwise.
 
 ## Order of work
 

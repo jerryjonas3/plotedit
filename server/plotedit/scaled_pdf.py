@@ -198,7 +198,7 @@ class Sheet:
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
-             show_pool=True, annotate=False):
+             accessories=None, show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -207,6 +207,14 @@ class Sheet:
         and center-beam footcandles if the fixture is in photometrics.FIXTURES.
         lamp is a tungsten lamp ("HPL 575"); mode is an LED output mode
         ("Regulated 3200K"). Passing neither uses the fixture's reference figure.
+
+        accessories is a list of names — "top hat", "4-way barn door", "gobo",
+        "iris". RP-2 puts gate accessories INSIDE the body and front-of-lens ones
+        at the nose, so only the name is given here and the placement is worked
+        out. They change nothing photometric: a top hat controls spill, not
+        output, and no figure here pretends otherwise. An unrecognised accessory
+        is collected in self.warnings — never dropped, because an accessory
+        nobody ordered is an accessory nobody brings.
 
         show_pool draws the field pool at the focus point; annotate prints the
         numbers beside it. Returns the dict (or None if no trim/focus given).
@@ -220,7 +228,12 @@ class Sheet:
         if focus_to and trim is not None:
             from . import photometrics as _ph
             pan = _ph.aim((x, y, trim), (focus_to[0], focus_to[1], focus_h))["pan"]
-        _sym.draw(self, _sym.for_type(kind, lens_rotation), x, y, rotate_deg=pan)
+        _prims = _sym.for_type(kind, lens_rotation)
+        if accessories:
+            _prims, _unknown = _sym.with_accessories(_prims, accessories)
+            for w in _unknown:
+                self.warnings.append(f"unit {num}: {w}")
+        _sym.draw(self, _prims, x, y, rotate_deg=pan)
 
         # §6.14 notation. RP-2 allows leaving categories out rather than
         # cluttering the plot, so only what was supplied is drawn.
@@ -235,7 +248,7 @@ class Sheet:
                 from . import photometrics as ph
                 a = ph.aim((x, y, trim), (fx, fy, focus_h))
                 result = dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim, focus=(fx, fy),
-                              focus_h=focus_h, **a)
+                              focus_h=focus_h, accessories=list(accessories or []), **a)
                 if kind in ph.FIXTURES:
                     pl = ph.pool(kind, a["throw"], a["elevation"]); result.update(pl)
                     # color_gel may be compound ("R52+R119", "R52/R119"), so ask
@@ -259,7 +272,8 @@ class Sheet:
                     if result.get("fc"): t += f" · {result['fc']:.0f} fc"
                     self.text(fx + ft(0, 6), fy - ft(1), t, size=5, color=grey)
         if not hasattr(self, "units"): self.units = []
-        self.units.append(result or dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim, focus=focus_to))
+        self.units.append(result or dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim,
+                                         focus=focus_to, accessories=list(accessories or [])))
         return result
 
     def dim(self, x1, y1, x2, y2, text=None, offset_ft=0.0):

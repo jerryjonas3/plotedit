@@ -41,7 +41,11 @@ export interface Instrument {
   wattage?: number;
   position?: string;
   purpose?: string;
-  accessory?: string;
+  /** Barn doors, hats, gobos, irises. RP-2 puts GATE accessories (gobo, iris,
+   *  rotator) inside the body and FRONT-of-lens ones (barn doors, hats) at the
+   *  nose, so only the name is stored — the drawing works out where it goes.
+   *  A list because a unit routinely carries two: a hat and a gobo. */
+  accessories?: string[];
   notes?: string;
 }
 
@@ -85,4 +89,17 @@ export interface Plot {
 export function isPlot(x: unknown): x is Plot {
   const p = x as Plot;
   return !!p && p.formatVersion === 1 && !!p.room && Array.isArray(p.instruments);
+}
+
+/** The symbol cache key for one instrument: its type, plus its accessories.
+ *
+ * Two units of the same type with different accessories are different SHAPES,
+ * so they cannot share a cache entry keyed on type alone. Built in one place
+ * because main.ts asks the server for these keys and render.ts looks them up —
+ * if the two ever spelled a key differently the symbol would silently fall back
+ * to a plain ring and nobody would know why.
+ */
+export function symbolKey(inst: Instrument): string {
+  const acc = (inst.accessories ?? []).map(a => a.trim()).filter(Boolean);
+  return acc.length ? `${inst.type}|${acc.join("+")}` : inst.type;
 }

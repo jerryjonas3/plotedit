@@ -45,7 +45,8 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    trim=inst.get("trim"), focus_to=focus,
                    focus_h=inst.get("focusH", 5.5), lamp=inst.get("lamp"),
                    mode=inst.get("mode"),
-                   lens_rotation=inst.get("lensRotation"))
+                   lens_rotation=inst.get("lensRotation"),
+                   accessories=inst.get("accessories"))
         rows.append(r)
 
     if room.get("source"):

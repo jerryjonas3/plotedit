@@ -1,6 +1,6 @@
 /** Load a plot, draw it, let it be edited. */
 import { fitView, type View } from "./geometry.js";
-import { isPlot, type Plot } from "./plot.js";
+import { isPlot, symbolKey, type Plot } from "./plot.js";
 import { render, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols,
          type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim } from "./api.js";
@@ -88,7 +88,7 @@ function paint() {
 
 /** Fetch RP-2 outlines for any fixture type not already held. */
 async function ensureSymbols() {
-  const want = [...new Set(store.plot.instruments.map(i => i.type))]
+  const want = [...new Set(store.plot.instruments.map(symbolKey))]
     .filter(t => t && !(t in symbolCache));
   if (!want.length) return;
   try {

@@ -51,7 +51,10 @@
       "color": "R52+R119",
       "lamp": "HPL 575",
       "position": "GRID C",
-      "purpose": "Area 1"
+      "purpose": "Area 1",
+      "accessories": [
+        "top hat"
+      ]
     },
     {
       "unit": 2,
@@ -120,7 +123,11 @@
       "focusY": 14,
       "lamp": "HPL 575",
       "position": "GRID D",
-      "purpose": "BAX"
+      "purpose": "BAX",
+      "accessories": [
+        "4-way barn door",
+        "gobo"
+      ]
     },
     {
       "unit": 2,
@@ -195,6 +202,7 @@
     "BAX carries no color, matching the archive: back light is open-white PARs or ellipsoidals.",
     "The five acting-area units are spaced 5'-6\" on center; field-to-beam at this throw wants 5'-4\".",
     "Plaster line at y=10 and the center line are drawn per RP-2 6.18 \u2014 medium weight, dashed and chain-dashed.",
-    "Unit 4 on GRID D is a PARNel with its lens turned 45 degrees \u2014 RP-2 6.2 Oval Beam Fresnel."
+    "Unit 4 on GRID D is a PARNel with its lens turned 45 degrees \u2014 RP-2 6.2 Oval Beam Fresnel.",
+    "Accessories ride on the instrument record. RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the body and front-of-lens ones (barn doors, hats) at the nose; only the name is given here."
   ]
 }

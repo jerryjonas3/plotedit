@@ -12,7 +12,7 @@ import type { Computed } from "./render.js";
 export interface Field {
   key: keyof Instrument;
   label: string;
-  kind: "number" | "text" | "select";
+  kind: "number" | "text" | "select" | "list";
   /** Does changing it change the light? */
   photometric?: boolean;
   options?: string[];
@@ -42,7 +42,8 @@ export const FIELDS: Field[] = [
   { key: "mode", label: "LED mode", kind: "select", photometric: true },
   { key: "lensRotation", label: "Lens angle", kind: "number", step: 15,
     hint: "Oval-beam units (PARNel): degrees the lens is turned" },
-  { key: "accessory", label: "Accessory", kind: "text" },
+  { key: "accessories", label: "Accessories", kind: "list",
+    hint: "Separate with + — \"top hat + gobo\". Barn doors, hats, gobo, iris, rotator" },
   { key: "notes", label: "Notes", kind: "text" },
 ];
 
@@ -116,7 +117,12 @@ export function renderInspector(
       input = document.createElement("input");
       input.type = f.kind === "number" ? "number" : "text";
       if (f.step) input.step = String(f.step);
-      input.value = inst[f.key] === undefined || inst[f.key] === null ? "" : String(inst[f.key]);
+      const cur = inst[f.key];
+      input.value = f.kind === "list"
+        // " + " matches the schedule export and the gel notation, where + means
+        // "and this as well". A comma would be ambiguous inside a CSV cell.
+        ? (Array.isArray(cur) ? cur.join(" + ") : "")
+        : cur === undefined || cur === null ? "" : String(cur);
     }
     input.id = id;
     if (f.hint) input.title = f.hint;
@@ -125,6 +131,13 @@ export function renderInspector(
       const raw = input.value.trim();
       let value: string | number | undefined;
       if (raw === "") value = undefined;
+      else if (f.kind === "list") {
+        const parts = raw.split(/\s*[+,]\s*/).map(t => t.trim()).filter(Boolean);
+        store.begin(null);
+        store.update(i, { [f.key]: parts.length ? parts : undefined } as Partial<Instrument>);
+        f.photometric ? deps.onPhotometricChange() : deps.onPaperworkChange();
+        return;
+      }
       else if (f.kind === "number") {
         const n = Number(raw);
         if (!isFinite(n)) return;

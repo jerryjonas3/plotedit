@@ -114,6 +114,40 @@ except KeyError:
 print("\npaperwork")
 check("Lightwright column aliases", len(paperwork.LW_COLUMNS), 37)
 
+
+# ---------------------------------------------------------------- accessories
+print("\naccessories attach where RP-2 puts them, not where they were typed")
+from plotedit import symbols as _sym
+
+check("a hat is front-of-lens",  _sym.resolve_accessory("top hat")[0], "front")
+check("a gobo is at the gate",   _sym.resolve_accessory("gobo")[0], "gate")
+check("'4-way barn door' reads", _sym.resolve_accessory("4-way barn door")[1], "bd4")
+check("a bare 'barn door' is the 4", _sym.resolve_accessory("barn door")[1], "bd4")
+# An accessory this tool cannot draw must SAY so. A barn door that is silently
+# dropped is a barn door nobody packs.
+where, key, note = _sym.resolve_accessory("scroller")
+check("an unknown accessory resolves to nothing", where, None)
+check("...and explains itself", "not an accessory this tool knows" in note, True)
+
+_base = _sym.for_type("S4 26")
+_with, _unknown = _sym.with_accessories(_base, ["top hat", "gobo"])
+check("two accessories add geometry", len(_with) > len(_base), True)
+check("...and neither is unknown", _unknown, [])
+_, _unknown2 = _sym.with_accessories(_base, ["scroller"])
+check("an unknown one is REPORTED, not dropped", len(_unknown2), 1)
+
+# The front accessory must sit at the nose, in front of the body — not on top
+# of it. Its geometry should extend further forward than the symbol does.
+_fa_base, _ = _sym._extent(_base), None
+_fa_with = _sym._extent(_with)
+check("the hat sits forward of the body", _fa_with[0] < _sym._extent(_base)[0], True)
+
+# Two hats must not land on each other.
+_two, _ = _sym.with_accessories(_base, ["top hat", "half hat"])
+check("a second front accessory stacks further out",
+      _sym._extent(_two)[0] < _sym._extent(_with)[0], True)
+
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

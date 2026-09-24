@@ -10,7 +10,7 @@
  * room — which matters when something looks wrong on screen.
  */
 import { svgTransform, counterFlip, fmtFt, type View } from "./geometry.js";
-import type { Plot, Instrument } from "./plot.js";
+import { symbolKey, type Plot, type Instrument } from "./plot.js";
 import type { SymbolPrim } from "./api.js";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -146,7 +146,7 @@ export function render(
       gFocus.appendChild(fh);
     }
     const isSel = opts.selected === i;
-    const g = symbol(inst, c, opts.symbols?.[inst.type]);
+    const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)]);
     g.setAttribute("data-index", String(i));
     if (isSel) g.classList.add("selected");
     // A generous invisible disc so a 9-inch symbol is still easy to grab.

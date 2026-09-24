@@ -57,6 +57,21 @@ SCHEDULE_COLUMNS = ["Position", "Unit", "Channel", "Dimmer", "Address",
                     "Type", "Wattage", "Color", "Gobo", "Purpose", "Accessory", "Notes"]
 
 
+def _accessories(inst) -> str:
+    """The accessory cell. A list on the instrument, one cell on the schedule.
+
+    Joined with " + " rather than a comma: the schedule is a CSV and the shop
+    reads this column as a line on the order, so a comma inside a cell is a
+    quoting problem waiting to be somebody's missing barn door.
+    """
+    a = inst.get("accessories")
+    if a is None:                     # tolerate the old single-string field
+        a = inst.get("accessory") or []
+    if isinstance(a, str):
+        a = [a] if a else []
+    return " + ".join(str(x) for x in a if str(x).strip())
+
+
 def schedule_csv(plot: Dict[str, Any]) -> str:
     """The instrument schedule: what hangs where, in hanging order."""
     rows: List[List[Any]] = [[f"{plot.get('show', '')} — Instrument Schedule"],
@@ -68,7 +83,7 @@ def schedule_csv(plot: Dict[str, Any]) -> str:
         rows.append([i.get("position", ""), i.get("unit", ""), i.get("channel", ""),
                      i.get("dimmer", ""), i.get("address", ""), i.get("type", ""),
                      i.get("wattage", ""), i.get("color", ""), i.get("gobo", ""),
-                     i.get("purpose", ""), i.get("accessory", ""), i.get("notes", "")])
+                     i.get("purpose", ""), _accessories(i), i.get("notes", "")])
     return _csv(rows)
 
 

@@ -355,11 +355,25 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
 
     Local coordinates, in feet: +a is toward the back of the instrument, -a the
     front, c is across. The origin is the yoke — the hanging point.
+
+    An entry may carry accessories after a pipe: `S4 26|top hat+gobo`. The key
+    in the reply is the WHOLE entry, so the browser looks a symbol up by the
+    same string it asked for and two units of one type with different
+    accessories stay distinct. Unknown accessories come back in `warnings`
+    rather than being dropped — a barn door nobody drew is a barn door nobody
+    hangs.
     """
     out: Dict[str, Any] = {}
+    warnings: List[str] = []
     for t in [x.strip() for x in types.split(",") if x.strip()]:
+        base, _, acc_s = t.partition("|")
+        acc = [a.strip() for a in acc_s.split("+") if a.strip()]
+        shape = sym.for_type(base.strip(), lens_rotation)
+        if acc:
+            shape, unknown = sym.with_accessories(shape, acc)
+            warnings += [f"{base.strip()}: {u}" for u in unknown]
         prims = []
-        for p in sym.for_type(t, lens_rotation):
+        for p in shape:
             if p[0] == "poly":
                 prims.append({"k": "poly", "pts": [[round(a, 4), round(c, 4)] for a, c in p[1]],
                               "closed": bool(p[2])})
@@ -375,7 +389,8 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
                 prims.append({"k": "text", "c": [round(v, 4) for v in p[1]],
                               "s": p[2], "size": p[3]})
         out[t] = prims
-    return {"symbols": out, "source": "USITT RP-2 (2006), plates pp.4-9"}
+    return {"symbols": out, "warnings": warnings,
+            "source": "USITT RP-2 (2006), plates pp.4-9"}
 
 
 # ----------------------------------------------------------------- names

@@ -401,6 +401,113 @@ def top_hat(size=0.5, half=False):
     return out
 
 
+# --------------------------------------------- attaching accessories to a unit
+
+# RP-2 puts accessories in two DIFFERENT places, and the difference is physical:
+#
+#   Gate accessories (§6.1.11, §6.14.2) go INSIDE the body — a gobo, an iris and
+#   a rotator all sit at the gate, behind the lens, and RP-2 marks them with a
+#   filled circle, an open circle and an R.
+#
+#   Front-of-lens accessories (§6.13) go at the FRONT — barn doors, hats,
+#   scrollers and dousers all clip onto the colour frame.
+#
+# So the designer says only WHAT is on the unit; where the mark goes is the
+# drawing's job, not theirs. One field on the instrument, two placements.
+
+_GATE = {"gobo": "template", "template": "template", "pattern": "template",
+         "gobo rotator": "rotator", "rotator": "rotator", "double rotator": "rotator2",
+         "iris": "iris"}
+
+_FRONT = {"top hat": "tophat", "tophat": "tophat", "hat": "tophat",
+          "half hat": "halfhat", "halfhat": "halfhat", "half top hat": "halfhat",
+          "barn door": "bd4", "barndoor": "bd4", "barn doors": "bd4",
+          "barn door 2": "bd2", "2 panel barn door": "bd2", "bd2": "bd2",
+          "barn door 4": "bd4", "4 panel barn door": "bd4", "bd4": "bd4"}
+
+
+def _norm_acc(name):
+    import re as _re
+    t = _re.sub(r"[^a-z0-9 ]+", " ", str(name or "").lower())
+    t = _re.sub(r"\b(\d+)\s*(way|panel|leaf)\b", r"\1", t)
+    return _re.sub(r"\s+", " ", t).strip()
+
+
+def resolve_accessory(name):
+    """('gate'|'front'|None, key, note). Never guesses: an unknown accessory is
+    reported, because a barn door nobody ordered is a barn door nobody brings."""
+    t = _norm_acc(name)
+    if not t:
+        return None, None, "empty accessory"
+    if t in _GATE:
+        return "gate", _GATE[t], ""
+    if t in _FRONT:
+        return "front", _FRONT[t], ""
+    # "4 way barn door" -> "4 barn door"; try the words in either order
+    if "barn" in t and "door" in t:
+        return "front", ("bd2" if "2" in t else "bd4"), f"{name!r} read as a barn door"
+    if "hat" in t:
+        return "front", ("halfhat" if "half" in t else "tophat"), f"{name!r} read as a hat"
+    return None, None, (f"{name!r} is not an accessory this tool knows — "
+                        "add it to _GATE or _FRONT in symbols.py")
+
+
+def _extent(prims):
+    """(min_a, max_a) of a symbol, so a front accessory can be put at its nose."""
+    vals = []
+    for p in prims:
+        if p[0] == "poly":
+            vals += [q[0] for q in p[1]]
+        elif p[0] == "line":
+            vals += [p[1][0], p[2][0]]
+        elif p[0] in ("circle", "text"):
+            vals.append(p[1][0])
+    return (min(vals), max(vals)) if vals else (0.0, 0.0)
+
+
+def with_accessories(prims, accessories, size=0.5):
+    """Return prims plus every accessory, each drawn where RP-2 puts it.
+
+    Returns (prims, unknown) — `unknown` is the list of names that resolved to
+    nothing, so the caller can SAY so rather than dropping them silently.
+    """
+    if not accessories:
+        return list(prims), []
+    front_a, _ = _extent(prims)
+    out, unknown, n_front = list(prims), [], 0
+    gate_at = front_a * 0.42          # inside the body, behind the lens
+    for name in accessories:
+        where, key, note = resolve_accessory(name)
+        if where is None:
+            unknown.append(note or str(name)); continue
+        if where == "gate":
+            if key == "template":
+                out.append(("circle", (gate_at, 0.0), size * 0.17, True))
+            elif key == "iris":
+                out.append(("circle", (gate_at, 0.0), size * 0.17))
+            else:
+                out.append(("text", (gate_at, 0.0), "RR" if key == "rotator2" else "R", 0.011))
+        else:
+            # Stack front accessories nose-outward so two never overlap.
+            off = front_a - n_front * size * 1.15
+            n_front += 1
+            shape = (barn_door(2, size) if key == "bd2" else
+                     barn_door(4, size) if key == "bd4" else
+                     top_hat(size, half=(key == "halfhat")))
+            out += [_shift(pr, off) for pr in shape]
+    return out, unknown
+
+
+def _shift(prim, da):
+    """Move one primitive along the instrument axis by `da` feet."""
+    k = prim[0]
+    if k == "poly":
+        return (k, [(a + da, c) for a, c in prim[1]], prim[2])
+    if k == "line":
+        return (k, (prim[1][0] + da, prim[1][1]), (prim[2][0] + da, prim[2][1]))
+    return (k, (prim[1][0] + da, prim[1][1])) + tuple(prim[2:])
+
+
 # ------------------------------------------------------------------ drawing
 
 def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):
