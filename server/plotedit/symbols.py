@@ -386,7 +386,7 @@ def for_type(kind, lens_rotation=None):
     if "cyc" in low:
         return cyc_unit(3)
     if "lustr" in low or "colorsource" in low or "clrsrc" in low or "led" in low:
-        # §6.16: dots = number of colours. A Lustr is the x7 array; ColorSource
+        # §6.16: dots = number of colors. A Lustr is the x7 array; ColorSource
         # is five — red, green, blue, lime, indigo — per ETC's own datasheets.
         colors = 7 if "lustr" in low else (5 if ("colorsource" in low or "clrsrc" in low) else 4)
         return led(colors)
@@ -420,7 +420,7 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
         rectangle  dimmer (in a patch-panel house)
         circle     channel
 
-    §6.14.2 stacks them below the symbol, with focus and colour above it.
+    §6.14.2 stacks them below the symbol, with focus and color above it.
 
     RP-2's own caveat, worth honouring: "Notation shown on any plot is a
     case-by-case basis. It is not necessary to include all categories, when the
@@ -430,7 +430,7 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     import math as _m
     from reportlab.lib.colors import black
 
-    # above the symbol: colour, then purpose (focus)
+    # above the symbol: color, then purpose (focus)
     ay = y + above
     for text in [t for t in (color, purpose) if t]:
         sheet.text(x, ay, text, size=7, center=True)

@@ -73,7 +73,7 @@ export function fitView(
   roomW: number, roomH: number, width: number, height: number, marginFt = 3,
 ): View {
   const scale = Math.min(width / (roomW + marginFt * 2), height / (roomH + marginFt * 2));
-  // centre the room in whatever space is left over
+  // center the room in whatever space is left over
   const slackX = (width / scale - roomW) / 2;
   const slackY = (height / scale - roomH) / 2;
   return { scale, panX: -slackX, panY: -slackY, width, height };

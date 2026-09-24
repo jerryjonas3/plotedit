@@ -61,7 +61,7 @@ def build(show, groups, cues, note=None):
     note   : optional extra comment line
 
     Import as MERGE or the existing patch is destroyed. The file carries
-    INTENSITY ONLY — colour on RGBW fixtures must be set at the console.
+    INTENSITY ONLY — color on RGBW fixtures must be set at the console.
     """
     def chan_string(levels):
         out = {}

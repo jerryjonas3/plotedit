@@ -32,7 +32,7 @@ from ezdxf import units as dxf_units
 
 # $INSUNITS code -> feet per drawing unit
 UNIT_FT = {1: 1/12, 2: 1.0, 3: 5280.0, 4: 1/304.8, 5: 1/30.48, 6: 1/0.3048, 14: 1/3.048}
-UNIT_NAME = {1: "inches", 2: "feet", 3: "miles", 4: "mm", 5: "cm", 6: "metres", 14: "decimetres", 0: "unitless"}
+UNIT_NAME = {1: "inches", 2: "feet", 3: "miles", 4: "mm", 5: "cm", 6: "meters", 14: "decimeters", 0: "unitless"}
 UNIT_ARG = {"in": 1, "inch": 1, "inches": 1, "ft": 2, "feet": 2, "mm": 4, "cm": 5, "m": 6, "metres": 6, "meters": 6}
 
 

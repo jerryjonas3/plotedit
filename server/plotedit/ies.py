@@ -50,7 +50,7 @@ def read(path_or_text):
     n_vert = int(next(n))
     n_horiz = int(next(n))
     photometric_type = int(next(n))
-    units_type = int(next(n))          # 1 = feet, 2 = metres
+    units_type = int(next(n))          # 1 = feet, 2 = meters
     width, length, height = next(n), next(n), next(n)
     ballast_factor = next(n)
     _future = next(n)
@@ -91,7 +91,7 @@ def read(path_or_text):
         "horizontal_angles": horiz,
         "candela": grid,
         "size_m": (width, length, height) if units_type == 2 else None,
-        "units": "metres" if units_type == 2 else "feet",
+        "units": "meters" if units_type == 2 else "feet",
         "photometric_type": {1: "Type C", 2: "Type B", 3: "Type A"}.get(photometric_type),
     }
 

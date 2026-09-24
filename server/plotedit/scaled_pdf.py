@@ -204,7 +204,7 @@ class Sheet:
 
         With trim (hang height, ft) and focus_to, the photometrics are worked out:
         throw, elevation, pan, field/beam pool at focus_h (head height, default 5'-6")
-        and centre-beam footcandles if the fixture is in photometrics.FIXTURES.
+        and center-beam footcandles if the fixture is in photometrics.FIXTURES.
         lamp is a tungsten lamp ("HPL 575"); mode is an LED output mode
         ("Regulated 3200K"). Passing neither uses the fixture's reference figure.
 
@@ -287,7 +287,7 @@ class Sheet:
     # ---- §6.18 reference lines
 
     def center_line(self, x, y0, y1):
-        """§6.18: the centre line is MEDIUM, chain-dashed."""
+        """§6.18: the center line is MEDIUM, chain-dashed."""
         self.layer("BASE")
         self.line(x, y0, x, y1, style="centerline", color=grey)
 
@@ -361,7 +361,7 @@ def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", l
 
     axis="y": the cut runs upstage–downstage; horizontal position is each unit's y.
     axis="x": the cut runs across the stage; horizontal position is each unit's x.
-    Draws the deck, the grid/trim, each unit at its trim, the beam's centre line to
+    Draws the deck, the grid/trim, each unit at its trim, the beam's center line to
     the focus point at head height, and the field-edge lines to the deck.
     """
     from . import photometrics as ph

@@ -20,7 +20,7 @@ Anything without a source is not in the table.
 import math
 import re
 
-# Field/beam angles and centre-beam candela at the reference lamp.
+# Field/beam angles and center-beam candela at the reference lamp.
 # cd is at HPL 750W/115V unless noted. Use LAMP_MF to convert.
 FIXTURES = {
     "S4 19":  dict(field=18.0, beam=15.0, cd=245000, ref_lamp="HPL 750", family="S4",
@@ -162,7 +162,7 @@ FIXTURES = {
     # (asymmetrical)" — it is a cyc light with an asymmetric reflector, so a
     # field/beam pair is meaningless and no candela is published. It is listed
     # so it resolves to a REASON rather than looking unknown; 4,117 max lumens,
-    # 42 LUXEON C LEDs, five colours (red, green, blue, indigo, lime).
+    # 42 LUXEON C LEDs, five colors (red, green, blue, indigo, lime).
     "ColorSource CYC": dict(field=None, beam=None, cd=None, ref_lamp="LED",
                    family="ColorSource CYC", lumens=4117, colors=5,
                    source="ETC ColorSource CYC datasheet revE: asymmetrical, "
@@ -176,7 +176,7 @@ FIXTURES = {
     # number worth computing from.
     #
     # What IS known and useful: 1,661 max lumens (RGBA), 50 W, and — the one
-    # fact that changes a plot — Altman designs it for use on FOUR-FOOT CENTRES.
+    # fact that changes a plot — Altman designs it for use on FOUR-FOOT CENTERS.
     "Altman Spectra Cyc 50": dict(field=None, beam=None, cd=None, ref_lamp="LED",
                    family="Cyc", lumens=1661, colors=4, spacing_ft=4.0,
                    source="Altman SSCYC50 datasheet rev2 2020-10-08 + specification "
@@ -185,7 +185,7 @@ FIXTURES = {
                           "'Altman Spectra Cyc 100 RGBA', whose figures are real. "
                           "NOTE: Jerry's paperwork name 'Spectra Cyc 50' no longer resolves here - "
                           "he confirmed 2026.09.23 the units were 100s. This row stays for a real 50. "
-                          "Designed for 4-foot centres."),
+                          "Designed for 4-foot centers."),
 
     # ⭐ Altman Spectra Cyc 100 — the ONE fixture here whose figures come from a
     # real goniometric measurement rather than a datasheet table. Altman publish
@@ -331,7 +331,7 @@ def gel_factor(gel):
 
 
 def footcandles(kind, throw, lamp=None, mode=None, gel=None):
-    """Centre-beam illuminance = candela / throw², times gel transmission. Returns (fc, note).
+    """Center-beam illuminance = candela / throw², times gel transmission. Returns (fc, note).
     lamp: an HPL lamp for tungsten fixtures. mode: an output mode for LED fixtures with 'modes'.
     gel: a Rosco number or a list of them. Transmission figures are Rosco's, measured for a
     broadband (tungsten) source — exact for HPL, approximate on a white LED."""
@@ -395,7 +395,7 @@ def overlap(units, kind_key="kind", height=5.5):
 
 
 def wash_spacing(kind, throw, rule="field-to-beam"):
-    """On-centre spacing for units in a wash, at the throw distance.
+    """On-center spacing for units in a wash, at the throw distance.
 
     Rules, all measured at the target plane:
       "field-to-beam"  (the usual practice) — each unit's FIELD edge lands on the
@@ -422,7 +422,7 @@ def wash_spacing(kind, throw, rule="field-to-beam"):
 def wash_row(kind, throw, width, rule="field-to-beam"):
     """How many units to cover `width` feet of acting area, and where they sit.
 
-    Returns (count, spacing, positions) with positions centred on the width.
+    Returns (count, spacing, positions) with positions centered on the width.
     Count is rounded up, then the spacing is eased back so the row fits evenly.
     """
     import math
@@ -449,7 +449,7 @@ def report(kind, unit, target, lamp=None, mode=None, gel=None):
     lines = [f"{kind}: throw {fmt_ft(a['throw'])}, elevation {a['elevation']:.0f}°, pan {a['pan']:+.0f}°",
              f"  field {fmt_ft(p['field'])} / beam {fmt_ft(p['beam'])} across"
              + (f", {fmt_ft(p['on_deck_length'])} long on the deck" if p.get("on_deck_length") else "")]
-    lines.append(f"  {fc:.0f} fc centre beam {note}" if fc else f"  light level: {note}")
+    lines.append(f"  {fc:.0f} fc center beam {note}" if fc else f"  light level: {note}")
     return "\n".join(lines)
 
 

@@ -77,14 +77,14 @@ fixed-focus units is 18".**
 ## §2.3.1 — position numbering
 
 FOH positions number from the one nearest the plaster line. **Onstage electrics and
-booms number downstage to upstage.** Anything off centreline is subnamed by its side.
+booms number downstage to upstage.** Anything off centerline is subnamed by its side.
 
 ## §6.18 — line weights
 
 | Weight | Used for |
 |---|---|
 | Light | scenery · leader lines · dimensions |
-| Medium | masking · drops · centre line (chain-dash) · plaster line (dashed) |
+| Medium | masking · drops · center line (chain-dash) · plaster line (dashed) |
 | **Heavy** | **batten · luminaire · architecture · drawing border · title block** |
 
 ---
@@ -180,7 +180,7 @@ batten is the same weight on paper whatever scale the drawing is at.
 | Weight | pt | Categories |
 |---|---|---|
 | **Light** | 0.5 | scenery · leader lines · dimensions · beam pools · grid |
-| **Medium** | 0.9 | masking · drops · **centre line** (chain-dash) · **plaster line** (even dash) |
+| **Medium** | 0.9 | masking · drops · **center line** (chain-dash) · **plaster line** (even dash) |
 | **Heavy** | 1.7 | **batten · luminaire · architecture** · drawing border · title block |
 
 **Pass `style="batten"` rather than `width=2`.** A named category records *why*

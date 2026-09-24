@@ -30,7 +30,7 @@ const f = fitView(33, 38, 800, 600);      // the Bluver
 check("scale fits the tall axis", +f.scale.toFixed(4), +(600 / 44).toFixed(4));
 const c1 = toScreen({ x: 0, y: 0 }, f), c2 = toScreen({ x: 33, y: 38 }, f);
 check("room is inside the surface", c1.x > 0 && c2.x < 800 && c2.y > 0 && c1.y < 600, true);
-check("room is centred horizontally", +(c1.x - (800 - (c2.x - c1.x)) / 2).toFixed(2), 0);
+check("room is centered horizontally", +(c1.x - (800 - (c2.x - c1.x)) / 2).toFixed(2), 0);
 
 console.log("\nsvgTransform puts the origin where toScreen does");
 const t = svgTransform(v);

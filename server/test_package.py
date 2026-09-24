@@ -102,7 +102,7 @@ check("a luminaire is heavy", LINE_STYLES["luminaire"][0], HEAVY)
 check("architecture is heavy", LINE_STYLES["architecture"][0], HEAVY)
 check("scenery is light", LINE_STYLES["scenery"][0], LIGHT)
 check("a dimension is light", LINE_STYLES["dimension"][0], LIGHT)
-check("the centre line is a 4-part chain dash", len(LINE_STYLES["centerline"][1]), 4)
+check("the center line is a 4-part chain dash", len(LINE_STYLES["centerline"][1]), 4)
 check("the plaster line is evenly dashed", len(LINE_STYLES["plasterline"][1]), 2)
 try:
     from plotedit.scaled_pdf import style as _style

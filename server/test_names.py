@@ -72,7 +72,7 @@ for raw, key in [("ETC ColorSource CYC", "ColorSource CYC"),
 _, _row, _ = ph.lookup("Altman Spectra Cyc 50")
 check("Altman note names the way to get real figures",
       "IES" in _row["source"], True)
-check("...and the 4-foot centres, which change a plot", _row["spacing_ft"], 4.0)
+check("...and the 4-foot centers, which change a plot", _row["spacing_ft"], 4.0)
 check("the 50 still has no candela", _row["cd"], None)
 check("...and points at the 100, which does", "100" in _row["source"], True)
 
