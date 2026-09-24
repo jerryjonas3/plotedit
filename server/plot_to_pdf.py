@@ -90,6 +90,13 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    symbol_angle=plot.get("symbolAngle", "orthogonal"))
         rows.append(r)
 
+    # ⭐ The key goes ON THE PLOT. §5.0 allows it "in any location that does not
+    # conflict with other information", and on the plot is the location that
+    # matters: it is the sheet an electrician has in front of them. A key on its
+    # own page is a page nobody carries up the ladder.
+    from plotedit import key as _key
+    _key.draw(s, plot, room["width"] + 4.0, room["depth"])
+
     if room.get("source"):
         s.note(1, room["depth"] - 1.5, f"Room: {room['source'][:110]}")
     s.finish()
