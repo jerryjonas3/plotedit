@@ -28,12 +28,23 @@ and still openable in twenty years.
 **You need Python 3.10 or newer.** Nothing else, if you downloaded a release.
 
 1. Download the latest release and unzip it.
-2. **Double-click `run.command`.**
+2. Double-click **`run.command`** on a Mac, or **`run.bat`** on Windows.
 3. Your browser opens on the editor.
 
 The first run takes a minute while it sets itself up. After that it starts in a
 few seconds. Leave the terminal window open while you work — closing it, or
 pressing ctrl-C, stops the program.
+
+> **On Windows**, install Python from
+> [python.org](https://www.python.org/downloads/) and tick
+> **"Add python.exe to PATH"** in the installer. The `python` that Windows
+> offers by default is a Microsoft Store stub that opens the Store instead of
+> running anything. SmartScreen may also warn about an unrecognised app —
+> **More info** → **Run anyway**.
+>
+> ⚠ `run.bat` has been written but **not tested on a Windows machine** — there
+> isn't one here. If it fails, the Developing section below works on Windows
+> too, one command per terminal.
 
 > **macOS may refuse to open it the first time** — "cannot be opened because it
 > is from an unidentified developer". Right-click `run.command` → **Open** →

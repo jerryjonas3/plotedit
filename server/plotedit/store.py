@@ -29,6 +29,15 @@ from pathlib import Path
 # so ".json" — hidden on macOS and Linux — cannot be created.
 SAFE_NAME = re.compile(r"^[\w][\w ()\-.]{0,120}\.json$")
 
+# ⚠ WINDOWS DEVICE NAMES. On Windows these are not filenames at all — CON is the
+# console, NUL is the bin, LPT1 is a printer port — and opening "CON.json" talks
+# to the device instead of creating a file, with the extension ignored. The
+# pattern above lets them through because they are ordinary words, and a
+# designer typing "aux.json" for an auxiliary rig would get silence and no file.
+_RESERVED = {"con", "prn", "aux", "nul",
+             *(f"com{i}" for i in range(1, 10)),
+             *(f"lpt{i}" for i in range(1, 10))}
+
 
 def root() -> Path:
     """The plots directory. Created on first use.
@@ -57,6 +66,10 @@ def resolve(name: str) -> Path:
         )
     if ".." in name:
         raise ValueError(f"{name!r} is not a plot file name")
+    if name.split(".")[0].strip().lower() in _RESERVED:
+        raise ValueError(
+            f"{name!r} is a reserved device name on Windows — "
+            f"call it something else so the plot works on every machine")
     base = root()
     path = (base / name).resolve()
     if path.parent != base.resolve():

@@ -122,6 +122,17 @@ check("a name that is a symlink out of the folder is refused", _r.status_code, 4
 with open(_outside) as _fh:
     check("...and the file it pointed at is untouched", _fh.read(), '{"keep": "me"}')
 
+# ⚠ WINDOWS DEVICE NAMES. CON, NUL, LPT1 and friends are not filenames there —
+# "CON.json" talks to the console and the extension is ignored — so a plot saved
+# under one would silently not exist. Refused everywhere, so a plot written on a
+# Mac cannot fail to open on Windows.
+for _dev in ["CON.json", "nul.json", "com1.json", "LPT9.json", "aux.json"]:
+    if client.post("/save", json={"name": _dev, "plot": _plot}).status_code != 400:
+        FAILS.append(f"{_dev!r} was accepted — it is a device on Windows, not a file")
+check("Windows device names are refused", True, True)
+check("...but an ordinary name that starts the same is fine",
+      client.post("/save", json={"name": "Concert.json", "plot": _plot}).status_code, 200)
+
 check("a plot that is not there is a 404", client.get("/plots/nope.json").status_code, 404)
 check("the listing names the folder", "folder" in client.get("/plots").json(), True)
 
