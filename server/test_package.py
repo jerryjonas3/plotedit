@@ -307,6 +307,47 @@ check("units with no wattage are named, and the total called a floor",
           for m in C.load([{"unit": 9, "position": "E1", "circuit": 3,
                             "type": "SHEHDS 19"}], _pp)[1]), True)
 
+
+print("\nan S4 with no lamp recorded is an HPL 575, not the reference 750")
+# Jerry, 2026.09.23: "ETC S4 incandescents are 575 watts unless noted - there
+# are 750." ETC MEASURED the candela at HPL 750, but a 750 is not what is in the
+# fixture. Computing an unstated lamp at the reference overstates every level by
+# about a quarter, in the direction that looks safe — the plot promises light the
+# rig will not deliver.
+check("the default lamp is the 575", ph.DEFAULT_LAMP, "HPL 575")
+_d = ph.footcandles("S4 26", 14)
+check("an unstated lamp computes at 575", round(_d[0]), 700)
+check("...and the note says it was assumed", "assumed" in _d[1], True)
+check("an explicit 750 still computes at 750",
+      round(ph.footcandles("S4 26", 14, lamp="HPL 750")[0]), 898)
+check("...without claiming it was assumed",
+      "assumed" in ph.footcandles("S4 26", 14, lamp="HPL 750")[1], False)
+# ⭐ Corroboration from outside the code: how-we-light.md, built from Jerry's own
+# paperwork before any of this existed, puts a 575 S4 26 at 14ft through
+# R52+R119 at 163 fc. The default now agrees with his own business file.
+check("163 fc through R52+R119 — matches how-we-light.md",
+      round(ph.footcandles("S4 26", 14, gel="R52+R119")[0]), 163)
+
+print("\nwattage: the engine's, not the lens tube's — and it varies by mode")
+check("an unstated S4 is 575W", ph.watts_for("S4 26")[0], 575.0)
+check("a stated 750 is 750W", ph.watts_for("S4 26", lamp="HPL 750")[0], 750.0)
+check("a Lustr is ETC's 167", ph.watts_for("Lustr 26 EDLT")[0], 167.0)
+check("a ColorSource CYC is 133", ph.watts_for("ColorSource CYC")[0], 133.0)
+# ⚠ The one a single number per fixture would get wrong: a ColorSource draws 160W
+# at Maximum Output and 115W regulated to 3200K. 28% — the difference between
+# four and five units on a 20-amp dimmer.
+check("ColorSource at Maximum Output is 160",
+      ph.watts_for("ColorSource Spot 26 EDLT", mode="Maximum Output")[0], 160.0)
+check("...and 115 regulated to 3200K",
+      ph.watts_for("ColorSource Spot 26 EDLT", mode="Regulated 3200K")[0], 115.0)
+check("every wattage names its source",
+      "datasheet" in ph.watts_for("Lustr 26 EDLT")[1].lower()
+      or "Guide" in ph.watts_for("Lustr 26 EDLT")[1], True)
+# A fixture with no published figure is reported, not estimated.
+_w, _n = ph.watts_for("SHEHDS 19")
+check("an unpublished wattage stays None", _w, None)
+check("...and says to get the datasheet", "datasheet" in _n, True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

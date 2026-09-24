@@ -221,6 +221,75 @@ LAMP_MF = {
     "HPL 575X": {"S4 36": 0.56},          # long-life; others not extracted
 }
 
+# ---------------------------------------------------------------- wattage
+#
+# ⭐ Wattage belongs to the ENGINE, not the lens tube, which is how ETC publish
+# it — so it is keyed by family rather than repeated across 47 rows.
+#
+# ⚠ And an LED's draw DEPENDS ON ITS OUTPUT MODE. A ColorSource Spot is 160W at
+# Maximum Output and 115W regulated to 3200K: a 28% difference, which is the
+# difference between four and five on a 20-amp dimmer. A single number per
+# fixture would be wrong most of the time.
+FAMILY_WATTS = {
+    "Lustr": {"_typical": 167.0,
+              "_source": "ETC Source Four LED Series 2 datasheet p2: "
+                         "'Wattage typical — Series 2 Lustr: 167'"},
+    "Daylight HD": {"_typical": 248.0,
+                    "_source": "ETC S4 LED Series 2 datasheet p2: 'Series 2 Daylight HD: 248'"},
+    "Tungsten HD": {"_typical": 208.0,
+                    "_source": "ETC S4 LED Series 2 datasheet p2: 'Series 2 Tungsten HD: 208'"},
+    "ColorSource": {"Maximum Output": 160.0, "Regulated 3200K": 115.0,
+                    "Regulated 5600K": 141.0, "At 3200K": 115.0, "At 5600K": 141.0,
+                    "_typical": 160.0,
+                    "_source": "ETC ColorSource Spot Photometry Guide: power consumption "
+                               "column, consistent across every lens"},
+    "ColorSource CYC": {"_typical": 133.0,
+                        "_source": "ETC ColorSource CYC datasheet p2: "
+                                   "'133 W / 1.4 W at 120 V'"},
+}
+FAMILY_WATTS["ColorSource Zoom"] = FAMILY_WATTS["ColorSource"]
+
+# Jerry, 2026.09.23: "ETC S4 incandescents are 575 watts unless noted — there
+# are 750." So a Source Four with no lamp recorded is an HPL 575.
+#
+# ⚠ NOT the same thing as `ref_lamp`. That says which lamp ETC MEASURED the
+# candela at (HPL 750), and it stays. This says what is actually in the fixture
+# when the paperwork is silent. Conflating the two would either mis-state the
+# output or mis-state the load.
+DEFAULT_LAMP = "HPL 575"
+_TUNGSTEN_FAMILIES = ("S4", "S4 Zoom", "S4 PAR", "PAR", "Fresnel", "Strip", "Cyc Tungsten")
+
+
+def watts_for(kind, lamp=None, mode=None):
+    """(watts, note) for one instrument. Never guesses; says what it used.
+
+    Tungsten: the LAMP carries the wattage, defaulting to HPL 575.
+    LED: the FAMILY carries it, and the MODE refines it where ETC publish that.
+    """
+    key, row, _ = lookup(kind)
+    if row is None:
+        return None, f"{kind!r} is not in the fixture table"
+    fam = row.get("family") or ""
+
+    if any(fam.startswith(f) for f in _TUNGSTEN_FAMILIES) and not str(row.get("ref_lamp", "")).startswith("LED"):
+        use = lamp or DEFAULT_LAMP
+        w = lamp_watts(use)
+        if w is None:
+            return None, f"{use!r} is not a lamp name, so no wattage"
+        return w, (f"at {use}" if lamp else f"at {use} (assumed — S4s are 575 unless noted)")
+
+    table = FAMILY_WATTS.get(fam)
+    if not table:
+        return None, (f"no published wattage for the {fam or kind!r} family — "
+                      f"get it from the datasheet rather than estimating")
+    if mode and mode in table:
+        return table[mode], f"{fam} at {mode} — {table['_source']}"
+    w = table["_typical"]
+    extra = "" if mode is None else f" ({mode!r} not published separately)"
+    return w, (f"{fam}, ETC's typical figure{extra}. ⚠ TYPICAL IS NOT PEAK — "
+               f"for a capacity check use the highest mode. {table['_source']}")
+
+
 def lamp_watts(lamp):
     """Watts from a lamp name — "HPL 575" is 575W, and that is exact.
 
@@ -379,18 +448,29 @@ def footcandles(kind, throw, lamp=None, mode=None, gel=None):
 
 
 def _footcandles_white(f, kind, throw, lamp, mode):
+    _given = lamp is not None          # so the note can say when a lamp was assumed
     if mode and f.get("modes"):
         if mode not in f["modes"]:
             return None, f"{kind} has no mode '{mode}'; has {list(f['modes'])}"
         return f["modes"][mode] / throw ** 2, f"at {mode}"
     if not f["cd"]:
         return None, f"no candela on file for {kind} — {f['source']}"
+
+    # ⭐ Jerry, 2026.09.23: "ETC S4 incandescents are 575 watts unless noted."
+    # ETC MEASURED the candela at HPL 750, but a 750 is not what is in the
+    # fixture. Computing an unstated lamp at the reference overstates every level
+    # on the plot by about a quarter, in the safe-looking direction — the plot
+    # promises light the rig will not deliver. So when the paperwork is silent
+    # about a tungsten Source Four, assume the lamp that is actually in it.
+    if lamp is None and f.get("ref_lamp") in LAMP_MF and kind in LAMP_MF.get(DEFAULT_LAMP, {}):
+        lamp = DEFAULT_LAMP
+
     mf = 1.0; note = f"at {f['ref_lamp']}"
     if lamp and lamp != f["ref_lamp"]:
         mf = LAMP_MF.get(lamp, {}).get(kind)
         if mf is None:
             return None, f"no {lamp} multiplier on file for {kind}"
-        note = f"at {lamp} (MF {mf})"
+        note = f"at {lamp} (MF {mf})" + ("" if _given else " — assumed, S4s are 575 unless noted")
     return f["cd"] * mf / throw ** 2, note
 
 

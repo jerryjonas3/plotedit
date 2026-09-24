@@ -197,6 +197,7 @@ def load(instruments: List[Dict[str, Any]], positions: List[Dict[str, Any]],
     by_circ: Dict[Tuple[str, Any], Dict[str, Any]] = {}
     notes: List[str] = []
     missing: List[Any] = []
+    seen_notes: set = set()
 
     for i in instruments or []:
         circ = i.get("circuit")
@@ -207,25 +208,19 @@ def load(instruments: List[Dict[str, Any]], positions: List[Dict[str, Any]],
                                        "units": [], "watts": 0.0})
         row["units"].append(i.get("unit"))
         w = i.get("wattage")
+        note = None
         if w in (None, ""):
-            # A tungsten unit's wattage is its LAMP's — "HPL 575" means 575W, and
-            # the same body is 575 or 750 depending on what is in it. Exact, not
-            # inferred.
-            w = ph.lamp_watts(i.get("lamp"))
+            # ph.watts_for knows the two rules: a tungsten unit's watts belong to
+            # its LAMP (defaulting to HPL 575 — "S4s are 575 unless noted"), and
+            # an LED's belong to its ENGINE and its OUTPUT MODE.
+            w, note = ph.watts_for(i.get("type"), i.get("lamp"), i.get("mode"))
+            if note and "TYPICAL IS NOT PEAK" in note and "typical" not in seen_notes:
+                seen_notes.add("typical")
+                notes.append("LED figures are ETC's TYPICAL draw, not peak — for a "
+                             "capacity check, compute the highest mode the rig can be run in")
         if w in (None, ""):
-            # Fall back to the fixture table, which knows a Lustr draws 140W —
-            # but say which units were guessed at, because a load total built
-            # from defaults is a different claim from one built from the plot.
-            key_ = None
-            try:
-                from .fixture_names import resolve
-                key_, _ = resolve(i.get("type"), ph.FIXTURES)
-            except Exception:
-                pass
-            w = (ph.FIXTURES.get(key_) or {}).get("watts") if key_ else None
-            if w is None:
-                missing.append(i.get("unit"))
-                w = 0.0
+            missing.append(i.get("unit"))
+            w = 0.0
         row["watts"] += float(w)
 
     rows = sorted(by_circ.values(), key=lambda r: (str(r["position"]), str(r["circuit"])))

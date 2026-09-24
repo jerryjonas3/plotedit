@@ -367,10 +367,37 @@ over capacity, and this is the arithmetic that would have shown it.
   — a number that looks real, lands in a load total and trips a breaker. A lamp
   name has to look like one.
 
-**🔴 Only 2 of 47 fixtures carry a wattage** (the two Spectra Cycs, from their
-IES). Tungsten is covered by the lamp name, but **every LED's draw has to come
-from its datasheet** — ETC's are already on file. Until then an LED counts as
-zero and the total is reported as *a floor, not a total*.
+**✅ Wattages pulled off the ETC datasheets, 2026.09.23.**
+
+`FAMILY_WATTS` keys them by **engine, not lens tube**, which is how ETC publish
+them — one entry instead of the same number repeated across 47 rows.
+
+| | W | Source |
+|---|---|---|
+| Series 2 Lustr | 167 | S4 LED Series 2 datasheet p2, "typical" |
+| Series 2 Tungsten HD | 208 | same |
+| Series 2 Daylight HD | 248 | same |
+| ColorSource Spot | **160 / 141 / 115** | Photometry Guide — **by MODE** |
+| ColorSource CYC | 133 | CYC datasheet p2 |
+
+**⚠ An LED's draw depends on its output mode**, and that is the thing a single
+number per fixture gets wrong: a ColorSource Spot is **160W at Maximum Output and
+115W regulated to 3200K**. 28% — the difference between four and five units on a
+20-amp dimmer. `watts_for(kind, lamp, mode)` is the one place that knows both
+rules, and ETC's figures are **typical, not peak**, which it says out loud.
+
+**⭐ And an S4 with no lamp recorded is now an HPL 575** — Jerry: *"ETC S4
+incandescents are 575 watts unless noted; there are 750."*
+
+**This changes every computed level on a plot that does not state its lamp.** ETC
+*measured* the candela at HPL 750, and `ref_lamp` still says so — but a 750 is
+not what is in the fixture. Computing at the reference overstated output by about
+a quarter, **in the direction that looks safe**: the plot promised light the rig
+would not deliver.
+
+**Corroborated from outside the code.** `how-we-light.md`, built from Jerry's own
+paperwork before any of this existed, puts a 575 S4 26° at 14 feet through
+R52+R119 at **163 fc**. The tool now returns 163.
 
 ### Still to do
 
