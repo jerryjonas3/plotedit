@@ -159,7 +159,9 @@ wrong move. Go back to the document.**
 ## 🔴 Three sections deliberately NOT drawn
 
 **Jerry, 2026.09.23: beam projectors (§6.4), scoops (§6.5) and fluorescents
-(§6.7.3) are "basically gone."** They are not skipped for lack of time and they
+(§6.7.3) are "basically gone."** *(Distinct from a scroller, which he called
+uncommon rather than gone — see §6.13 above. Retired and deferred are not the
+same shelf.)* They are not skipped for lack of time and they
 are not a to-do. **Do not draw them to "complete the set."**
 
 RP-2 is from 2006 and still treats all three as current equipment, which is
@@ -183,8 +185,15 @@ them to know the standard in order to use the tool.
 Front accessories stack nose-outward so two never land on top of each other.
 **An accessory the tool cannot draw is reported, never dropped** — it reaches
 `sheet.warnings` and the `/symbols` reply — because a barn door that vanishes
-quietly is a barn door nobody packs. Scrollers, CYM mixers, dousers, sightlines
-and rigging points are on the plate but not drawn; nobody has asked.
+quietly is a barn door nobody packs. CYM mixers, dousers, sightlines and rigging
+points are on the plate but not drawn; nobody has asked.
+
+**Scrollers: deferred, not retired.** Jerry, 2026.09.23 — *"no one uses scrollers
+much these days, we can do them later."* ⚠ That is a WEAKER statement than the
+one about beam projectors and scoops, and the difference is the point: those are
+gone and should never be drawn; a scroller is merely uncommon and will come back
+the first time a house rig has them. **Draw it when a job needs it. Do not
+retire it.**
 
 **They change nothing photometric.** A top hat controls spill, not output, and
 no figure in the tool pretends otherwise.
