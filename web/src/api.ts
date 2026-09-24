@@ -150,3 +150,46 @@ export async function renumber(
   if (!r.ok) throw new Error(`renumber failed: ${r.status} ${await r.text()}`);
   return r.json();
 }
+
+/** One boom drawn in ELEVATION beside the plot, per RP-2 §6.12.
+ *
+ * ⭐ In PLAN a boom is a POINT: every unit on it shares one x and one y and
+ * differs only in height. The browser used to draw them all at that point, so
+ * three units and three channel circles landed on one spot.
+ *
+ * ⚠ The layout is NOT computed here. `dy` and `breaks` come from booms.py, the
+ * same call the PDF makes, because the compression is a drawing decision and
+ * two copies of it would drift. `height`/`label` are the REAL trim — the break
+ * marks say the paper is short, never that a number is approximate.
+ */
+export interface BoomUnit {
+  unit: number; channel?: number; type: string; color?: string;
+  accessories?: string[];
+  height: number; label: string; dy: number;
+  /** This unit's OWN outline, accessories included — not a cache lookup by
+   *  bare type, which would draw it without its top hat. */
+  prims: SymbolPrim[];
+}
+export interface BoomElevation {
+  name: string;
+  x: number; y: number;
+  unit_gap: number;
+  top: number;
+  breaks: number[];
+  units: BoomUnit[];
+  no_height: { unit: number; type: string }[];
+  plan: {
+    x: number; y: number; rotation: number; mount: string; width: number;
+    type: string; prims: SymbolPrim[]; hatch: SymbolPrim[];
+  };
+}
+
+export async function booms(plot: Plot): Promise<{ booms: BoomElevation[]; space: number }> {
+  const r = await fetch("/api/booms", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ positions: plot.positions, instruments: plot.instruments }),
+  });
+  if (!r.ok) throw new Error(`booms failed: ${r.status}`);
+  const j = await r.json();
+  return { booms: j.booms as BoomElevation[], space: j.space as number };
+}

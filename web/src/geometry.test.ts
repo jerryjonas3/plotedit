@@ -101,5 +101,19 @@ check("a circle counts its radius", symbolRadius([{ k: "circle", c: [1, 0], r: 0
 check("an unknown primitive is skipped, not unpacked", symbolRadius([{ k: "arc", pts: [[9, 9]] }]), 0);
 check("the farthest wins", symbolRadius([{ k: "line", a: [0, 0], b: [3, 4] }, { k: "circle", c: [0, 0], r: 1 }]), 5);
 
+console.log("\nthe canvas makes room for the boom elevations");
+// ⭐ RP-2 §6.12 elevations sit off the stage-left edge at NEGATIVE x. Fit to the
+// room alone and they are simply off the left of the canvas — no warning, just
+// a boom's units missing from the drawing, which is worse now that plan skips
+// them on purpose.
+{
+  const v2 = fitView(33, 38, 800, 600, 3, 0, 13);
+  check("the leftmost elevation is on the canvas", toScreen({ x: -13, y: 0 }, v2).x >= 0, true);
+  check("the room's stage-left wall still is", toScreen({ x: 0, y: 0 }, v2).x > 0, true);
+  check("and its stage-right wall", toScreen({ x: 33, y: 0 }, v2).x <= 800, true);
+  const v0 = fitView(33, 38, 800, 600, 3, 0, 0);
+  check("no booms, no extra space", +v0.panX.toFixed(4), +(-(800 / v0.scale - 33) / 2).toFixed(4));
+}
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

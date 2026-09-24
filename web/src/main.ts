@@ -2,8 +2,9 @@
 import { fitView, fohExtent, type View } from "./geometry.js";
 import { isPlot, symbolKey, type Plot } from "./plot.js";
 import { render, type Computed, type RenderOptions } from "./render.js";
-import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols,
-         type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim } from "./api.js";
+import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
+         type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim,
+         type BoomElevation } from "./api.js";
 import { Store } from "./store.js";
 import { attachPointer, attachKeyboard } from "./interact.js";
 import { renderInspector } from "./inspector.js";
@@ -27,13 +28,21 @@ function view(): View {
   // alone simply does not show them — no warning, no clipping guard, just a
   // catwalk that is not there.
   const house = fohExtent(store.plot.positions);
+  // ⭐ And WIDE enough for the boom elevations, which sit off the stage-left
+  // edge at negative x. The server says how much room they need — the same
+  // figure plot_to_pdf uses to set its origin.
   return fitView(width, depth,
-                 (width + margin * 2) * pxPerFoot,
-                 (depth + house + margin * 2) * pxPerFoot, margin, house);
+                 (width + boomSpace + margin * 2) * pxPerFoot,
+                 (depth + house + margin * 2) * pxPerFoot, margin, house, boomSpace);
 }
 
 /** The height to cut the pools at. Aiming and cutting are different choices:
  *  a unit aimed at a face still throws a much larger pool on the deck. */
+/** How much width the §6.12 boom elevations need, in feet. Filled by the
+ *  server; 0 until it answers, which simply means no elevations are drawn yet. */
+let boomSpace = 0;
+let boomLayout: BoomElevation[] = [];
+
 function poolPlane(): number | undefined {
   const v = ($<HTMLSelectElement>("poolplane")?.value ?? "");
   return v === "" ? undefined : Number(v);
@@ -47,6 +56,7 @@ function opts(): RenderOptions {
     selected: store.selected,
     basePaths: $<HTMLInputElement>("base").checked ? basePlan?.paths : undefined,
     symbols: symbolCache,
+    booms: boomLayout,
   };
 }
 
@@ -115,6 +125,23 @@ async function ensureSymbols() {
   }
 }
 
+/** Where the §6.12 boom elevations go. Asked of the server, never worked out
+ *  here: the compression is a drawing decision, and a second copy of it in
+ *  TypeScript is how the screen and the paper drifted three times in a week. */
+async function ensureBooms() {
+  try {
+    const r = await booms(store.plot);
+    boomLayout = r.booms;
+    boomSpace = r.space;
+  } catch (e) {
+    // ⚠ Say so. A boom whose elevation failed to load is a boom whose units are
+    // not on the drawing at all — silence would read as "there are none".
+    boomLayout = [];
+    boomSpace = 0;
+    status(e instanceof Error ? e.message : String(e), true);
+  }
+}
+
 /** Ask the Python what the light does. Debounced — a drag is one request. */
 let pending: ReturnType<typeof setTimeout>;
 function recompute(delay = 120) {
@@ -123,6 +150,7 @@ function recompute(delay = 120) {
     try {
       computed = await compute(store.plot, poolPlane());
       await ensureSymbols();
+      await ensureBooms();
       paint();
     } catch (e) {
       showError(e);
@@ -235,6 +263,7 @@ async function boot() {
 
     computed = await compute(store.plot, poolPlane());
     await ensureSymbols();
+    await ensureBooms();
     paint();
   } catch (e) {
     showError(e);

@@ -11,7 +11,7 @@
  */
 import { svgTransform, counterFlip, fmtFt, notationAnchor, symbolRadius, type View } from "./geometry.js";
 import { symbolKey, isVertical, isFoh, type Plot, type Instrument } from "./plot.js";
-import type { SymbolPrim } from "./api.js";
+import type { SymbolPrim, BoomElevation } from "./api.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -46,6 +46,10 @@ export interface RenderOptions {
   basePaths?: { layer: string; points: [number, number][] }[];
   /** RP-2 symbol outlines by fixture type, from GET /symbols. */
   symbols?: Record<string, SymbolPrim[]>;
+  /** §6.12 boom elevations, from POST /booms. Without them a boom's units are
+   *  not drawn at all — they are NOT silently dropped back into plan, where
+   *  they would stack on one point again. */
+  booms?: BoomElevation[];
 }
 
 function isSelNow(opts: RenderOptions, i: number): boolean {
@@ -142,6 +146,17 @@ export function render(
         gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.16,
           fill: "none", stroke: "#222", "stroke-width": W.position * 0.5 }));
       }
+      // §6.12: "hatch or shade acceptable for top view of boom." ONE symbol
+      // standing for the whole stack, hatched to say so. Mirrors Sheet.boom().
+      const bm = (opts.booms ?? []).find(b => b.name === p.name.toUpperCase());
+      if (bm) {
+        const st = el("g", {
+          transform: `translate(${p.x1} ${p.y1}) rotate(${-bm.plan.rotation})`,
+        });
+        paintPrims(st, bm.plan.prims);
+        paintPrims(st, bm.plan.hatch, { width: 0.45 });
+        gPos.appendChild(st);
+      }
     } else if (kind === "catwalk" || kind === "truss") {
       const half = (p.width ?? (kind === "catwalk" ? 3.0 : 1.5)) / 2;
       for (const side of [1, -1])
@@ -178,8 +193,20 @@ export function render(
     }
   }
 
+  // ---- boom elevations, §6.12 — beside the plot, because in plan a boom is a
+  // point and its units all share one x and one y. Drawn BEFORE the
+  // instruments so the plan loop can skip them.
+  const onABoom = new Set(
+    plot.positions.filter(isVertical).map(p => p.name.trim().toLowerCase()));
+  for (const b of opts.booms ?? [])
+    gPos.appendChild(elevation(b, plot.instruments, opts.selected));
+
   // ---- instruments
   plot.instruments.forEach((inst, i) => {
+    // ⚠ A unit on a boom is drawn in the ELEVATION, never in plan. Three units
+    // at one x and y put three symbols and three channel circles on the same
+    // spot, which is what the browser did until 2026.09.24.
+    if (onABoom.has((inst.position ?? "").trim().toLowerCase())) return;
     const c = computed[i];
     const hasFocus = inst.focusX !== undefined && inst.focusY !== undefined;
 
@@ -234,6 +261,44 @@ export function render(
   });
 }
 
+/** Paint RP-2 primitives into a group already placed and rotated.
+ *
+ * Local coordinates are (along-axis, across); SVG wants (x, y), so every point
+ * is read as (c, a). Shared by the instrument symbols, the hatched boom stack
+ * and the boom elevations — one painter, so a new primitive kind reaches all
+ * three at once.
+ */
+function paintPrims(into: SVGElement, prims: SymbolPrim[] | undefined,
+                    o: { width?: number; solid?: boolean } = {}): void {
+  const w = o.width ?? 1;
+  for (const p of prims ?? []) {
+    if (p.k === "poly") {
+      const d = p.pts.map((q, i) => `${i ? "L" : "M"}${q[1]} ${q[0]}`).join(" ")
+                + (p.closed ? " Z" : "");
+      into.appendChild(el("path", { d, fill: p.closed && o.solid !== false ? "#fff" : "none",
+                                    stroke: "#111", "stroke-width": 0.075 * w }));
+    } else if (p.k === "line") {
+      into.appendChild(el("line", { x1: p.a[1], y1: p.a[0], x2: p.b[1], y2: p.b[0],
+                                    stroke: "#111", "stroke-width": 0.06 * w }));
+    } else if (p.k === "circle") {
+      into.appendChild(el("circle", {
+        cx: p.c[1], cy: p.c[0], r: p.r,
+        fill: p.filled ? "#111" : "none", stroke: "#111",
+        "stroke-width": (p.dashed ? 0.04 : 0.06) * w,
+        ...(p.dashed ? { "stroke-dasharray": "0.16 0.12" } : {}),
+      }));
+    } else if (p.k === "text") {
+      const t = el("text", {
+        transform: `translate(${p.c[1]} ${p.c[0]}) scale(1 -1)`,
+        "font-size": p.size, "font-family": "system-ui, sans-serif",
+        "font-weight": "700", fill: "#111", "text-anchor": "middle",
+      });
+      t.textContent = p.s;
+      into.appendChild(t);
+    }
+  }
+}
+
 /**
  * Draw an instrument from the RP-2 primitives the server supplies.
  *
@@ -267,32 +332,7 @@ function symbol(inst: Instrument, c: Computed | undefined,
     body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.42, fill: "#fff",
                                     stroke: "#111", "stroke-width": 0.07 }));
   }
-  for (const p of prims ?? []) {
-    if (p.k === "poly") {
-      const d = p.pts.map((q, i) => `${i ? "L" : "M"}${q[1]} ${q[0]}`).join(" ")
-                + (p.closed ? " Z" : "");
-      body.appendChild(el("path", { d, fill: p.closed ? "#fff" : "none",
-                                    stroke: "#111", "stroke-width": 0.075 }));
-    } else if (p.k === "line") {
-      body.appendChild(el("line", { x1: p.a[1], y1: p.a[0], x2: p.b[1], y2: p.b[0],
-                                    stroke: "#111", "stroke-width": 0.06 }));
-    } else if (p.k === "circle") {
-      body.appendChild(el("circle", {
-        cx: p.c[1], cy: p.c[0], r: p.r,
-        fill: p.filled ? "#111" : "none", stroke: "#111",
-        "stroke-width": p.dashed ? 0.04 : 0.06,
-        ...(p.dashed ? { "stroke-dasharray": "0.16 0.12" } : {}),
-      }));
-    } else if (p.k === "text") {
-      const t = el("text", {
-        transform: `translate(${p.c[1]} ${p.c[0]}) scale(1 -1)`,
-        "font-size": p.size, "font-family": "system-ui, sans-serif",
-        "font-weight": "700", fill: "#111", "text-anchor": "middle",
-      });
-      t.textContent = p.s;
-      body.appendChild(t);
-    }
-  }
+  paintPrims(body, prims);
   // the yoke point — where the unit actually is, per RP-2 2.2
   body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.09, fill: "#111" }));
   g.appendChild(body);
@@ -391,5 +431,96 @@ function labels(inst: Instrument, c?: Computed, symbolAngle?: string,
   // `annotate` defaults to False), so the screen was the odd one out.
   //
   // They are still computed, still in the inspector, and still on the schedule.
+  return g;
+}
+
+/** One boom drawn in ELEVATION beside the plot — RP-2 §6.12, Option 1.
+ *
+ * ⭐ Mirrors Sheet.boom_elevation(). The LAYOUT is not decided here: `dy`,
+ * `breaks` and `top` come from booms.py, the same call the PDF makes, so the
+ * two drawings cannot disagree about a trim or about where the pipe is broken.
+ *
+ * ⚠ The labelled heights are the REAL heights. The break marks say the paper
+ * is compressed; they never say a number is approximate.
+ */
+function elevation(b: BoomElevation, all: Instrument[],
+                   selected?: number | null): SVGElement {
+  const g = el("g", { class: "boom-elevation", "data-boom": b.name });
+  const { x, y } = b;
+  const line = (x1: number, y1: number, x2: number, y2: number, w: number,
+                dash?: string) =>
+    g.appendChild(el("line", { x1, y1, x2, y2, stroke: "#222", "stroke-width": w,
+                               ...(dash ? { "stroke-dasharray": dash } : {}) }));
+  const text = (tx: number, ty: number, s: string, size: number,
+                anchor = "middle", weight = "400", fill = "#222") => {
+    const t = el("text", {
+      transform: counterFlip(tx, ty), "font-size": size,
+      "font-family": "system-ui, sans-serif", "font-weight": weight, fill,
+      "text-anchor": anchor,
+    });
+    t.textContent = s;
+    g.appendChild(t);
+  };
+
+  // The pipe in SEGMENTS, so each break is a real gap rather than a mark
+  // sitting on top of an unbroken line.
+  const cuts = [...b.breaks].sort((p, q) => p - q);
+  let from = 0;
+  for (const c of cuts) { line(x, y + from, x, y + c - 0.18, W.position); from = c + 0.18; }
+  line(x, y + from, x, y + b.top, W.position);
+  for (const c of cuts) {
+    // The conventional break: this continues, but not all of it is drawn.
+    const a = 0.45 / 2, h = 0.55 / 2, cy = y + c;
+    const pts: [number, number][] = [
+      [x, cy + h], [x + a, cy + h * 0.3], [x - a, cy - h * 0.3], [x, cy - h]];
+    for (let i = 0; i < pts.length - 1; i++)
+      line(pts[i]![0], pts[i]![1], pts[i + 1]![0], pts[i + 1]![1], W.position * 0.9);
+  }
+
+  text(x, y + b.top + 0.6, b.name, TEXT * 0.8, "middle", "700");
+  // ⚠ Small enough to fit BETWEEN booms. The elevations are pitched 5'-6"
+  // apart, and at the label size these notes ran into the next boom's.
+  const NOTE = TEXT * 0.26;
+  text(x, y - 0.7, "NOT TO SCALE — heights are the data", NOTE, "middle", "400", "#777");
+  if (cuts.length)
+    text(x, y - 1.15, `${cuts.length} break${cuts.length > 1 ? "s" : ""} — pipe compressed`,
+         NOTE, "middle", "400", "#777");
+
+  for (const u of b.units) {
+    const uy = y + u.dy;
+    line(x, uy, x + b.unit_gap * 0.55, uy, W.focus, "0.5 0.35");
+    // ⭐ Clickable. A boom unit is no longer drawn in plan, so the elevation is
+    // the ONLY place it can be selected — without this the inspector cannot
+    // reach it at all, which is worse than the stacking it replaced.
+    const idx = all.findIndex(i => i.unit === u.unit
+      && (i.position ?? "").trim().toUpperCase() === b.name);
+    const st = el("g", {
+      class: "instrument" + (idx >= 0 && idx === selected ? " selected" : ""),
+      transform: `translate(${x + b.unit_gap} ${uy}) rotate(-90)`,
+    });
+    paintPrims(st, u.prims);
+    g.appendChild(st);
+    if (idx >= 0) {
+      g.appendChild(el("circle", {
+        cx: x + b.unit_gap, cy: uy, r: 1.0, fill: "transparent", class: "hit",
+        "data-index": String(idx), "data-handle": "elevation",
+      }));
+    }
+    // Ends 5" clear of the pipe, growing leftwards away from it — anchoring the
+    // END is the only thing that keeps a label off what is to its right.
+    text(x - 0.42, uy - 0.17, u.label, TEXT * 0.5, "end");
+    text(x + b.unit_gap, uy - 0.25, String(u.unit), TEXT * 0.55, "middle", "700");
+    if (u.channel !== undefined && u.channel !== null) {
+      g.appendChild(el("circle", { cx: x + b.unit_gap + 1.5, cy: uy, r: 0.55,
+        fill: "#fff", stroke: "#111", "stroke-width": 0.07 }));
+      text(x + b.unit_gap + 1.5, uy - 0.2, String(u.channel), TEXT * 0.62, "middle", "600");
+    }
+  }
+  // ⚠ Never dropped. A unit with no height is a unit nobody can hang, and the
+  // drawing has to say so — a gap here reads as "there is no unit there".
+  b.no_height.forEach((u, i) => {
+    text(x + b.unit_gap, y + b.top - (i + 1) * 0.5,
+         `${u.unit}: NO HEIGHT RECORDED`, TEXT * 0.3, "start", "600", "#c0392b");
+  });
   return g;
 }

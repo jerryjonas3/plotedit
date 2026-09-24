@@ -20,7 +20,9 @@ export interface DragContext {
   onSettled: () => void;
 }
 
-type Handle = "body" | "focus";
+/** "elevation" is a unit drawn in a §6.12 boom elevation: selectable, but not
+ *  draggable — that diagram's coordinates are not plan coordinates. */
+type Handle = "body" | "focus" | "elevation";
 
 export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext): void {
   let dragging: { index: number; handle: Handle; dx: number; dy: number } | null = null;
@@ -38,6 +40,12 @@ export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext
     const index = Number(hit.getAttribute("data-index"));
     const handle = (hit.getAttribute("data-handle") ?? "body") as Handle;
     store.select(index);
+
+    // ⚠ A unit in a BOOM ELEVATION can be selected but not dragged. The
+    // elevation is a diagram beside the plot, not the plot: its x is which boom
+    // this is and its y is a COMPRESSED height, so dragging there would write a
+    // plan position the reader never pointed at.
+    if (handle === "elevation") { e.preventDefault(); return; }
 
     const inst = store.plot.instruments[index];
     if (!inst) return;

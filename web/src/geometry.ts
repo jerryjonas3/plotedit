@@ -71,24 +71,31 @@ export function counterFlip(x: number, y: number): string {
 /** Fit a room of w × h feet into the surface, with a margin in feet. */
 export function fitView(
   roomW: number, roomH: number, width: number, height: number, marginFt = 3,
-  houseFt = 0,
+  houseFt = 0, leftFt = 0,
 ): View {
   // ⭐ `houseFt` is how far DOWNSTAGE the plot reaches past the room — front of
   // house positions sit over the audience at negative y. Fit to the room alone
   // and a catwalk is simply not on screen, which is the same failure the PDF had
   // before foh_extent(); there the clipping guard caught it, and here nothing
   // would: the drawing just quietly lacks a position.
+  // ⭐ `leftFt` is the same problem in the other axis: RP-2 §6.12 boom
+  // elevations sit off the stage-left edge at NEGATIVE x. The PDF counts this
+  // space before setting its origin; the browser fitted to the room alone, so
+  // an elevation drawn there would simply be off the left of the canvas.
   const totalH = roomH + houseFt;
-  const scale = Math.min(width / (roomW + marginFt * 2), height / (totalH + marginFt * 2));
+  const totalW = roomW + leftFt;
+  const scale = Math.min(width / (totalW + marginFt * 2), height / (totalH + marginFt * 2));
   // center what is actually drawn, not just the room
-  const slackX = (width / scale - roomW) / 2;
+  const slackX = (width / scale - totalW) / 2;
   const slackY = (height / scale - totalH) / 2;
   // ⚠ MINUS houseFt. toScreen() is y_screen = height − (y_plot − panY)·scale, so
   // a point is on the canvas only while y_plot ≥ panY. The house sits at
   // NEGATIVE y, so panY has to move further negative to reach it. Adding it
   // opened the space upstage instead — empty paper at the back of the room and
   // the catwalk still off the bottom.
-  return { scale, panX: -slackX, panY: -slackY - houseFt, width, height };
+  // ⚠ MINUS leftFt, for the same reason as houseFt: a point is on the canvas
+  // only while x_plot ≥ panX, and the elevations sit below zero.
+  return { scale, panX: -slackX - leftFt, panY: -slackY - houseFt, width, height };
 }
 
 /** DEPRECATED — always 0. Kept so callers do not break.

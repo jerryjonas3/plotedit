@@ -424,14 +424,15 @@ class Sheet:
         from . import photometrics as _ph
         self.layer("NOTES")
 
-        placed = sorted([u for u in units if u.get("height") is not None],
-                        key=lambda z: z["height"])
-        no_height = [u for u in units if u.get("height") is None]
-
-        # The arithmetic lives in compress_heights() so it can be tested without
-        # rendering a PDF — and so a change to it cannot quietly alter a drawing.
-        ys, breaks, top = compress_heights([u["height"] for u in placed], max_gap)
-        drawn = list(zip(placed, ys))
+        # ⭐ WHERE things go is booms.elevation(); this method only puts ink on
+        # paper. The /booms endpoint feeds the browser from the same call, so
+        # the two drawings cannot disagree about a trim or a break.
+        from . import booms as _b
+        lay = _b.elevation(pos, units, max_gap)
+        breaks, top = lay["breaks"], lay["top"]
+        by_unit = {u.get("unit"): u for u in units}
+        drawn = [(by_unit.get(u["unit"], u), u["dy"]) for u in lay["units"]]
+        no_height = [by_unit.get(u["unit"], u) for u in lay["no_height"]]
 
         # The pipe, in segments so each break is a real gap rather than a mark
         # sitting on top of an unbroken line.
@@ -741,34 +742,13 @@ def _shade_rear_for(kind, lamp=None):
 def compress_heights(heights, max_gap=2.5):
     """Where to DRAW a boom's units when the pipe is longer than the paper.
 
-    Returns (drawn_y, breaks, top) — one drawn height per input height, the
-    drawn heights at which a break mark goes, and where the pipe should stop.
-
-    ⭐ RP-2 §6.12's Option 1 plate compresses the pipe and marks it with a break:
-    "this continues, but not all of it is drawn." A boom eighteen feet tall with
-    four units near the bottom does not need eighteen feet of paper.
-
-    ⚠ The LABELLED HEIGHTS stay true — this only moves ink. The break says the
-    paper is compressed; it never says a number is approximate.
-
-    ⚠ And it breaks only where that actually buys paper. A three-foot gap
-    squeezed to two-and-a-half saves half a foot and costs the reader a symbol to
-    stop and interpret, which is a worse drawing rather than a shorter one. So
-    the run has to exceed max_gap by a clear margin. RP-2's own plate carries ONE
-    break on a boom with four units.
+    ⚠ The arithmetic moved to booms.py so the browser can ask for it too — it
+    was about to be retyped in TypeScript, which is how the screen and the paper
+    drifted three times in one week. This name is kept because the suites and
+    plot_to_pdf call it.
     """
-    worth_it = max_gap + 1.5
-    ys, breaks, cursor, last = [], [], 0.0, 0.0
-    for h in sorted(heights):
-        gap = h - last
-        if gap > worth_it:
-            breaks.append(cursor + max_gap / 2.0)
-            cursor += max_gap
-        else:
-            cursor += gap
-        ys.append(cursor)
-        last = h
-    return ys, breaks, cursor + min(max_gap, 1.2)
+    from . import booms as _b
+    return _b.compress(heights, max_gap)
 
 
 def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", landscape=True,

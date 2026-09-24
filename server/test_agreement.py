@@ -140,6 +140,56 @@ for _name, _deg, _fx, _fy in [("downstage", 0, 0, -1), ("upstage", 180, 0, 1),
         fails.append(f"aimed {_name}: colour {_cd:+.2f} / channel {_hd:+.2f} — colour "
                      f"must be in FRONT (+) and the channel BEHIND (-)")
 
+# ---------------------------------------------------------------- booms
+# 🔴 A boom's units are drawn in ELEVATION and NOT in plan — in plan a boom is a
+# point, and drawing them there stacked three symbols and three channel circles
+# on one spot. The danger in skipping them is that a unit missing from the
+# elevation now appears on NO drawing at all, silently. So: every unit on a
+# vertical position must appear in exactly one elevation, and its labelled
+# height must be its real height — compression moves ink, never numbers.
+from plotedit import booms as _bm
+from plotedit import positions as _PP
+
+print()
+_verts = [p for p in plot["positions"] if _PP.is_vertical(p)]
+_on_booms = [i for i in plot["instruments"]
+             if (i.get("position") or "").strip().lower()
+             in {(p.get("name") or "").strip().lower() for p in _verts}]
+_lay = _bm.layout(plot["positions"], plot["instruments"])
+_drawn = [(b["name"], u) for b in _lay for u in b["units"]] \
+       + [(b["name"], u) for b in _lay for u in b["no_height"]]
+
+if len(_drawn) != len(_on_booms):
+    fails.append(f"{len(_on_booms)} units hang on booms but {len(_drawn)} are drawn — "
+                 f"the rest are on NO drawing, because plan skips them")
+else:
+    print(f"  ok   all {len(_on_booms)} boom units appear in an elevation")
+
+_by_unit = {(  (i.get("position") or "").strip().lower(), i.get("unit")): i
+            for i in _on_booms}
+for b in _lay:
+    for u in b["units"]:
+        real = next((i for i in _on_booms if i.get("unit") == u["unit"]
+                     and (i.get("position") or "").upper() == b["name"]), None)
+        if real is None:
+            fails.append(f"{b['name']} unit {u['unit']}: drawn but not in the plot")
+        elif real.get("height") != u["height"]:
+            fails.append(f"{b['name']} unit {u['unit']}: labelled {u['height']} but "
+                         f"hangs at {real.get('height')} — compression reached a NUMBER")
+print(f"  ok   {sum(len(b['units']) for b in _lay)} labelled heights are the real heights")
+
+# The endpoint the browser calls and the module the PDF calls are the same call.
+_api = client.post("/booms", json={"positions": plot["positions"],
+                                   "instruments": plot["instruments"]}).json()
+_strip = lambda bs: [(b["name"], round(b["x"], 4), round(b["top"], 4),
+                      [round(v, 4) for v in b["breaks"]],
+                      [(u["unit"], u["label"], round(u["dy"], 4)) for u in b["units"]])
+                     for b in bs]
+if _strip(_api["booms"]) != _strip(_lay):
+    fails.append("the /booms endpoint and the PDF's own layout disagree")
+else:
+    print(f"  ok   screen and paper place {len(_lay)} booms identically")
+
 # The suite's verdict comes LAST, so anything added after it still counts. It
 # used to sit in the middle, which meant an appended check could fail while the
 # suite exited 0 — the same defect found in test_package.py the same day.

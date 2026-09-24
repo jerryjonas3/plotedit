@@ -13,8 +13,9 @@ from plotedit.scaled_pdf import Sheet, ft, check
 from plotedit import photometrics as ph
 
 
-# How much width one boom elevation needs, including its labels.
-BOOM_PITCH = 5.5
+# ⚠ The pitch and the placement live in booms.py, with the compression, so the
+# browser draws the elevations in the same places the paper does.
+from plotedit.booms import BOOM_PITCH
 
 
 def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dxf=None,
@@ -35,11 +36,8 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
     # origin has to make room for them too — the same failure as the catwalk,
     # in the other axis. Counted BEFORE the origin is set, not discovered by the
     # clipping guard afterwards.
-    from plotedit import positions as _P
-    _named = {(p.get("name") or "").strip().lower() for p in plot["positions"]
-              if _P.is_vertical(p)}
-    _with_units = {(i.get("position") or "").strip().lower() for i in plot["instruments"]} & _named
-    boom_space = len(_with_units) * BOOM_PITCH + 2.0 if _with_units else 0.0
+    from plotedit import booms as _B
+    boom_space = _B.space_needed(plot["positions"], plot["instruments"])
     s.origin(ft(4) + boom_space, ft(4) + (house + 1.5 if house else 0))
 
     s.layer("BASE")
@@ -71,14 +69,12 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
 
     # §6.12: the readable layout goes BESIDE the plot, because in plan a boom is
     # a point. Placed off the room's stage-left edge, which is the low-x side.
-    bx = -(BOOM_PITCH * 0.75)
+    _placed = {b["name"]: b for b in _B.layout(plot["positions"], plot["instruments"])}
     for p in booms:
-        on = [i for i in plot["instruments"]
-              if (i.get("position") or "").strip().lower() == (p.get("name") or "").strip().lower()]
-        if on:
-            s.boom_elevation(p, on, bx, 1.0,
+        spot = _placed.get((p.get("name") or "").upper())
+        if spot:
+            s.boom_elevation(p, _B.units_on(p, plot["instruments"]), spot["x"], spot["y"],
                              layout=p.get("layout") or plot.get("boomLayout", "option1"))
-            bx -= BOOM_PITCH
 
     rows = []
     for inst in plot["instruments"]:

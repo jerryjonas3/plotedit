@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from . import photometrics as ph
 from . import positions as P
 from . import exports, dxf_bridge, symbols as sym
+from . import booms
 from . import fixture_names
 
 app = FastAPI(
@@ -410,6 +411,28 @@ def renumber(req: RenumberRequest) -> Dict[str, Any]:
             "warning": warning}
 
 
+def _prims_json(shape) -> List[Dict[str, Any]]:
+    """RP-2 primitives as JSON. Shared by /symbols and /booms so a new primitive
+    kind cannot reach one drawing and not the other."""
+    prims: List[Dict[str, Any]] = []
+    for p in shape:
+        if p[0] == "poly":
+            prims.append({"k": "poly", "pts": [[round(a, 4), round(c, 4)] for a, c in p[1]],
+                          "closed": bool(p[2])})
+        elif p[0] == "line":
+            prims.append({"k": "line", "a": [round(v, 4) for v in p[1]],
+                          "b": [round(v, 4) for v in p[2]]})
+        elif p[0] == "circle":
+            style = p[3] if len(p) > 3 else None
+            prims.append({"k": "circle", "c": [round(v, 4) for v in p[1]],
+                          "r": round(p[2], 4),
+                          "dashed": style == "dashed", "filled": style is True})
+        elif p[0] == "text":
+            prims.append({"k": "text", "c": [round(v, 4) for v in p[1]],
+                          "s": p[2], "size": p[3]})
+    return prims
+
+
 @app.get("/symbols")
 def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[str, Any]:
     """RP-2 symbol outlines for a comma-separated list of fixture types.
@@ -438,25 +461,55 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
         if acc:
             shape, unknown = sym.with_accessories(shape, acc)
             warnings += [f"{base.strip()}: {u}" for u in unknown]
-        prims = []
-        for p in shape:
-            if p[0] == "poly":
-                prims.append({"k": "poly", "pts": [[round(a, 4), round(c, 4)] for a, c in p[1]],
-                              "closed": bool(p[2])})
-            elif p[0] == "line":
-                prims.append({"k": "line", "a": [round(v, 4) for v in p[1]],
-                              "b": [round(v, 4) for v in p[2]]})
-            elif p[0] == "circle":
-                style = p[3] if len(p) > 3 else None
-                prims.append({"k": "circle", "c": [round(v, 4) for v in p[1]],
-                              "r": round(p[2], 4),
-                              "dashed": style == "dashed", "filled": style is True})
-            elif p[0] == "text":
-                prims.append({"k": "text", "c": [round(v, 4) for v in p[1]],
-                              "s": p[2], "size": p[3]})
-        out[t] = prims
+        out[t] = _prims_json(shape)
     return {"symbols": out, "warnings": warnings,
             "source": "USITT RP-2 (2006), plates pp.4-9"}
+
+
+# ----------------------------------------------------------------- booms
+
+class BoomRequest(BaseModel):
+    positions: List[Dict[str, Any]]
+    instruments: List[Dict[str, Any]]
+
+
+@app.post("/booms")
+def boom_layout(req: BoomRequest) -> Dict[str, Any]:
+    """RP-2 §6.12 boom elevations: where each unit is DRAWN, beside the plot.
+
+    ⭐ In plan a boom is a POINT — every unit on it shares one x and y and
+    differs only in height. Drawing them there stacks them on top of each other,
+    which is what the browser used to do. The readable layout goes beside the
+    plot, and this says where.
+
+    ⚠ The arithmetic is booms.py, the same call scaled_pdf.boom_elevation()
+    makes. Retyping the compression in TypeScript is how the screen and the
+    paper drifted three times in one week.
+
+    `dy` is feet above the elevation's base. `height` and its `label` are the
+    REAL trim and are never compressed — the break marks say the paper is
+    short, never that a number is approximate.
+    """
+    out = booms.layout(req.positions, req.instruments)
+    for b in out:
+        # §6.12: "hatch or shade acceptable for top view of boom." ONE symbol
+        # standing for the stack — four drawn on top of each other is a blob.
+        shape = sym.for_type(b["plan"]["type"])
+        b["plan"]["prims"] = _prims_json(shape)
+        b["plan"]["hatch"] = _prims_json(sym.hatch(shape))
+        # ⚠ Each unit carries its OWN outline, accessories included. The browser
+        # keys its symbol cache by "type|accessories"; looking an elevation up by
+        # the bare type would quietly draw a unit without its top hat, or fall
+        # back to a plain ring when the cache had no bare-type entry at all.
+        for u in b["units"]:
+            us = sym.for_type(u["type"])
+            if u.get("accessories"):
+                us, _ = sym.with_accessories(us, u["accessories"])
+            u["prims"] = _prims_json(us)
+    return {"booms": out,
+            "pitch": booms.BOOM_PITCH,
+            "space": booms.space_needed(req.positions, req.instruments),
+            "source": "USITT RP-2 (2006) 6.12, Option 1"}
 
 
 # ----------------------------------------------------------------- names
