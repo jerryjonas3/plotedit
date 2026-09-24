@@ -1,7 +1,12 @@
 # Symbols
 
 **The standard is USITT RP-2 (2006), *Recommended Practice for Theatrical Lighting
-Design Graphics*** — nine pages, in `docs/reference/USITT-RP-2-2006.pdf`. Jerry has
+Design Graphics*** — nine pages, in `docs/reference/USITT-RP-2-2006.pdf`.
+
+**⚠ That PDF is NOT in this repo.** It is USITT's copyrighted standard and `.gitignore`
+excludes it, so a fresh clone will not have it — put your own copy at that path.
+(Jerry's is archived in the My AI Brain repo under `my-files (knowledge)/fixture-manuals/`.)
+Jerry has
 the same document; the six symbol plates render byte-identical between his copy
 and the one fetched here, so there is one standard and no ambiguity about which.
 
