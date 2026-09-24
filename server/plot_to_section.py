@@ -162,7 +162,8 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="1/2",
                     continue
                 prims = sym.for_type(u.get("type", ""))
                 sym.draw(s, prims, here, h, rotate_deg=90, width=1.0)
-                s.text(here - sym.radius(prims) - ft(0, 3), h, ph.fmt_ft(h), size=5)
+                s.text(here - sym.radius(prims) - ft(0, 3), h, ph.fmt_ft(h),
+                       size=5, align="right")
             continue
 
         trim = pos.get("trim")

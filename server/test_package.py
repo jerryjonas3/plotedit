@@ -757,6 +757,46 @@ _unknown = _K.types_used({"instruments": [{"type": "Zarg 9000"}]})
 check("an unknown fixture is marked unknown", _unknown[0]["unknown"], True)
 check("...and still appears in the key", _unknown[0]["count"], 1)
 
+
+print("\na label left of a line must END before it, not start there")
+# Jerry, 2026.09.24: "the heights shown on the booms are currently on top of the
+# booms — it's hard to read." The labels were placed 4" clear of the pipe and
+# drawn LEFT-aligned, so the text grew rightwards straight across it. Anchoring
+# the END of the string is the only fix; moving it left just delays the collision
+# for longer numbers.
+#
+# ⚠ Measured from the RENDERED PDF. Alignment is not visible in the call — both
+# versions "draw text at x" — so only the output can show which side it grew.
+import tempfile as _tf, os as _os
+from plotedit.scaled_pdf import Sheet as _Sh, ft as _ft
+import fitz as _fitz
+
+_d = _tf.mkdtemp()
+_path = _os.path.join(_d, "align.pdf")
+# ⭐ At the PLOT'S OWN SCALE. The first version of this test used 1" = 1'-0",
+# where 5 inches of clearance is 30 points and a 6pt label is about 20 wide — so
+# nothing collided and the test proved nothing. At 1/4" that same 5 inches is
+# SEVEN points, and the label runs clean across the pipe. A test has to
+# reproduce the condition, not an easier version of it.
+_s = _Sh(_path, page="LETTER", scale="1/4", show="align test")
+_s.origin(_ft(2), _ft(2))
+_s.line(12, 0, 12, 20, width=2)                   # a vertical "pipe" at x = 12
+_s.text(12 - _ft(0, 5), 14, "12'-0\"", size=6, align="right")
+_s.text(12 - _ft(0, 5), 6, "12'-0\"", size=6)     # left-aligned, the old way
+_s.finish()
+
+_pg = _fitz.open(_path)[0]
+_hits = _pg.search_for("12'-0\"")
+check("both labels rendered", len(_hits), 2)
+_pipe_x = _pg.search_for("12'-0\"")  # placeholder to keep names obvious
+# the pipe sits at 4 ft from the origin; find it from the drawing instead
+_lines = [d["rect"] for d in _pg.get_drawings() if d["rect"].width < 3]
+_px = min((r.x0 for r in _lines if r.height > 50), default=None)
+check("the pipe was found", _px is not None, True)
+_right, _left = sorted(_hits, key=lambda r: r.y0)          # right-aligned is higher up
+check("the right-aligned label ends BEFORE the pipe", _right.x1 <= _px + 1, True)
+check("...while the left-aligned one crosses it", _left.x1 > _px, True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

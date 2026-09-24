@@ -228,13 +228,26 @@ class Sheet:
         c.drawPath(path, stroke=0, fill=1)
         c.restoreState()
 
-    def text(self, x, y, s, size=8, center=False, color=black, rotate=0, bold=False):
+    def text(self, x, y, s, size=8, center=False, color=black, rotate=0, bold=False,
+             align=None):
+        """`align` is "left" (default), "center" or "right".
+
+        ⚠ Right alignment is not a nicety. A label placed just left of a line and
+        drawn LEFT-aligned runs straight across it — which is what the boom
+        height labels did: the text started 4" clear of the pipe and then grew
+        rightwards over it. Anchoring the END of the string is the only way to
+        keep a label clear of something to its right.
+        """
+        how = align or ("center" if center else "left")
         c = self.c; c.saveState(); c.setFillColor(color)
         c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
         px, py = self.P(x, y); c.translate(px, py); c.rotate(rotate)
-        (c.drawCentredString if center else c.drawString)(0, -size / 3 if center else 0, s)
+        dy = -size / 3 if how == "center" else 0
+        draw = {"center": c.drawCentredString, "right": c.drawRightString}.get(how, c.drawString)
+        draw(0, dy, s)
         c.restoreState()
-        if self.dxf: self.dxf.text(x, y, s, size / self.pt_per_ft, rotate=rotate, center=center)
+        if self.dxf: self.dxf.text(x, y, s, size / self.pt_per_ft, rotate=rotate,
+                                   center=(how == "center"))
 
     # ---- theatre objects ----------------------------------------------
     def pipe(self, x1, y, x2, label=None, width=2.0):
@@ -432,7 +445,9 @@ class Sheet:
             self.line(x, uy, x + unit_gap * 0.55, uy, style="leader")
             _sym.draw(self, _sym.for_type(u.get("type", "")), x + unit_gap, uy,
                       rotate_deg=90)
-            self.text(x - ft(0, 4), uy - ft(0, 2), _ph.fmt_ft(u["height"]), size=6)
+            # Ends 5" clear of the pipe, growing leftwards away from it.
+            self.text(x - ft(0, 5), uy - ft(0, 2), _ph.fmt_ft(u["height"]),
+                      size=6, align="right")
             self.text(x + unit_gap, uy - ft(0, 3), str(u.get("unit")),
                       size=6, center=True, bold=True)
         for i, u in enumerate(no_height):
