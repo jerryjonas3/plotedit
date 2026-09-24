@@ -20,7 +20,12 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=plot.get("revision", ""), rev=plot.get("revision", "0")[:3],
               designer=f"Design: {plot.get('designer', '')}", dxf=dxf)
-    s.origin(ft(4), ft(4))
+    # ⭐ FOH positions — catwalks — sit over the AUDIENCE, downstage of the
+    # plaster line and outside the stage rectangle, at negative y. The origin has
+    # to make room for them or they are clipped straight off the bottom of the
+    # sheet and only the clipping guard would ever say so.
+    house = Sheet.foh_extent(plot.get("positions"))
+    s.origin(ft(4), ft(4) + (house + 1.5 if house else 0))
 
     s.layer("BASE")
     # §6.18: architecture is HEAVY; the reference lines are MEDIUM and dashed;
@@ -34,7 +39,7 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
 
     for p in plot["positions"]:
         label = p["name"] + (f" — trim {ph.fmt_ft(p['trim'])}" if p.get("trim") else "")
-        s.pipe(p["x1"], p["y1"], p["x2"], label=label, width=2)
+        s.position(p, label=label)
 
     rows = []
     for inst in plot["instruments"]:

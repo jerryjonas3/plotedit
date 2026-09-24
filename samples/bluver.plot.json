@@ -14,12 +14,24 @@
   },
   "positions": [
     {
+      "name": "Cat 1",
+      "type": "catwalk",
+      "foh": true,
+      "x1": 0,
+      "y1": -11,
+      "x2": 33,
+      "y2": -11,
+      "width": 3.0,
+      "trim": 18
+    },
+    {
       "name": "GRID B",
       "x1": 0,
       "y1": 16,
       "x2": 33,
       "y2": 16,
-      "trim": 14
+      "trim": 14,
+      "type": "electric"
     },
     {
       "name": "GRID C",
@@ -27,7 +39,8 @@
       "y1": 20,
       "x2": 33,
       "y2": 20,
-      "trim": 14
+      "trim": 14,
+      "type": "electric"
     },
     {
       "name": "GRID D",
@@ -35,7 +48,8 @@
       "y1": 24,
       "x2": 33,
       "y2": 24,
-      "trim": 14
+      "trim": 14,
+      "type": "electric"
     }
   ],
   "instruments": [
@@ -203,6 +217,7 @@
     "The five acting-area units are spaced 5'-6\" on center; field-to-beam at this throw wants 5'-4\".",
     "Plaster line at y=10 and the center line are drawn per RP-2 6.18 \u2014 medium weight, dashed and chain-dashed.",
     "Unit 4 on GRID D is a PARNel with its lens turned 45 degrees \u2014 RP-2 6.2 Oval Beam Fresnel.",
-    "Accessories ride on the instrument record. RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the body and front-of-lens ones (barn doors, hats) at the nose; only the name is given here."
+    "Accessories ride on the instrument record. RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the body and front-of-lens ones (barn doors, hats) at the nose; only the name is given here.",
+    "Cat 1 is a FRONT OF HOUSE catwalk \u2014 over the audience, downstage of the plaster line, so its y is NEGATIVE. It is drawn as a walkway with two architectural edges and a hanging rail on its downstage side, not as a pipe: a unit hung on a catwalk hangs off the rail, not down the middle."
   ]
 }

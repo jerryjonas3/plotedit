@@ -240,3 +240,43 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
 **⚠ Resist the urge to start at step 4.** Steps 1–3 are where the coordinate
 system and the data model get settled, and they are cheap to change until
 something is drawn on top of them.
+
+---
+
+## Positions — started 2026.09.23
+
+**Jerry: "we should do positions next — for now, horizontal ones — catwalks,
+electrics, etc," and then: "catwalks are also FOH (front of house) positions."**
+
+Done:
+
+- **`type` on a position** — `electric` · `pipe` · `grid` · `catwalk` · `truss`.
+  It decides the drawing, and the distinction is physical. An electric is one
+  heavy batten line. **A catwalk is a WALKWAY**: two architectural edges with a
+  hanging pipe inboard of the downstage one, because a person stands on it and
+  the units hang off the rail rather than down the middle. A unit drawn on the
+  centre of a catwalk is drawn three feet from where it is.
+- **FOH.** A catwalk is front of house, over the audience, downstage of the
+  plaster line — **negative y**. `foh_extent()` reports how far downstage the
+  positions reach and `plot_to_pdf` shifts the origin to cover it. Without that
+  the catwalk is clipped off the bottom and only the clipping guard would say so.
+- `railOffset` overrides the pipe's inboard distance — **it varies by house, so
+  take it off the venue's section rather than from the default.**
+
+### 🔴 The open question: which end is unit 1?
+
+**Units number along a position, and nothing in the tool knows from which end.**
+Jerry's paperwork records positions and unit numbers but carries no geometry, so
+the direction cannot be derived from the archive — it has to be asked.
+
+**Not guessed.** A plot numbered from the wrong end is hung backwards, and it
+looks entirely correct until someone is up a ladder. The field will be explicit
+(`numberFrom: "SR" | "SL"`) and auto-numbering will REFUSE rather than default.
+
+### Still to do
+
+- Auto-numbering along a position, once the direction is known.
+- Circuits along a position, and which company switch feeds it.
+- **Vertical positions — booms, box booms, ladders.** Explicitly out of scope
+  until asked: RP-2 §6.12 makes them a different drawing problem, with their own
+  height-designation conventions and two accepted layouts.

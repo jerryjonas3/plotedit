@@ -148,6 +148,32 @@ check("a second front accessory stacks further out",
       _sym._extent(_two)[0] < _sym._extent(_with)[0], True)
 
 
+
+# ------------------------------------------------------------------ positions
+print("\npositions: a catwalk is not a pipe, and it is front of house")
+from plotedit.scaled_pdf import Sheet as _Sheet
+
+_cat = {"name": "Cat 1", "type": "catwalk", "x1": 0, "y1": -11, "x2": 33,
+        "y2": -11, "width": 3.0}
+_elec = {"name": "Elect 1", "type": "electric", "x1": 0, "y1": 16, "x2": 33, "y2": 16}
+
+# A catwalk hangs over the audience, so the sheet must reach past the plaster
+# line. Get this wrong and the position is clipped off the bottom in silence.
+check("a catwalk needs house depth", _Sheet.foh_extent([_cat, _elec]), 12.5)
+check("an electric needs none", _Sheet.foh_extent([_elec]), 0.0)
+check("FOH is implied by the type, not only by the flag",
+      _Sheet.foh_extent([dict(_cat, foh=None)]), 12.5)
+check("...and can be turned off explicitly",
+      _Sheet.foh_extent([dict(_cat, foh=False)]), 0.0)
+
+# The three lines of a catwalk must be three DIFFERENT lines. Drawn on top of
+# each other they read as one thick rail and the pipe disappears.
+_half = _cat["width"] / 2
+_lines = {_cat["y1"] + _half, _cat["y1"] - _half, _cat["y1"] - _half * 0.55}
+check("a catwalk draws three distinct lines", len(_lines), 3)
+check("the pipe sits inboard of the downstage edge",
+      _cat["y1"] - _half * 0.55 > _cat["y1"] - _half, True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

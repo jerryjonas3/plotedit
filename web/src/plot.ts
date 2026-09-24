@@ -57,6 +57,24 @@ export interface Position {
   x2: number; y2: number;
   /** Trim height in feet, if the whole position shares one. */
   trim?: number;
+  /** What KIND of position, which decides how it is drawn.
+   *
+   *  An electric, pipe or grid is one heavy batten line. A catwalk is a
+   *  WALKWAY — two architectural edges with a hanging pipe inboard of the
+   *  downstage one — because a person stands on it and the units hang off the
+   *  rail, not down the middle. A truss gets two chords and diagonals.
+   *
+   *  Vertical positions (boom, box boom, ladder) are NOT handled yet. */
+  type?: "electric" | "pipe" | "grid" | "catwalk" | "truss";
+  /** Front of house — over the audience, downstage of the plaster line, so its
+   *  y is NEGATIVE. Catwalks are FOH by default (Jerry, 2026.09.23). The sheet
+   *  has to be sized to reach the house or an FOH position is clipped off. */
+  foh?: boolean;
+  /** Real width in feet. Catwalks default to 3', trusses to 1'-6". */
+  width?: number;
+  /** How far inboard of the centre the hanging pipe sits. Varies by house —
+   *  take it off the venue's section, not from a default. */
+  railOffset?: number;
 }
 
 /** The room. Dimensions carry their source — a rental listing is not a survey. */

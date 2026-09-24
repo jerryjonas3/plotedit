@@ -196,6 +196,103 @@ class Sheet:
         self.line(x1, y, x2, y, style="batten")
         if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
 
+    def position(self, pos, label=None):
+        """Draw one horizontal hanging position from a plot record.
+
+        `type` decides the drawing, and the distinction is not decoration:
+
+          electric / pipe / grid   one heavy batten line — a pipe is a pipe
+          catwalk                  a WALKWAY: two architectural edges you can
+                                   stand between, plus the batten you hang from
+          truss                    two chords with diagonals
+
+        **A catwalk is not a pipe.** It has a real width, a person stands on it,
+        and the instruments hang off its downstage rail rather than its middle —
+        so a unit drawn on the centre of a catwalk is drawn three feet from where
+        it actually is. At 1/2" scale that is an eighth of an inch on paper and a
+        missed shutter cut in the room.
+
+        **⭐ A catwalk is also a FRONT OF HOUSE position** (Jerry, 2026.09.23), so
+        it sits OVER THE AUDIENCE — downstage of the plaster line, outside the
+        stage rectangle, at negative y in this model. Two things follow and both
+        bite:
+
+          * **The sheet has to reach the house.** A plot whose room is the stage
+            will clip a catwalk straight off, and the clipping guard is the only
+            thing that would say so. `foh_extent()` returns how far downstage the
+            positions actually go, so the drawing can be sized to include them.
+          * **The throw is long and the angle is steep.** Nothing here needs to
+            change for that — the photometrics already work from real geometry —
+            but a catwalk unit reading a much lower footcandle than an onstage
+            one is correct, not a bug.
+
+        Vertical positions — booms, box booms, ladders — are NOT handled here.
+        They are a different drawing problem (RP-2 §6.12) and are deliberately
+        out of scope until asked for.
+        """
+        self.layer("POSITIONS")
+        x1, y1 = pos["x1"], pos["y1"]
+        foh = pos.get("foh")
+        if foh is None:
+            foh = (pos.get("type") or "").strip().lower() == "catwalk"
+        x2, y2 = pos.get("x2", x1), pos.get("y2", y1)
+        kind = (pos.get("type") or "electric").strip().lower()
+        label = label if label is not None else pos.get("name", "")
+
+        if kind in ("catwalk", "truss"):
+            half = (pos.get("width") or (3.0 if kind == "catwalk" else 1.5)) / 2.0
+            # Horizontal only for now, so the offset is in y.
+            for side in (1, -1):
+                self.line(x1, y1 + side * half, x2, y2 + side * half,
+                          style="architecture" if kind == "catwalk" else "batten")
+            if kind == "truss":
+                import math
+                n = max(2, int(abs(x2 - x1) / max(half * 2, 0.5)))
+                for i in range(n):
+                    a = x1 + (x2 - x1) * i / n
+                    b = x1 + (x2 - x1) * (i + 1) / n
+                    self.line(a, y1 - half, b, y1 + half, style="leader")
+            else:
+                # The pipe units actually hang from. Drawn INBOARD of the
+                # downstage edge rather than on it: put it on the edge and the
+                # two lines coincide, which reads as one thick rail and loses
+                # the fact that there is a pipe at all.
+                #
+                # ⚠ The real offset varies by house — some hang off the rail
+                # itself, some off a pipe a foot inboard. `railOffset` overrides
+                # it; take the number off the venue's own section, not from here.
+                off = pos.get("railOffset")
+                if off is None:
+                    off = half * 0.55
+                self.line(x1, y1 - off, x2, y2 - off, style="batten")
+            top = max(y1, y2) + half
+        else:
+            self.line(x1, y1, x2, y2, style="batten")
+            top = max(y1, y2)
+
+        if label:
+            # CAPS on a plot — Jerry, 2026.09.22: "probably caps are more legible."
+            text = label.upper() + ("  (FOH)" if foh and "FOH" not in label.upper() else "")
+            self.text(x1, top + ft(0, 6), text, size=7, bold=True)
+
+    @staticmethod
+    def foh_extent(positions):
+        """How far downstage the positions reach, in feet (0 if none are FOH).
+
+        A plot with a catwalk is not a plot of the stage — it is a plot of the
+        stage AND the house, and the sheet has to be sized for both or the
+        catwalk is clipped off the bottom.
+        """
+        ys = []
+        for p in positions or []:
+            foh = p.get("foh")
+            if foh is None:
+                foh = (p.get("type") or "").strip().lower() == "catwalk"
+            if foh:
+                half = (p.get("width") or 3.0) / 2.0
+                ys += [p.get("y1", 0) - half, p.get("y2", p.get("y1", 0)) - half]
+        return abs(min(ys)) if ys and min(ys) < 0 else 0.0
+
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, show_pool=True, annotate=False):
