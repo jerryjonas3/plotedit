@@ -104,14 +104,41 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="1/2",
         s.text(sp["y"], sp.get("h", 3.5) + ft(0, 6),
                f"sight point {ph.fmt_ft(abs(sp['y']))} into house, eye {ph.fmt_ft(sp.get('h', 3.5))}",
                size=5.5)
-    else:
-        s.note(1, grid + 3.2, "No audience sight point recorded — vertical sightlines "
-                              "NOT drawn. Ask the venue for the worst seat.")
 
-    # §3: masking and scenery, or an honest blank.
-    if not plot.get("masking") and not plot.get("scenery"):
-        s.note(1, grid + 2.4, "No masking or scenery recorded — this section shows the "
-                              "room and the rig only. Obstructions are NOT proven clear.")
+    # ⭐ One block, listing what is NOT on this drawing and who has it.
+    #
+    # A warning that cannot be acted on is just noise on a sheet. These are
+    # things the designer does not have YET — so the drawing states the gap, says
+    # who to ask, and says what the drawing cannot be used to prove until it is
+    # filled. That is a site-visit list, not a nag.
+    missing = []
+    if not sp:
+        missing.append(("Audience sight point", "the venue — the worst seat's row and eye height",
+                        "no vertical sightline is drawn; sightlines are NOT checked"))
+    if not plot.get("masking"):
+        missing.append(("Masking — borders, legs, teasers", "the venue's rep plot or its TD",
+                        "trims are NOT proven to clear; a pipe may hang into a border"))
+    if not plot.get("scenery"):
+        missing.append(("Scenery in section", "the set designer",
+                        "no obstruction is checked; a beam may be blocked"))
+    if missing:
+        s.layer("NOTES")
+        # Placed over MID-STAGE and well above the grid. The obvious spot — top
+        # left — is where the FOH positions live, because a catwalk is at
+        # negative y and its trim is above the grid. The empty corner of a
+        # section is not empty once the house is drawn.
+        bx = depth * 0.22
+        by = grid + 10.0
+        s.text(bx, by, "NOT ON THIS DRAWING — and what it means", size=7.5, bold=True)
+        for what, who, means in missing:
+            by -= 1.05
+            s.text(bx, by, f"{what} — ask {who}.", size=5.5)
+            by -= 0.65
+            s.text(bx + 0.6, by, f"Until then: {means}.", size=5.5)
+        by -= 1.15
+        s.text(bx, by,
+               "This section shows the ROOM AND THE RIG. It is not a clearance check.",
+               size=6.5, bold=True)
 
     s.layer("POSITIONS")
     insts = plot["instruments"]
