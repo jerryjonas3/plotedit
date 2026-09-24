@@ -133,6 +133,23 @@ check("Windows device names are refused", True, True)
 check("...but an ordinary name that starts the same is fine",
       client.post("/save", json={"name": "Concert.json", "plot": _plot}).status_code, 200)
 
+# 🔴 A CORRUPT PLOT SAYS SO, AND NAMES ITSELF. json.JSONDecodeError is a
+# subclass of ValueError, so an `except ValueError` above it swallowed every
+# parse failure and the 422 branch was unreachable: the reply was 400 with a
+# bare "Expecting value: line 1 column 1 (char 0)", which names neither the file
+# nor what to do. pylint's bad-except-order found it in CI; no test did, because
+# every test until now opened a file that parses.
+with open(_os.path.join(_ps.root(), "broken.json"), "w") as _fh:
+    _fh.write("{ not json at all ,,,")
+_broken = client.get("/plots/broken.json")
+check("a plot that will not parse is a 422", _broken.status_code, 422)
+check("...and the message names the file", "broken.json" in _broken.json()["detail"], True)
+check("...and it is still LISTED, not hidden",
+      any(r["name"] == "broken.json" for r in client.get("/plots").json()["plots"]), True)
+check("...saying it will not parse",
+      next(r["show"] for r in client.get("/plots").json()["plots"]
+           if r["name"] == "broken.json"), "— will not parse —")
+
 check("a plot that is not there is a 404", client.get("/plots/nope.json").status_code, 404)
 check("the listing names the folder", "folder" in client.get("/plots").json(), True)
 

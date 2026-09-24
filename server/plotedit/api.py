@@ -546,12 +546,18 @@ def list_plots() -> Dict[str, Any]:
 def read_plot(name: str) -> Dict[str, Any]:
     try:
         return {"name": name, "plot": plotstore.read(name)}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"no plot called {name}")
+    # 🔴 JSONDecodeError FIRST. It is a subclass of ValueError, so catching
+    # ValueError above it swallowed every parse failure and left this branch
+    # unreachable — a corrupt plot answered 400 with a bare "Expecting value:
+    # line 1 column 1", which names neither the file nor what to do about it.
+    # Caught by pylint's bad-except-order in CI, not by any test, because every
+    # test opened a file that parsed.
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=422, detail=f"{name} will not parse: {e}")
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"no plot called {name}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/save")
