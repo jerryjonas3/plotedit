@@ -691,7 +691,12 @@ check("the counts add up to the rig",
 _s426 = next(r for r in _types if r["name"] == "S4 26")
 check("the angles are still available to the data model",
       (_s426["field"], _s426["beam"]), (25.0, 18.0))
-check("wattage comes through — §5.1 asks for it", _s426["watts"], 575.0)
+# ⚠ Wattage is a DELIBERATE departure from §5.1, which asks for "wattage (total
+# luminaire load) and/or ANSI lamp code" in the key. Jerry, 2026.09.23: "we can
+# lose the wattage too, that will be on the instrument schedule." A key that
+# repeats the schedule is a second place for the same fact to go stale. It stays
+# in the data model, and on the plot symbols themselves, per §6.14.2.
+check("wattage stays available to the data model", _s426["watts"], 575.0)
 
 # §5.1: colour manufacturer designations — but only the ones actually used. A
 # key explaining L = Lee on a plot with no Lee in it teaches a reader something

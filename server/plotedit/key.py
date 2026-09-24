@@ -133,22 +133,27 @@ def draw(sheet, plot, x, y, width=11.0, line=0.85, title="INSTRUMENT KEY"):
         sym.draw(sheet, prims, x + 0.9, cy, rotate_deg=90, width=1.0)
         # Jerry's own notation, 2026.09.23: "1) S4 19, 3) S4 26, 2) S4 36."
         desc = f"{r['count']}) {r['name']}"
-        sheet.text(x + 2.2, cy + line * 0.3, desc, size=6, bold=True)
+        sheet.text(x + 2.2, cy - line * 0.1, desc, size=6, bold=True)
+        # ⚠ No beam, field or wattage here — Jerry, 2026.09.23: "we can lose the
+        # wattage too, that will be on the instrument schedule."
+        #
+        # The angles agree with §5.1, which asks for beam spread only "if the
+        # numeric value is not part of the luminaire's name" — "S4 26" carries
+        # it. **The wattage is a deliberate DEPARTURE**: §5.1 asks for "wattage
+        # (total luminaire load) and/or ANSI lamp code". It is dropped because it
+        # is on the instrument schedule, and a key that repeats the schedule is a
+        # second place for the same fact to go stale.
+        #
+        # All of it stays in the data model for anything that computes. A key is
+        # for reading shapes.
         bits = []
-        # ⚠ No beam or field here, by Jerry's instruction 2026.09.23 — and §5.1
-        # agrees: it asks for beam spread only "if the numeric value is not part
-        # of the luminaire's name", and "S4 19" carries it. The measured field
-        # (25° on a 26° barrel) stays in the fixture table for anything that
-        # computes; it is not what a key is for.
-        if r["watts"]:
-            bits.append(f"{r['watts']:.0f} W")
         if r["unknown"]:
             # ⚠ Never silently. A type the tool cannot identify is a type the
             # reader should be told about, not one quietly given no angle.
             bits.append("NOT IN THE FIXTURE TABLE — angles and load unknown")
         if bits:
-            sheet.text(x + 2.2, cy - line * 0.35, " · ".join(bits), size=5.5, color=grey)
-        cy -= rad + line * 0.5
+            sheet.text(x + 2.2, cy - line * 0.75, " · ".join(bits), size=5.5, color=grey)
+        cy -= rad + line * 0.15
 
     # ── §5.1: every notation used, explained ───────────────────────────────
     control = plot.get("control", "dimmer-per-circuit")
