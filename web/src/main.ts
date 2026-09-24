@@ -1,6 +1,6 @@
 /** Load a plot, draw it, let it be edited. */
 import { fitView, fohExtent, type View } from "./geometry.js";
-import { isPlot, symbolKey, type Plot } from "./plot.js";
+import { isPlot, symbolKey, plotFileName, type Plot } from "./plot.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels,
@@ -112,9 +112,19 @@ function paint() {
   draw();
   fillTable();
   drawInspector();
-  $("dirty").textContent = store.dirty ? "unsaved" : "";
+  $("dirty").textContent = store.dirty ? "Unsaved changes" : "";
   ($("undo") as HTMLButtonElement).disabled = !store.canUndo;
   ($("redo") as HTMLButtonElement).disabled = !store.canRedo;
+  // ⭐ Each section header says what is IN it. The three panels were three grey
+  // blocks that had to be read to be told apart; a count in the header answers
+  // "which one is this" and "is there anything here" in one glance.
+  const sel = store.selected;
+  const inst = sel === null ? undefined : store.plot.instruments[sel];
+  $("inst-count").textContent = inst
+    ? `Unit ${inst.unit}${inst.channel === undefined ? "" : ` · ch ${inst.channel}`}`
+    : "none selected";
+  $("pos-count").textContent = String(store.plot.positions.length);
+  $("sched-count").textContent = String(store.plot.instruments.length);
 }
 
 /** Fetch RP-2 outlines for any fixture type not already held. */
@@ -185,14 +195,78 @@ function recompute(delay = 120) {
   }, delay);
 }
 
-function save() {
-  const blob = new Blob([JSON.stringify(store.plot, null, 2)], { type: "application/json" });
+/** The file this plot was last saved to, if the browser can hold one.
+ *
+ * ⭐ Jerry, 2026.09.24: "we should have a save and save as button." There was
+ * only one button and it was Save As in disguise — every press pushed another
+ * copy into Downloads, so a session of ten saves left ten files and the newest
+ * one was whichever had the longest numeric suffix.
+ *
+ * ⚠ The File System Access API is not everywhere. Where it is missing, Save
+ * cannot overwrite anything and both buttons download — which is the OLD
+ * behaviour, so nothing is lost, but the app SAYS so rather than letting the
+ * button quietly mean something different from what it says.
+ */
+let fileHandle: FileSystemFileHandle | null = null;
+const canWriteFiles = typeof window.showSaveFilePicker === "function";
+
+function plotJson(): string {
+  return JSON.stringify(store.plot, null, 2);
+}
+
+function suggestedName(): string {
+  return plotFileName(store.plot.show);
+}
+
+function download(): void {
+  const blob = new Blob([plotJson()], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `${store.plot.show.replace(/[^\w -]/g, "")}.plot.json`;
+  a.download = suggestedName();
   a.click();
   URL.revokeObjectURL(a.href);
   store.markSaved();
+  status(canWriteFiles ? `Downloaded ${suggestedName()}`
+                       : `Downloaded ${suggestedName()} — this browser cannot save in place`);
+}
+
+async function writeTo(handle: FileSystemFileHandle): Promise<void> {
+  const w = await handle.createWritable();
+  await w.write(plotJson());
+  await w.close();
+  store.markSaved();
+  status(`Saved ${handle.name}`);
+}
+
+async function saveAs(): Promise<void> {
+  if (!canWriteFiles) { download(); return; }
+  try {
+    const handle = await window.showSaveFilePicker!({
+      suggestedName: suggestedName(),
+      types: [{ description: "Light plot", accept: { "application/json": [".json"] } }],
+    });
+    fileHandle = handle;
+    await writeTo(handle);
+  } catch (e) {
+    // ⚠ Cancelling a file dialog is not an error. Reporting it as one trains
+    // the reader to ignore the status line, which is where the REAL failures
+    // are about to appear.
+    if (e instanceof DOMException && e.name === "AbortError") return;
+    status(e instanceof Error ? e.message : String(e), true);
+  }
+}
+
+async function save(): Promise<void> {
+  if (!fileHandle) { await saveAs(); return; }
+  try {
+    await writeTo(fileHandle);
+  } catch (e) {
+    // The file moved, or permission lapsed. Ask again rather than silently
+    // failing to save what the button said it saved.
+    status(`Could not write ${fileHandle.name} — choose where to save it`, true);
+    fileHandle = null;
+    await saveAs();
+  }
 }
 
 function status(msg: string, bad = false) {
@@ -283,7 +357,20 @@ async function boot() {
     });
     $("undo").addEventListener("click", () => { store.undo(); recompute(); });
     $("redo").addEventListener("click", () => { store.redo(); recompute(); });
-    $("save").addEventListener("click", save);
+    $("save").addEventListener("click", () => void save());
+    $("saveas").addEventListener("click", () => void saveAs());
+    if (!canWriteFiles) {
+      ($("save") as HTMLButtonElement).title =
+        "This browser cannot save in place — both buttons download a copy";
+    }
+    // ⌘S saves, ⇧⌘S saves as. The browser's own Save-page dialog is not what
+    // anyone means by ⌘S with a plot open.
+    window.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void (e.shiftKey ? saveAs() : save());
+      }
+    });
     window.addEventListener("beforeunload", (e) => {
       if (store.dirty) { e.preventDefault(); e.returnValue = ""; }
     });

@@ -229,3 +229,44 @@ export function isFoh(p: Position, plasterLine?: number): boolean {
   if (plasterLine === undefined) return false;
   return p.y1 < plasterLine;
 }
+
+/** The File System Access API, as much of it as plotedit uses.
+ *
+ * ⚠ Not in TypeScript's DOM lib in every version, and OPTIONAL at runtime —
+ * Safari and Firefox do not have it. Declared optional on purpose so the
+ * compiler forces a check before it is called, which is the difference between
+ * "Save falls back to a download" and "Save throws on someone else's machine".
+ */
+declare global {
+  interface FileSystemWritableFileStream extends WritableStream {
+    write(data: string | BufferSource | Blob): Promise<void>;
+    close(): Promise<void>;
+  }
+  interface FileSystemFileHandle {
+    readonly name: string;
+    createWritable(): Promise<FileSystemWritableFileStream>;
+  }
+  interface Window {
+    showSaveFilePicker?: (opts?: {
+      suggestedName?: string;
+      types?: { description?: string; accept: Record<string, string[]> }[];
+    }) => Promise<FileSystemFileHandle>;
+  }
+}
+
+/** The filename a plot saves to, from the show's name.
+ *
+ * ⚠ A show title is free text and a filename is not. "Without Consent: Act 2/3"
+ * carries a slash, which on every platform either creates a directory that is
+ * not there or is rejected outright — and the old inline version also let a
+ * title of only punctuation through as the empty string, so the file would have
+ * been called ".plot.json": hidden on macOS and Linux.
+ */
+export function plotFileName(show: string): string {
+  const stem = (show ?? "")
+    .replace(/[^\w -]+/g, " ")   // anything not a word char, space or hyphen
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+  return `${stem || "plot"}.plot.json`;
+}

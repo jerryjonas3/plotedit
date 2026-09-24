@@ -1,6 +1,6 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
-import type { Plot } from "./plot.js";
+import { plotFileName, type Plot } from "./plot.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -78,5 +78,15 @@ console.log();
 // could print failures and still exit 0. The same defect was found in two of the
 // Python suites on 2026.09.23; verify_suites.py checks those, and did not cover
 // these.
+console.log("\na show title is not a filename");
+// ⚠ Free text on one side, a filesystem on the other.
+check("an ordinary title", plotFileName("Without Consent"), "Without Consent.plot.json");
+check("a slash would make a directory", plotFileName("Without Consent: Act 2/3"),
+      "Without Consent Act 2 3.plot.json");
+check("punctuation only does NOT give a hidden dotfile", plotFileName("???"), "plot.plot.json");
+check("nor does an empty title", plotFileName(""), "plot.plot.json");
+check("runs of spaces collapse", plotFileName("A   B"), "A B.plot.json");
+check("a very long title is cut", plotFileName("x".repeat(200)).length, 90);
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

@@ -3,102 +3,296 @@
 <head>
   <meta charset="utf-8">
   <title>plotedit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    :root { --ink:#111; --quiet:#777; --line:#ddd; --bg:#fafaf9; --sel:#1d6fa5; --warn:#a8410f; }
-    * { box-sizing: border-box; }
-    body { margin:0; font:14px/1.4 system-ui,sans-serif; color:var(--ink);
-           display:grid; grid-template-rows:auto 1fr; height:100vh; background:var(--bg); }
-    header { padding:8px 14px; border-bottom:1px solid var(--line); background:#fff;
-             display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
-    h1 { font-size:15px; margin:0; font-weight:700; }
-    .venue { color:var(--quiet); font-size:13px; }
-    #dirty { color:var(--warn); font-size:12px; font-weight:600; }
-    .controls { margin-left:auto; display:flex; gap:12px; align-items:center; font-size:13px; }
-    label { display:flex; gap:4px; align-items:center; color:var(--quiet); }
-    button { font:inherit; font-size:13px; padding:3px 9px; border:1px solid var(--line);
-             background:#fff; border-radius:4px; cursor:pointer; }
-    button:disabled { opacity:.4; cursor:default; }
-    button.danger { color:var(--warn); border-color:#e8cdc0; margin-top:10px; width:100%; }
-    select { font:inherit; font-size:13px; padding:3px 6px; border:1px solid var(--line);
-             background:#fff; border-radius:4px; }
-    header label[title="Import a venue ground plan"] { cursor:pointer; border:1px solid var(--line);
-             padding:3px 9px; border-radius:4px; background:#fff; color:var(--ink); }
-    #status { font-size:12px; max-width:34em; }
-    main { display:grid; grid-template-columns:1fr 340px; overflow:hidden; }
-    #canvas { overflow:auto; display:grid; place-items:center; padding:14px; }
-    svg { background:#fff; border:1px solid var(--line); touch-action:none; }
+    /* ------------------------------------------------------------------
+       MATERIAL DESIGN 3, in the Twin Oaks palette.
+
+       ⭐ Jerry, 2026.09.24: "can we use material standards." These are M3's
+       own structures — colour ROLES rather than colour names, the type scale,
+       the elevation levels, the state layers, the shape scale — written out
+       rather than pulled in as a framework. A component library would have to
+       be fought at every point where this app is a drawing surface rather than
+       a form, and the parts of M3 that make a UI legible are the tokens.
+
+       ⚠ NOT M3's default palette. Its baseline is purple, and the fallback
+       everything drifts to is a blue-grey — which the brand rules rule out by
+       name. The roles are generated from the logo instead: dark green #256948
+       is primary, brown #994C00 is secondary, light green #8CC63F is tertiary.
+       Surfaces are warm greys, not cool ones, for the same reason.
+       ------------------------------------------------------------------ */
+    :root {
+      /* colour roles */
+      --primary:#256948; --on-primary:#ffffff;
+      --primary-container:#a8d5bf; --on-primary-container:#00210f;
+      --secondary:#994C00; --on-secondary:#ffffff;
+      --secondary-container:#ffdcc2; --on-secondary-container:#301400;
+      --tertiary:#4c6524; --on-tertiary:#ffffff;
+      --tertiary-container:#cdeb9c; --on-tertiary-container:#101f00;
+      --error:#8f2d16; --on-error:#ffffff;
+      --error-container:#ffdad3; --on-error-container:#3b0906;
+
+      --surface:#fcf9f6;
+      --surface-container-lowest:#ffffff;
+      --surface-container-low:#f7f3ef;
+      --surface-container:#f1ede8;
+      --surface-container-high:#ebe7e2;
+      --on-surface:#1c1b19;
+      --on-surface-variant:#4d4640;      /* secondary text — the M3 role for it */
+      --outline:#7e766e;
+      --outline-variant:#d3c9c0;
+
+      /* elevation (M3 levels 1 and 2) */
+      --elev-1:0 1px 2px rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
+      --elev-2:0 1px 2px rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
+
+      /* shape scale */
+      --shape-xs:4px; --shape-s:8px; --shape-m:12px; --shape-l:16px; --shape-full:100px;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; background:var(--surface); color:var(--on-surface);
+      font-family:Roboto,system-ui,sans-serif;
+      /* M3 body-medium */
+      font-size:14px; line-height:20px; letter-spacing:.25px;
+      display:grid; grid-template-rows:auto 1fr; height:100vh;
+    }
+    .material-symbols-outlined {
+      font-family:"Material Symbols Outlined"; font-weight:normal; font-style:normal;
+      font-size:18px; line-height:1; letter-spacing:normal; display:inline-block;
+      white-space:nowrap; direction:ltr; -webkit-font-feature-settings:'liga';
+      -webkit-font-smoothing:antialiased; user-select:none;
+    }
+
+    /* ---- top app bar ------------------------------------------------- */
+    header { background:var(--surface-container-low); box-shadow:var(--elev-1); z-index:2; }
+    .bar { display:flex; gap:16px; align-items:center; padding:8px 16px; flex-wrap:wrap; }
+    .bar + .bar { border-top:1px solid var(--outline-variant); padding-top:6px; padding-bottom:6px; }
+    /* M3 title-medium */
+    h1 { font-size:16px; line-height:24px; letter-spacing:.15px; font-weight:500; margin:0; }
+    .venue { color:var(--on-surface-variant); font-size:12px; line-height:16px; letter-spacing:.4px; }
+    /* ⭐ Unsaved is a STATE, not a whisper. M3 gives it an error-tinted chip so
+       it reads at a glance instead of as one more piece of grey text. */
+    #dirty:not(:empty) {
+      display:inline-flex; align-items:center; gap:4px;
+      background:var(--error-container); color:var(--on-error-container);
+      border-radius:var(--shape-full); padding:2px 10px;
+      font-size:11px; line-height:16px; letter-spacing:.5px; font-weight:500;
+    }
+    #status { font-size:12px; line-height:16px; letter-spacing:.4px; max-width:34em; }
+    .grow { margin-left:auto; }
+    .group { display:flex; gap:8px; align-items:center; }
+    .divider { width:1px; align-self:stretch; background:var(--outline-variant); margin:0 2px; }
+
+    /* ---- buttons (M3 filled / tonal / outlined / text), dense ---------- */
+    button {
+      font-family:inherit; font-size:14px; line-height:20px; letter-spacing:.1px; font-weight:500;
+      display:inline-flex; align-items:center; gap:6px;
+      height:32px; padding:0 14px; border-radius:var(--shape-full);
+      border:none; background:none; color:var(--primary); cursor:pointer;
+      position:relative; overflow:hidden; transition:box-shadow .15s, background-color .15s;
+    }
+    /* M3 STATE LAYERS: hover and focus tint the button with its own foreground
+       colour at a fixed opacity, rather than each control inventing a shade. */
+    button::after {
+      content:""; position:absolute; inset:0; background:currentColor;
+      opacity:0; transition:opacity .15s; pointer-events:none;
+    }
+    button:hover::after { opacity:.08; }
+    button:focus-visible::after { opacity:.12; }
+    button:active::after { opacity:.12; }
+    button:focus-visible { outline:2px solid var(--primary); outline-offset:1px; }
+    button:disabled { opacity:.38; cursor:default; box-shadow:none; }
+    button:disabled::after { opacity:0; }
+    button.filled { background:var(--primary); color:var(--on-primary); }
+    button.tonal { background:var(--secondary-container); color:var(--on-secondary-container); }
+    button.outlined { border:1px solid var(--outline); color:var(--primary); }
+    button.icon { width:32px; padding:0; justify-content:center; border-radius:var(--shape-full); }
+    button.danger { color:var(--error); }
+    button.small { height:28px; padding:0 12px; font-size:12px; letter-spacing:.5px; }
+
+    /* ---- selects and inputs (M3 outlined, dense) ---------------------- */
+    select, input[type=text], input[type=number], .filebtn {
+      font-family:inherit; font-size:14px; line-height:20px; letter-spacing:.25px;
+      color:var(--on-surface); background:var(--surface-container-lowest);
+      border:1px solid var(--outline-variant); border-radius:var(--shape-xs);
+      height:32px; padding:0 8px;
+    }
+    select:hover, input:hover { border-color:var(--outline); }
+    select:focus, input:focus { outline:none; border-color:var(--primary); box-shadow:inset 0 0 0 1px var(--primary); }
+    .filebtn { display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+               border-radius:var(--shape-full); padding:0 14px; color:var(--primary);
+               font-weight:500; font-size:14px; letter-spacing:.1px; background:none;
+               border:1px solid var(--outline); }
+    .filebtn:hover { background:rgba(37,105,72,.08); }
+    /* M3 switch-ish checkbox row: the label is the target, not just the box. */
+    .bar label { display:inline-flex; gap:6px; align-items:center;
+                 color:var(--on-surface-variant); font-size:13px; letter-spacing:.25px;
+                 padding:4px 8px; border-radius:var(--shape-full); cursor:pointer; }
+    .bar label:hover { background:var(--surface-container-high); }
+    input[type=checkbox] { accent-color:var(--primary); width:16px; height:16px; margin:0; }
+    input[type=range] { accent-color:var(--primary); }
+
+    /* ---- the drawing ------------------------------------------------- */
+    main { display:grid; grid-template-columns:1fr 380px; overflow:hidden; }
+    #canvas { overflow:auto; display:grid; place-items:center; padding:16px; }
+    svg { background:#fff; border-radius:var(--shape-s); box-shadow:var(--elev-1); touch-action:none; }
+    /* 🔴 THE DRAWING IS NOT TEXT ON A PAGE. Inside the SVG one user unit is one
+       FOOT, so the M3 body-medium letter-spacing of .25px inherited from <body>
+       came out as a quarter of a foot between every character — "G R I D  D"
+       three feet wide across the plot. Anything measured in CSS pixels has to
+       be reset at this boundary, not tuned. */
+    svg text { letter-spacing:normal; word-spacing:normal; font-weight:normal; }
     svg .hit { cursor:grab; }
-    svg .instrument.selected rect { stroke:var(--sel); stroke-width:.14; }
-    svg .instrument.selected circle { fill:var(--sel); }
-    svg .focus-handle.selected circle { stroke:var(--sel); }
-    aside { border-left:1px solid var(--line); overflow:auto; background:#fff;
-            display:grid; grid-template-rows:auto 1fr; }
-    .panel { padding:10px 12px; border-bottom:1px solid var(--line); }
-    .pos-row { border:1px solid var(--line); border-radius:4px; padding:6px 8px;
-               margin-bottom:8px; display:grid;
-               grid-template-columns:repeat(auto-fit,minmax(88px,1fr)); gap:4px 8px; }
-    .pos-field { display:flex; flex-direction:column; font-size:11px; }
-    .pos-field span { color:#666; }
-    .pos-field input, .pos-field select { font-size:11px; padding:2px 3px; }
-    .pos-note { grid-column:1/-1; margin:2px 0 0; font-size:10px; line-height:1.35; }
+    svg .instrument.selected rect { stroke:var(--primary); stroke-width:.14; }
+    /* 🔴 :not(.hit). Every symbol carries an INVISIBLE disc a foot across so a
+       nine-inch instrument is easy to grab, and this rule was filling it —
+       selecting a unit dropped a solid blob over the plot, hiding the very
+       symbol it was meant to be pointing at. It was there before, in blue. */
+    svg .instrument.selected circle:not(.hit) { fill:var(--primary); }
+    /* 🔴 :not(.hit) here too, and for a worse reason than the fill. The hit disc
+       carries no stroke-width, so it took SVG's default of 1 — and one user
+       unit is one FOOT. A 0.9ft ring with a 1ft stroke is a solid blob nearly
+       three feet across sitting on the focus point. It has been there since
+       selection was added, in blue, and I described it in this session as an
+       "aim ring" rather than recognising it. Nothing in the editor draws one. */
+    svg .focus-handle.selected circle:not(.hit) { stroke:var(--primary); }
+    /* Belt and braces: a hit target is a target, never ink. */
+    svg .hit { fill:transparent !important; stroke:none !important; }
+
+    /* ---- the side panel ---------------------------------------------- */
+    /* ⭐ Jerry, 2026.09.24: "it's hard to differentiate the Positions section
+       from the Instrument one." They were two identical grey blocks with a hair
+       line between them and a small grey heading each. Now each is an M3 CARD
+       with its own surface, its own accent colour and an icon — INSTRUMENT is
+       green, POSITIONS is brown, SCHEDULE is neutral — and the header carries a
+       count or the selection, so a glance says both what the section is and
+       what is in it. */
+    aside { background:var(--surface-container); overflow:auto; padding:12px;
+            display:flex; flex-direction:column; gap:12px; }
+    /* ⚠ flex-shrink:0. A flex item shrinks below its content by default, so
+       the Instrument card was squeezed to its first field and Positions showed
+       one of six — the panel LOOKED empty rather than scrolled. The aside is
+       what scrolls; the cards keep their height. */
+    /* ⚠ NOT overflow:hidden. It would round the header's corners for free, but
+       it also makes each card its own scroll container, and a sticky header
+       inside one has nothing to stick to. The corners are set on the header
+       instead so the headers can stay put while the panel scrolls. */
+    .panel { background:var(--surface-container-lowest); border-radius:var(--shape-m);
+             box-shadow:var(--elev-1); flex:0 0 auto; }
+    /* ⭐ STICKY. Scroll the side panel and the headings used to leave with the
+       content, so halfway down a list of positions there was nothing on screen
+       saying which section you were in — which is the complaint that started
+       this. The coloured header stays at the top of the panel instead. */
+    .panel > header { background:none; box-shadow:none; display:flex; align-items:center;
+                      gap:8px; padding:10px 14px; border-bottom:1px solid var(--outline-variant);
+                      position:sticky; top:0; z-index:1;
+                      border-radius:var(--shape-m) var(--shape-m) 0 0; }
+    .panel > header .material-symbols-outlined { font-size:20px; }
+    /* M3 title-small */
+    .panel h2 { font-size:14px; line-height:20px; letter-spacing:.1px; font-weight:500;
+                margin:0; text-transform:none; color:var(--on-surface); }
+    .panel .count { margin-left:auto; font-size:11px; line-height:16px; letter-spacing:.5px;
+                    font-weight:500; padding:2px 8px; border-radius:var(--shape-full); }
+    .panel .body { padding:12px 14px; border-radius:0 0 var(--shape-m) var(--shape-m);
+                   background:var(--surface-container-lowest); }
+    /* the accents that tell the sections apart */
+    .panel.instrument > header { background:var(--primary-container); color:var(--on-primary-container); }
+    .panel.instrument .count { background:var(--primary); color:var(--on-primary); }
+    .panel.positions > header { background:var(--secondary-container); color:var(--on-secondary-container); }
+    .panel.positions .count { background:var(--secondary); color:var(--on-secondary); }
+    .panel.schedule > header { background:var(--surface-container-high); color:var(--on-surface); }
+    .panel.schedule .count { background:var(--outline); color:#fff; }
+    .panel.schedule { flex:1 1 auto; display:flex; flex-direction:column; min-height:220px; }
+    .panel.schedule .body { overflow:auto; flex:1; }
+
+    /* ---- instrument fields ------------------------------------------- */
+    .fields { display:grid; grid-template-columns:auto 1fr; gap:8px 10px; align-items:center; }
+    .fields label { font-size:12px; line-height:16px; letter-spacing:.4px;
+                    color:var(--on-surface-variant); justify-self:end; }
+    .fields input, .fields select { width:100%; height:32px; }
+    .computed { font-size:13px; line-height:18px; background:var(--surface-container-low);
+                border-left:3px solid var(--primary); border-radius:var(--shape-xs);
+                padding:10px 12px; margin-bottom:12px; }
+    .muted { color:var(--on-surface-variant); }
+    .warn { color:var(--error); }
+
+    /* ---- positions --------------------------------------------------- */
+    .pos-row { border:1px solid var(--outline-variant); border-radius:var(--shape-s);
+               padding:10px 12px; margin-bottom:10px; display:grid;
+               grid-template-columns:repeat(auto-fit,minmax(92px,1fr)); gap:8px 10px;
+               background:var(--surface-container-lowest); transition:box-shadow .15s; }
+    .pos-row:hover { box-shadow:var(--elev-1); }
+    .pos-field { display:flex; flex-direction:column; gap:2px; }
+    .pos-field span { font-size:11px; line-height:16px; letter-spacing:.5px;
+                      color:var(--on-surface-variant); }
+    .pos-field input, .pos-field select { font-size:13px; height:30px; }
+    .pos-note { grid-column:1/-1; margin:2px 0 0; font-size:11px; line-height:16px; }
     .pos-actions { grid-column:1/-1; display:flex; gap:6px; margin-top:4px; }
-    .pos-actions button { font-size:11px; padding:2px 8px; cursor:pointer; }
-    .pos-actions button.danger { color:#a33; }
-    #positions > button { font-size:11px; padding:4px 10px; cursor:pointer; margin-top:4px; }
-    .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em;
-                color:var(--quiet); margin:0 0 8px; }
-    .fields { display:grid; grid-template-columns:auto 1fr; gap:5px 8px; align-items:center; }
-    .fields label { font-size:12px; justify-self:end; }
-    .fields input, .fields select { font:inherit; font-size:12px; padding:2px 4px;
-                                    border:1px solid var(--line); border-radius:3px; width:100%; }
-    .computed { font-size:12px; background:#f6f7f8; border-radius:4px; padding:7px 9px;
-                margin-bottom:10px; line-height:1.5; }
-    .muted { color:var(--quiet); }
-    .warn { color:var(--warn); }
-    table { border-collapse:collapse; width:100%; font-size:12px; }
-    th { text-align:left; font-weight:600; color:var(--quiet); border-bottom:1px solid var(--line);
-         padding:4px 6px 4px 0; position:sticky; top:0; background:#fff; }
-    td { padding:3px 6px 3px 0; border-bottom:1px solid #f2f2f2; white-space:nowrap; }
+    .pos-actions button { height:28px; padding:0 12px; font-size:12px; letter-spacing:.5px; }
+    #positions > button { margin-top:4px; }
+
+    /* ---- schedule ---------------------------------------------------- */
+    table { border-collapse:collapse; width:100%; font-size:12px; line-height:16px; }
+    th { text-align:left; font-weight:500; letter-spacing:.5px; color:var(--on-surface-variant);
+         border-bottom:1px solid var(--outline-variant); padding:6px 8px 6px 0;
+         position:sticky; top:0; background:var(--surface-container-lowest); }
+    td { padding:6px 8px 6px 0; border-bottom:1px solid var(--surface-container); white-space:nowrap; }
     td.num { text-align:right; font-variant-numeric:tabular-nums; }
     tbody tr { cursor:pointer; }
-    tbody tr:hover { background:#f6f7f8; }
-    tbody tr.sel { background:#e7f0f6; }
+    tbody tr:hover { background:var(--surface-container-low); }
+    tbody tr.sel { background:var(--primary-container); }
     tbody tr.warn td:first-child::before { content:"⚠ "; }
-    .src { font-size:11px; color:var(--quiet); margin:8px 0 0; line-height:1.45; }
-    #err { color:#b00; padding:16px; white-space:pre-wrap; font-family:ui-monospace,monospace; }
+    .src { font-size:11px; line-height:16px; color:var(--on-surface-variant); margin:10px 0 0; }
+    #err { color:var(--error); padding:16px; white-space:pre-wrap;
+           font-family:ui-monospace,monospace; }
   </style>
 </head>
 <body>
   <header>
-    <h1 id="show">plotedit</h1>
-    <span class="venue" id="venue"></span>
-    <span id="dirty"></span>
-    <span id="status" class="muted"></span>
-    <div class="controls">
-      <button id="undo" title="⌘Z" disabled>Undo</button>
-      <button id="redo" title="⇧⌘Z" disabled>Redo</button>
-      <button id="save">Save .plot.json</button>
-      <select id="export" title="Export">
-        <option value="">Export…</option>
-        <option value="pdf">Plot PDF</option>
-        <option value="dxf">Plot DXF</option>
-        <option value="schedule">Instrument schedule</option>
-        <option value="hookup">Channel hookup</option>
-        <option value="eos">Eos patch (untested)</option>
-      </select>
-      <select id="scale" title="Paper scale for the exported PDF. Fit picks the
-largest standard scale at which nothing runs off the sheet.">
-        <option value="fit" selected>Fit</option>
-        <option value="1/8">1/8"</option>
-        <option value="1/4">1/4"</option>
-        <option value="3/8">3/8"</option>
-        <option value="1/2">1/2"</option>
-        <option value="3/4">3/4"</option>
-        <option value="1">1"</option>
-      </select>
-      <label title="Import a venue ground plan">
+    <div class="bar">
+      <h1 id="show">plotedit</h1>
+      <span class="venue" id="venue"></span>
+      <span id="dirty"></span>
+      <span id="status" class="muted"></span>
+      <div class="group grow">
+        <button id="undo" class="icon" title="Undo (⌘Z)" disabled>
+          <span class="material-symbols-outlined">undo</span></button>
+        <button id="redo" class="icon" title="Redo (⇧⌘Z)" disabled>
+          <span class="material-symbols-outlined">redo</span></button>
+        <div class="divider"></div>
+        <button id="save" class="filled" title="Save (⌘S)">
+          <span class="material-symbols-outlined">save</span>Save</button>
+        <button id="saveas" class="outlined" title="Save As… (⇧⌘S)">
+          <span class="material-symbols-outlined">save_as</span>Save As…</button>
+        <div class="divider"></div>
+        <select id="export" title="Export">
+          <option value="">Export…</option>
+          <option value="pdf">Plot PDF</option>
+          <option value="dxf">Plot DXF</option>
+          <option value="schedule">Instrument schedule</option>
+          <option value="hookup">Channel hookup</option>
+          <option value="eos">Eos patch (untested)</option>
+        </select>
+        <select id="scale" title="Paper scale for the exported PDF. Fit picks the largest standard scale at which nothing runs off the sheet.">
+          <option value="fit" selected>Fit</option>
+          <option value="1/8">1/8"</option>
+          <option value="1/4">1/4"</option>
+          <option value="3/8">3/8"</option>
+          <option value="1/2">1/2"</option>
+          <option value="3/4">3/4"</option>
+          <option value="1">1"</option>
+        </select>
+      </div>
+    </div>
+    <div class="bar">
+      <label class="filebtn" title="Import a venue ground plan">
+        <span class="material-symbols-outlined">upload_file</span>
         <input type="file" id="dxf" accept=".dxf" hidden> Ground plan…
       </label>
+      <div class="divider"></div>
       <label><input type="checkbox" id="base" checked> plan</label>
       <label><input type="checkbox" id="pools" checked> pools</label>
       <label>at <select id="poolplane">
@@ -109,22 +303,44 @@ largest standard scale at which nothing runs off the sheet.">
       </select></label>
       <label><input type="checkbox" id="focus" checked> focus</label>
       <label><input type="checkbox" id="labels" checked> labels</label>
-      <label>zoom <input type="range" id="zoom" min="6" max="40" step="0.5" value="14"></label>
+      <div class="divider"></div>
+      <label><span class="material-symbols-outlined">zoom_in</span>
+        <input type="range" id="zoom" min="6" max="40" step="0.5" value="14"></label>
     </div>
   </header>
   <main>
     <div id="canvas"><svg id="plot"></svg></div>
     <aside>
-      <div class="panel"><h2>Instrument</h2><div id="inspector"></div></div>
-      <div class="panel"><h2>Positions</h2><div id="positions"></div></div>
-      <div class="panel" style="overflow:auto">
-        <h2>Schedule</h2>
-        <table id="schedule"><thead><tr>
-          <th>Pos</th><th>U</th><th>Ch</th><th>Type</th><th>Color</th>
-          <th class="num">Throw</th><th class="num">Pool</th><th class="num">fc</th>
-        </tr></thead><tbody></tbody></table>
-        <p class="src" id="notes"></p>
-      </div>
+      <section class="panel instrument">
+        <header>
+          <span class="material-symbols-outlined">flashlight_on</span>
+          <h2>Instrument</h2>
+          <span class="count" id="inst-count"></span>
+        </header>
+        <div class="body" id="inspector"></div>
+      </section>
+      <section class="panel positions">
+        <header>
+          <span class="material-symbols-outlined">horizontal_rule</span>
+          <h2>Positions</h2>
+          <span class="count" id="pos-count"></span>
+        </header>
+        <div class="body" id="positions"></div>
+      </section>
+      <section class="panel schedule">
+        <header>
+          <span class="material-symbols-outlined">table_rows</span>
+          <h2>Schedule</h2>
+          <span class="count" id="sched-count"></span>
+        </header>
+        <div class="body">
+          <table id="schedule"><thead><tr>
+            <th>Pos</th><th>U</th><th>Ch</th><th>Type</th><th>Color</th>
+            <th class="num">Throw</th><th class="num">Pool</th><th class="num">fc</th>
+          </tr></thead><tbody></tbody></table>
+          <p class="src" id="notes"></p>
+        </div>
+      </section>
     </aside>
   </main>
   <div id="err" hidden></div>
