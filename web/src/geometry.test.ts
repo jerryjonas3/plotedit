@@ -43,25 +43,27 @@ check("null is not zero", fmtFt(null), "—");
 
 console.log();
 
-// ⭐ Front of house sits at NEGATIVE y — over the audience, downstage of the
-// plaster line. A view fitted to the room alone does not show it, and nothing
-// warns: the catwalk is simply not drawn. (The PDF had the same bug; there the
-// clipping guard caught it.)
+// ⭐ CORRECTED 2026.09.24. These used to assert that front of house sat at
+// NEGATIVE y and that the canvas had to be extended downstage to reach it. That
+// was a wrong model, and Jerry named it: "the FOH catwalk would need to be
+// inside the room."
+//
+// The room is the WHOLE room. The Bluver is 33' x 38' with its plaster line at
+// y = 10, so the house is y 0–10 and the stage 10–38 — one rectangle holding
+// both. An FOH position belongs INSIDE it, and a view fitted to the room shows
+// it without any extension at all.
 {
-  const positions = [
-    { name: "Cat 1", type: "catwalk", y1: -11, y2: -11, width: 3 },
-    { name: "Elect 1", type: "electric", y1: 16, y2: 16 },
-  ];
-  const house = fohExtent(positions);
-  check("the house depth is measured to the catwalk's outer rail", house, 12.5);
-  check("an electric alone needs none", fohExtent([positions[1]!]), 0);
+  const v = fitView(33, 38, 600, 900, 3);
+  const cat = toScreen({ x: 16, y: 4 }, v);      // a catwalk over the house
+  const wall = toScreen({ x: 16, y: 38 }, v);    // the back wall
+  check("an FOH position inside the room is on the canvas",
+        cat.y > 0 && cat.y < v.height, true);
+  check("...and so is the back wall", wall.y > 0 && wall.y < v.height, true);
+  check("the house is still BELOW the stage on screen", cat.y > wall.y, true);
 
-  const v = fitView(33, 38, 600, 900, 3, house);
-  const cat = toScreen({ x: 16, y: -11 }, v);
-  check("the catwalk lands ON the canvas", cat.y > 0 && cat.y < v.height, true);
-  const up = toScreen({ x: 16, y: 38 }, v);
-  check("...and so does the back wall", up.y > 0 && up.y < v.height, true);
-  check("the house is BELOW the stage on screen", cat.y > up.y, true);
+  // The extension existed only to reach outside the room. Nothing is outside it.
+  check("no canvas extension is needed any more",
+        fohExtent([{ y1: 4, y2: 4, width: 3, type: "catwalk" }]), 0);
 }
 
 

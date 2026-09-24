@@ -82,7 +82,8 @@ for path, kind, sniff in [("/export/schedule", "text/csv", b"Instrument Schedule
 # behaviour is to REFUSE, not to clip. That is the guard working, so assert it.
 r = client.post("/export/pdf", json=req)
 check("a plot with booms will not fit Tabloid at 1/4", r.status_code, 422)
-check("...and the refusal says what would fit", "1/8" in r.json()["detail"], True)
+check("...and the refusal says which EDGE it runs off",
+      any(w in r.json()["detail"] for w in ("LEFT", "RIGHT", "TOP", "BOTTOM")), True)
 
 r = client.post("/export/pdf", json={"plot": plot, "page": "ARCH_D",
                                      "landscape": True})
@@ -96,7 +97,16 @@ check("/export/dxf is a DXF", b"SECTION" in r.content[:2000], True)
 print("\na plot that will not fit must FAIL, not clip")
 r = client.post("/export/pdf", json={"plot": plot, "landscape": True})
 check("landscape tabloid at 1/4 is refused", r.status_code, 422)
-check("and names a scale that fits", "1/8" in r.json()["detail"], True)
+check("and names which edge it runs off",
+      any(w in r.json()["detail"] for w in ("LEFT", "RIGHT", "TOP", "BOTTOM")), True)
+
+# ⚠ Refuse only what makes the drawing WRONG. A grazing pool is a true note
+# ABOUT the plot, not a reason to withhold the plot — refusing over it would
+# mean a rig with one flat side light could never be exported at all.
+r = client.post("/export/pdf", json={"plot": plot, "page": "ARCH_D", "landscape": True})
+check("a non-fatal note does not block the export", r.status_code, 200)
+check("...and travels back in a header", "X-Plot-Notes" in r.headers, True)
+check("...naming the unit it is about", "unit" in r.headers.get("X-Plot-Notes", ""), True)
 
 print("\ndxf import")
 

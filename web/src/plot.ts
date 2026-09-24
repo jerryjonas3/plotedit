@@ -115,6 +115,11 @@ export interface Position {
 export interface Room {
   width: number;
   depth: number;
+  /** Downstage edge of the stage, in feet from the room's downstage wall. It
+   *  divides the ROOM into house and stage — everything downstage of it is
+   *  front of house, and it is what makes an FOH position placeable INSIDE the
+   *  room rather than beyond it. */
+  plasterLine?: number;
   /** Floor to grid, in feet — the CEILING. Trims are checked against it. */
   gridHeight?: number;
   /** Where that figure came from. A grid height off a rental listing is not a
@@ -207,9 +212,15 @@ export function isVertical(p: Position): boolean {
   return dx < 0.5 && dy < 0.5;
 }
 
-/** Front of house — over the audience, downstage of the plaster line, negative y.
- *  A catwalk is FOH unless it says otherwise. */
-export function isFoh(p: Position): boolean {
+/** Front of house — DOWNSTAGE OF THE PLASTER LINE.
+ *
+ * ⚠ Corrected 2026.09.24. This used to mean "negative y", assuming `room` was
+ * the stage and the house lay beyond it. The room is the WHOLE room: the Bluver
+ * is 33' x 38' with its plaster line at y = 10, so the house is y 0–10 and the
+ * stage 10–38, both inside one rectangle. An FOH position belongs inside it.
+ */
+export function isFoh(p: Position, plasterLine?: number): boolean {
   if (p.foh !== undefined) return p.foh;
-  return (p.type ?? "").trim().toLowerCase() === "catwalk";
+  if (plasterLine === undefined) return false;
+  return p.y1 < plasterLine;
 }

@@ -124,7 +124,7 @@ export function renderPositions(
     // 2026.09.24, when a pipe was raised to 18' in a room with a 15' grid and
     // the tool drew it, computed levels from it and printed it without a word.
     const grid = plot.room.gridHeight;
-    const foh = p.foh ?? ((p.type ?? "").toLowerCase() === "catwalk");
+    const foh = p.foh ?? (plot.room.plasterLine !== undefined && p.y1 < plot.room.plasterLine);
     if (p.trim !== undefined && grid !== undefined && !foh) {
       if (p.trim > grid) {
         bits.push(`🔴 ABOVE THE ${grid}' CEILING — this cannot be hung`);
@@ -133,7 +133,7 @@ export function renderPositions(
       }
     }
     if (isVertical(p)) bits.push("vertical — a POINT in plan; units differ by height");
-    if (p.foh ?? (p.type === "catwalk")) bits.push("front of house — negative y, over the audience");
+    if (foh) bits.push("front of house — downstage of the plaster line, over the audience");
     if (p.circuits?.length) bits.push(`${p.circuits.length} circuits recorded`);
     else bits.push("no circuits recorded — no load table can be built");
     note.textContent = bits.join(" · ");

@@ -589,3 +589,82 @@ if __name__ == "__main__":
     print(report("S4 36", (16.5, 20, 14), (16.5, 10, 5.5), lamp="HPL 575"))
     print(report("Lustr 26 EDLT", (27, 20, 14), (22, 10, 5.5), mode="Regulated 3200K"))
     print("8' pool at 17' throw:", [(k, round(d, 1)) for k, d, e in lens_for(8, 17)[:3]])
+
+
+# ---------------------------------------------------------------- pool shape
+
+def pool_shape(kind, unit, focus, plane_h=5.5, which="field", focus_h=5.5):
+    """The REAL shape a beam makes on a horizontal plane — an ellipse, not a circle.
+
+    ⭐ A cone only cuts a circle when it points straight down. At any other angle
+    the intersection is an ellipse, elongated away from the unit, and the further
+    off vertical the more extreme: a 26° field from 10' up at 30° elevation lands
+    22 FEET LONG and 10 wide. Drawing that as a circle understates the far end of
+    the pool by a factor of two, which is the end that lands on the scenery.
+
+    `unit` is (x, y, trim); `focus` is (fx, fy) in plan. `plane_h` is the height
+    of the plane to cut at — 0 for the deck, about 5'-6" for the top of a head,
+    5'-2" for a face. `which` is "field" or "beam".
+
+    Returns a dict with the semi-major `a`, semi-minor `b`, the ellipse CENTRE
+    (cx, cy) — which is NOT the aim point, it sits beyond it — the plan `angle`
+    of the major axis, and the near and far ground distances. Or a `note` saying
+    why there is no ellipse.
+
+    The geometry, with θ the elevation of the axis and α the half-angle:
+
+        near = H / tan(θ + α)        far = H / tan(θ − α)
+        a    = (far − near) / 2      b   = H·sin α / √(sin(θ+α)·sin(θ−α))
+
+    Both reduce to H·tan α when θ = 90°, and the whole thing is checked against a
+    200,000-ray numerical cast in the tests.
+    """
+    key, row, note = lookup(kind)
+    if row is None:
+        return {"note": note or f"{kind!r} is not in the fixture table"}
+    ang = row.get(which)
+    if not ang:
+        return {"note": f"no {which} angle published for {key} — {row.get('source', '')[:80]}"}
+
+    ux, uy, trim = unit[0], unit[1], unit[2]
+    fx, fy = focus[0], focus[1]
+    H = trim - plane_h
+    if H <= 0:
+        return {"note": f"the plane at {plane_h}' is at or above the unit at {trim}' "
+                        f"— nothing to cut"}
+
+    run = math.hypot(fx - ux, fy - uy)
+    # ⚠ The AXIS elevation comes from where the unit is AIMED (focus_h), not from
+    # the plane being cut. They are different things: aim a unit at a face and
+    # then ask what it does on the deck, and the axis has not moved — the plane
+    # has. Deriving θ from plane_h made the pool at the deck come out the same
+    # size as the pool at head height, which is impossible: the beam is still
+    # spreading on its way down.
+    if run < 1e-9:
+        theta = math.pi / 2
+    else:
+        theta = math.atan2(trim - focus_h, run)
+    alpha = math.radians(ang) / 2.0
+
+    if theta - alpha <= math.radians(0.25):
+        return {"note": f"{key} at {math.degrees(theta):.0f}° elevation is GRAZING the "
+                        f"plane at {plane_h}' — its far edge never lands, so the pool "
+                        f"has no far end. Raise the trim or steepen the focus",
+                "grazing": True}
+
+    near = H / math.tan(theta + alpha)
+    far = H / math.tan(theta - alpha)
+    a = (far - near) / 2.0
+    b = H * math.sin(alpha) / math.sqrt(math.sin(theta + alpha) * math.sin(theta - alpha))
+
+    # Along the plan direction of the throw, from the unit outwards.
+    if run < 1e-9:
+        dx, dy, angle = 1.0, 0.0, 0.0
+    else:
+        dx, dy = (fx - ux) / run, (fy - uy) / run
+        angle = math.degrees(math.atan2(dy, dx))
+    mid = (near + far) / 2.0
+    return {"a": a, "b": b, "cx": ux + dx * mid, "cy": uy + dy * mid,
+            "angle": angle, "near": near, "far": far,
+            "length": 2 * a, "width": 2 * b, "plane_h": plane_h, "which": which,
+            "note": ""}

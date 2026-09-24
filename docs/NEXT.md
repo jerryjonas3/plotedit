@@ -688,3 +688,55 @@ these are the light.
 and drew the symbols nose-up, so a 1'-8" ellipsoidal overlapped the row above it.
 Rows are spaced by each symbol's own radius now. **A key whose symbols collide
 teaches the wrong shape, which is worse than no key.**
+
+---
+
+## The room is the whole room — corrected 2026.09.24
+
+**Jerry: "the FOH catwalk would need to be inside the room. It looks like the
+catwalk is outside the room?"** Then: **"it's a black box so there's technically
+no plaster line."** Both were right, and between them they took out a model I had
+built three features on top of.
+
+**What was wrong.** I had treated `room` as the STAGE, with the house beyond it
+at negative y. So a catwalk went to y = -11, outside the drawn rectangle — and to
+reach it I added `foh_extent()`, an origin shift in `plot_to_pdf`, `fohExtent()`
+in the browser and a canvas extension in `fitView()`. **Four pieces of machinery
+to reach outside a room that already had space inside it.** The Bluver is 33' x
+38'; the audience sits in it.
+
+**What is right.** The room is one rectangle holding house and stage. All four
+pieces are deleted or retired. Front of house is now a matter of WHERE a position
+sits — and in a black box, of what the designer SAYS, because there is no
+proscenium for geometry to read. The seating decides it, and at the Bluver the
+risers move.
+
+**RP-2 already knew.** §3 asks for *"proscenium, plaster line, smoke pocket, or
+the 'horizontal zero' location"* — a plaster line is one KIND of datum, not the
+only one. `horizontal_zero()` returns whichever is declared and its NAME, and the
+section prints that name rather than stamping "PLASTER LINE" on a room that has
+none. The Bluver declares **the centre of the room**, Jerry's choice: findable in
+an empty room, where a downstage wall is arbitrary when the audience can end up
+on any side.
+
+**⚠ A datum is not the storage origin.** Coordinates stay corner-based, so no
+plot on disk has to be rewritten to say the same thing differently. What the
+datum changes is where dimensions are measured FROM.
+
+### 🔜 Deferred, at Jerry's word
+
+**Changing the origin so the datum drives the drawing's coordinates** — "we can
+later add a feature to change the origin so that the plaster line can define
+things, but for now we can leave it."
+
+### Two guards that were lying
+
+**The clipping guard reported a SIZE problem for a POSITION problem.** The section
+spanned 53' on a sheet holding 70' and was clipped all the same — one sight point
+lay ten feet off the left edge. It now names **which edge and by how much**, so
+the reader is not sent to change the scale when a stray coordinate was the fault.
+
+**And the PDF export refused on ANY warning.** A grazing pool is a true note
+*about* the plot, not a reason to withhold the plot — refusing over it would mean
+a rig with one flat side light could never be exported. Only CLIPPED is fatal
+now; the rest come back in an `X-Plot-Notes` header.

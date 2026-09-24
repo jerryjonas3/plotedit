@@ -17,7 +17,8 @@ from plotedit import photometrics as ph
 BOOM_PITCH = 5.5
 
 
-def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dxf=None):
+def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dxf=None,
+           pool_plane=None):
     plot = json.load(open(plot_path))
     room = plot["room"]
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,
@@ -87,7 +88,9 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    circuit=inst.get("circuit"), dimmer=inst.get("dimmer"),
                    control=plot.get("control", "dimmer-per-circuit"),
                    wattage=inst.get("wattage"),
-                   symbol_angle=plot.get("symbolAngle", "orthogonal"))
+                   symbol_angle=plot.get("symbolAngle", "orthogonal"),
+                   pool_plane=pool_plane if pool_plane is not None
+                              else plot.get("poolPlane"))
         rows.append(r)
 
     # ⭐ The key goes ON THE PLOT. §5.0 allows it "in any location that does not

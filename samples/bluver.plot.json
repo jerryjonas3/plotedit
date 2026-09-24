@@ -11,13 +11,17 @@
     "depth": 38,
     "gridHeight": 16.0,
     "source": "InterAct rentals page, 2016 SpaceFinder listing. NOT MEASURED \u2014 see the venue research file. Nothing here may be cited in a real plot.",
-    "plasterLine": 10.0,
     "sightPoint": {
-      "y": -14.0,
+      "y": 2.0,
       "h": 3.5,
-      "source": "EXAMPLE DATA \u2014 no real sight point measured at the Bluver. The worst seat has not been asked for."
+      "source": "EXAMPLE DATA \u2014 no real sight point measured. In a black box the worst seat moves with the risers, so this is a placeholder for one seating configuration. It sits INSIDE the room, like everything else."
     },
-    "gridSource": "Jerry's estimate, 2026.09.24: 'the ceiling is probably closer to 16'. NOT MEASURED. The 15' figure in the venue research is from a listing for the Drake's OTHER space (121 seats, 35x26), not the Bluver \u2014 so it was never about this room. MEASURE AT THE SITE VISIT."
+    "gridSource": "Jerry's estimate, 2026.09.24: 'the ceiling is probably closer to 16'. NOT MEASURED. The 15' figure in the venue research is from a listing for the Drake's OTHER space (121 seats, 35x26), not the Bluver \u2014 so it was never about this room. MEASURE AT THE SITE VISIT.",
+    "horizontalZero": {
+      "at": "center",
+      "name": "centre of the room"
+    },
+    "configuration": "black box \u2014 no proscenium and no plaster line. The risers move, so where the audience sits is part of the design rather than a property of the room."
   },
   "positions": [
     {
@@ -25,9 +29,9 @@
       "type": "catwalk",
       "foh": true,
       "x1": 0,
-      "y1": -11,
+      "y1": 4.0,
       "x2": 33,
-      "y2": -11,
+      "y2": 4.0,
       "width": 3.0,
       "trim": 18
     },
@@ -87,19 +91,18 @@
       "name": "House Right Boom #1",
       "type": "boom",
       "x1": 30.5,
-      "y1": 9,
+      "y1": 14.0,
       "x2": 30.5,
-      "y2": 9,
-      "mount": "boom-base",
-      "foh": false
+      "y2": 14.0,
+      "mount": "boom-base"
     },
     {
       "name": "House Left Box Boom 1",
       "type": "box-boom",
       "x1": 2.0,
-      "y1": -9.0,
+      "y1": 6.0,
       "x2": 2.0,
-      "y2": -9.0,
+      "y2": 6.0,
       "mount": "flange",
       "foh": true
     }
@@ -268,7 +271,7 @@
       "channel": 31,
       "type": "S4 26",
       "x": 30.5,
-      "y": 9,
+      "y": 14.0,
       "height": 12,
       "trim": 12,
       "focusX": 20,
@@ -282,7 +285,7 @@
       "channel": 32,
       "type": "S4 36",
       "x": 30.5,
-      "y": 9,
+      "y": 14.0,
       "height": 8,
       "trim": 8,
       "focusX": 20,
@@ -296,7 +299,7 @@
       "channel": 33,
       "type": "S4 36",
       "x": 30.5,
-      "y": 9,
+      "y": 14.0,
       "height": 4.5,
       "trim": 4.5,
       "focusX": 20,
@@ -310,7 +313,7 @@
       "channel": 41,
       "type": "S4 19",
       "x": 2.0,
-      "y": -9.0,
+      "y": 6.0,
       "height": 14,
       "trim": 14,
       "focusX": 14,
@@ -324,16 +327,15 @@
     "Test data for the renderer. Room dimensions are from a 2016 rental listing and have not been measured.",
     "BAX carries no color, matching the archive: back light is open-white PARs or ellipsoidals.",
     "The five acting-area units are spaced 5'-6\" on center; field-to-beam at this throw wants 5'-4\".",
-    "Plaster line at y=10 and the center line are drawn per RP-2 6.18 \u2014 medium weight, dashed and chain-dashed.",
     "Unit 4 on GRID D is a PARNel with its lens turned 45 degrees \u2014 RP-2 6.2 Oval Beam Fresnel.",
     "Accessories ride on the instrument record. RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the body and front-of-lens ones (barn doors, hats) at the nose; only the name is given here.",
-    "Cat 1 is a FRONT OF HOUSE catwalk \u2014 over the audience, downstage of the plaster line, so its y is NEGATIVE. It is drawn as a walkway with two architectural edges and a hanging rail on its downstage side, not as a pipe: a unit hung on a catwalk hangs off the rail, not down the middle.",
     "Circuits depend on the house and have NO SET ORDER (Jerry, 2026.09.23). The tool records what the house says and checks the plot against it; it never invents a circuit number. GRID C carries locations so units can be matched to the nearest circuit; GRID D is a bare list, and matching there refuses.",
     "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number \u2014 RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer.",
     "Booms are VERTICAL: in plan they are a point, so every unit shares one x and y and is told apart only by its height. RP-2 6.12 hatches them in plan and puts the readable layout beside the plot, NOT to scale. boomLayout is 'option1' for the whole plot \u2014 the standard allows only one per drawing.",
     "room.sightPoint is where the vertical sightline is struck from \u2014 the eye of the worst seat. RP-2 \u00a73 asks for it on a section; without one the section cannot say what the back row can see.",
     "One unit carries an HPL 750. RP-2 \u00a76.15 blackens the rear of a symbol for ARC sources; Jerry uses the same mark for a 750W Source Four, which is the only place he has seen a wattage called out on a plot. The instrument key says which meaning is in force.",
-    "room.gridHeight is the ceiling, and trims are checked against it. FOH positions are checked against room.houseCeiling instead, because a catwalk hangs over the audience where the ceiling is usually higher \u2014 neither is measured yet."
+    "room.gridHeight is the ceiling, and trims are checked against it. FOH positions are checked against room.houseCeiling instead, because a catwalk hangs over the audience where the ceiling is usually higher \u2014 neither is measured yet.",
+    "Origin: the CENTRE OF THE ROOM (Jerry, 2026.09.24). In a black box that is the best datum available \u2014 the centre is findable in an empty room, while a downstage wall is arbitrary when the audience can be on any side. It is a DATUM, not the storage origin: coordinates stay corner-based so no plot on disk has to be rewritten; what changes is where dimensions are measured from."
   ],
   "boomLayout": "option1"
 }

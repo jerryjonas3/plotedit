@@ -157,22 +157,68 @@ _cat = {"name": "Cat 1", "type": "catwalk", "x1": 0, "y1": -11, "x2": 33,
         "y2": -11, "width": 3.0}
 _elec = {"name": "Elect 1", "type": "electric", "x1": 0, "y1": 16, "x2": 33, "y2": 16}
 
-# A catwalk hangs over the audience, so the sheet must reach past the plaster
-# line. Get this wrong and the position is clipped off the bottom in silence.
-check("a catwalk needs house depth", _Sheet.foh_extent([_cat, _elec]), 12.5)
-check("an electric needs none", _Sheet.foh_extent([_elec]), 0.0)
-check("FOH is implied by the type, not only by the flag",
-      _Sheet.foh_extent([dict(_cat, foh=None)]), 12.5)
-check("...and can be turned off explicitly",
-      _Sheet.foh_extent([dict(_cat, foh=False)]), 0.0)
+# ⭐ CORRECTED 2026.09.24. These asserted that a catwalk sat OUTSIDE the room at
+# negative y and that the sheet had to be extended downstage to reach it. Jerry:
+# "the FOH catwalk would need to be inside the room." He is right — the room is
+# the whole room, house and stage, divided by the plaster line. Nothing sits
+# beyond it, so foh_extent() is retired and returns 0.
+check("nothing needs the sheet extended any more", _Sheet.foh_extent([_cat, _elec]), 0.0)
 
-# The three lines of a catwalk must be three DIFFERENT lines. Drawn on top of
-# each other they read as one thick rail and the pipe disappears.
+# FOH is now a matter of WHERE a position sits, not the sign of its y.
+# Imported here rather than relying on where else in this file it happens to be
+# bound — the second time today that bit me, and the note I wrote about it last
+# time was three hundred lines away where I could not see it.
+import json as _json
+from plotedit import positions as P
+_room = {"room": {"width": 33, "depth": 38, "plasterLine": 10.0}}
+check("in a proscenium house, downstage of the plaster line is FOH",
+      P.is_foh({"name": "Cat 1", "y1": 4.0}, 10.0), True)
+check("upstage of it is not", P.is_foh({"name": "E1", "y1": 16.0}, 10.0), False)
+check("an explicit flag still wins",
+      P.is_foh({"name": "X", "y1": 16.0, "foh": True}, 10.0), True)
+
+# ⭐ A BLACK BOX HAS NO PLASTER LINE — no proscenium, so nothing for "downstage
+# of" to mean. What divides house from stage is the SEATING, and at the Bluver
+# the risers move per production. So the flag is the designer's statement, not
+# something geometry can work out.
+check("with no plaster line, geometry cannot decide", P.is_foh({"name": "X", "y1": 4.0}), False)
+check("...so the flag is the only answer",
+      P.is_foh({"name": "X", "y1": 4.0, "foh": True}), True)
+
+# RP-2 §3 already allows for it: "proscenium, plaster line, smoke pocket, OR the
+# horizontal zero location". A plaster line is one KIND of zero, not the only one.
+check("a proscenium house names its plaster line",
+      P.horizontal_zero({"plasterLine": 10})["name"], "plaster line")
+check("a black box names something else",
+      P.horizontal_zero({"horizontalZero": {"y": 0, "name": "downstage wall"}})["name"],
+      "downstage wall")
+check("and a room that declares nothing gets nothing invented",
+      P.horizontal_zero({}), None)
+
+# ⚠ The flag and the geometry are two statements of one fact, so they can
+# contradict each other silently. Found in this tool's OWN sample: a boom
+# flagged foh=false at y=9 with the plaster line at y=10.
+# Only checkable where there IS a plaster line to contradict.
+check("a contradicted flag is caught in a proscenium house",
+      any("One of the two is wrong" in m for m in P.check_foh(
+          {**_room, "positions": [{"name": "B", "y1": 9.0, "foh": False}]})), True)
+check("...and not invented in a black box",
+      P.check_foh({"room": {"width": 33, "depth": 38,
+                            "horizontalZero": {"y": 0, "name": "downstage wall"}},
+                   "positions": [{"name": "B", "y1": 9.0, "foh": False}]}), [])
+check("a position outside the room is caught",
+      any("OUTSIDE the room" in m for m in P.check_foh(
+          {**_room, "positions": [{"name": "C", "y1": -11.0}]})), True)
+check("the sample itself is now consistent",
+      P.check_foh(_json.load(open("../samples/bluver.plot.json"))), [])
+
+# The catwalk is still a WALKWAY — three distinct lines, pipe inboard.
 _half = _cat["width"] / 2
 _lines = {_cat["y1"] + _half, _cat["y1"] - _half, _cat["y1"] - _half * 0.55}
 check("a catwalk draws three distinct lines", len(_lines), 3)
 check("the pipe sits inboard of the downstage edge",
       _cat["y1"] - _half * 0.55 > _cat["y1"] - _half, True)
+
 
 
 print("\nRP-2 §2.3.2 numbering: stage left across a batten, top down on a boom")
@@ -857,8 +903,12 @@ check("a tight trim is flagged but not called impossible",
 # ⚠ A FOH position hangs from the HOUSE ceiling, which is usually higher. A
 # catwalk at 18' over a room with a 15' stage grid is ordinary — reporting it as
 # a fault teaches the reader to ignore the warnings that are real.
+# ⚠ FOH is the DESIGNER'S flag in a black box — there is no plaster line for
+# geometry to read (Jerry, 2026.09.24), so the catwalk has to say so itself.
+# It also sits INSIDE the room now, over the audience at y = 4.
 _cat = {**_rm, "positions": [{"name": "Cat 1", "type": "catwalk", "x1": 0,
-                              "y1": -11, "x2": 33, "y2": -11, "trim": 18.0}]}
+                              "y1": 4.0, "x2": 33, "y2": 4.0, "trim": 18.0,
+                              "foh": True}]}
 check("a catwalk is NOT judged against the stage grid",
       any("cannot be hung" in m for m in P.headroom(_cat)), False)
 check("...but says it was not checked", any("not checked" in m for m in P.headroom(_cat)), True)

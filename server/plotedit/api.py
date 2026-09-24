@@ -67,7 +67,9 @@ class Instrument(BaseModel):
 
 class ComputeRequest(BaseModel):
     instruments: List[Instrument]
-
+    # The height to cut the pools at — 0 for the deck, ~5'-2" for a face,
+    # 5'-6" for the top of a head. Separate from where a unit is AIMED.
+    pool_plane: Optional[float] = None
 
 class WashRequest(BaseModel):
     type: str
@@ -158,6 +160,22 @@ def compute(req: ComputeRequest) -> Dict[str, Any]:
             row["beam_ft"] = ph.fmt_ft(pool["beam"])
         if pool.get("on_deck_length"):
             row["on_deck_ft"] = ph.fmt_ft(pool["on_deck_length"])
+
+        # ⭐ The REAL pool: an ellipse, not a circle. A cone only cuts a circle
+        # when it points straight down. `pool_plane` chooses the height to cut
+        # at — the deck, a face, the top of a head — which is a different thing
+        # from where the unit is AIMED.
+        sh = ph.pool_shape(inst.type, (inst.x, inst.y, inst.trim),
+                           (inst.focus_x, inst.focus_y),
+                           plane_h=req.pool_plane if req.pool_plane is not None else inst.focus_h,
+                           focus_h=inst.focus_h)
+        if sh.get("a"):
+            row["pool"] = {k: (round(v, 3) if isinstance(v, (int, float)) else v)
+                           for k, v in sh.items() if k != "note"}
+        elif sh.get("note"):
+            # Never silently. A pool that cannot be drawn is a fact about the
+            # focus, and the circle that used to be drawn there hid it.
+            row["pool_note"] = sh["note"]
 
         gel_arg = inst.color or None
         if gel_arg:
@@ -282,10 +300,22 @@ def export_pdf(req: ExportRequest) -> Response:
         pdf = os.path.join(d, "plot.pdf")
         sheet, _ = exports.plot_pdf(req.plot, pdf, scale=req.scale,
                                     page=req.page, landscape=req.landscape)
-        if sheet.warnings:
-            raise HTTPException(status_code=422, detail=sheet.warnings[0])
+        # ⚠ Refuse only what makes the drawing WRONG. A clipped sheet is
+        # unusable, so it is a 422. Everything else — a grazing pool, an
+        # unrecognised accessory — is a true note ABOUT the plot, and refusing
+        # to draw over it would mean a rig with one flat side light could never
+        # be exported at all. They travel back in a header instead.
+        fatal = [w for w in sheet.warnings if w.startswith("CLIPPED")]
+        if fatal:
+            raise HTTPException(status_code=422, detail=fatal[0])
+        notes = [w for w in sheet.warnings if not w.startswith("CLIPPED")]
         body = open(pdf, "rb").read()
-    return _attach(body, "application/pdf", f"{_stem(req.plot)} — Plot.pdf")
+    r = _attach(body, "application/pdf", f"{_stem(req.plot)} — Plot.pdf")
+    if notes:
+        # latin-1 only in a header, and one line — the full text is in the logs.
+        r.headers["X-Plot-Notes"] = " | ".join(notes)[:900].encode(
+            "ascii", "replace").decode("ascii")
+    return r
 
 
 @app.post("/export/dxf")

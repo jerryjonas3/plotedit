@@ -354,12 +354,88 @@ def apply_trim(plot: Dict[str, Any], position_name: str, trim: float) -> int:
 INSTRUMENT_DROP = 1.5
 
 
-def is_foh(pos: Dict[str, Any]) -> bool:
-    """Front of house — over the audience, downstage of the plaster line."""
+def horizontal_zero(room: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The drawing's horizontal reference, and what it IS.
+
+    ⭐ RP-2 §3 asks for "proscenium, plaster line, smoke pocket, or the
+    'horizontal zero' location" — the standard already knows that not every room
+    has a proscenium. Jerry, 2026.09.24: "it's a black box so there's technically
+    no plaster line."
+
+    So a plaster line is one KIND of horizontal zero, not the only one. A black
+    box declares some other reference — a wall, a grid line — and the drawing
+    says which, because a dimension measured from an unnamed origin is a number
+    nobody else can use.
+    """
+    hz = room.get("horizontalZero")
+    if isinstance(hz, dict):
+        # ⭐ `at: "center"` resolves against the room rather than hard-coding a
+        # number. Jerry, 2026.09.24: "our origin could be the centre of the
+        # room." In a black box that is the best datum available — the centre is
+        # findable in an empty room, whereas a downstage wall is arbitrary when
+        # the audience can end up on any side of you.
+        #
+        # ⚠ It is a DATUM, not the storage origin. Coordinates stay where they
+        # are — corner-based, x to stage right, y upstage — because moving them
+        # would rewrite every plot on disk to say the same thing differently.
+        # What this changes is where dimensions are measured FROM.
+        if str(hz.get("at", "")).lower() in ("center", "centre", "middle"):
+            depth = room.get("depth")
+            if depth is None:
+                return None
+            return {"y": float(depth) / 2.0,
+                    "name": hz.get("name") or "centre of the room"}
+        if hz.get("y") is not None:
+            return {"y": float(hz["y"]), "name": hz.get("name") or "horizontal zero"}
+    pl = room.get("plasterLine")
+    if pl is not None:
+        return {"y": float(pl), "name": "plaster line"}
+    return None
+
+
+def center_line(room: Dict[str, Any]) -> Optional[float]:
+    """The lateral datum — x of the centreline.
+
+    RP-2 §2.3.1 already assumes one: "all hanging locations not intersecting
+    centerline are subnamed by their location relative to centerline." It is the
+    room's middle unless a room says otherwise.
+    """
+    cl = room.get("centerLine")
+    if cl is not None:
+        return float(cl)
+    w = room.get("width")
+    return float(w) / 2.0 if w is not None else None
+
+
+def is_foh(pos: Dict[str, Any], plaster_line: Optional[float] = None) -> bool:
+    """Front of house — DOWNSTAGE OF THE PLASTER LINE.
+
+    ⚠ Corrected 2026.09.24. This used to mean "negative y", on the assumption
+    that `room` was the STAGE and the house lay beyond it. Jerry: "the FOH
+    catwalk would need to be inside the room."
+
+    He is right, and in a black box it is obvious once said: **the room is the
+    whole room.** The Bluver is 33' x 38' with its plaster line at y = 10, so the
+    house is y 0–10 and the stage is 10–38 — both inside one rectangle. Placing
+    an FOH position at negative y put it outside a room that already had space
+    for it, and made the drawing invent paper it did not need.
+
+    So FOH is a matter of WHERE a position sits, not of the sign of its y.
+
+    ⚠ And in a BLACK BOX there is no plaster line at all (Jerry, 2026.09.24) —
+    no proscenium, so nothing for "downstage of" to mean. What divides house from
+    stage there is the SEATING, and the seating moves; at the Bluver the risers
+    are repositioned per production, which is why the configuration is part of
+    the design rather than a property of the room. So with no plaster line the
+    `foh` flag is the only answer, and it is the DESIGNER'S statement rather than
+    something geometry can work out.
+    """
     foh = pos.get("foh")
-    if foh is None:
-        return (pos.get("type") or "").strip().lower() == "catwalk"
-    return bool(foh)
+    if foh is not None:
+        return bool(foh)
+    if plaster_line is None:
+        return False
+    return float(pos.get("y1", 0.0)) < float(plaster_line)
 
 
 def headroom(plot: Dict[str, Any]) -> List[str]:
@@ -421,4 +497,47 @@ def headroom(plot: Dict[str, Any]) -> List[str]:
         if h is not None and h > grid:
             out.append(f"🔴 unit {i.get('unit')} on {i.get('position')} is at {h}' "
                        f"— above the ceiling{note}")
+    return out
+
+
+def check_foh(plot: Dict[str, Any]) -> List[str]:
+    """Where a position's `foh` flag disagrees with where it actually sits.
+
+    ⭐ The flag and the geometry are two statements of the same fact, so they can
+    contradict each other — and the contradiction is silent. A position marked
+    onstage while sitting downstage of the plaster line is either mislabelled or
+    misplaced, and either way the drawing is wrong about which side of the
+    proscenium a unit is on.
+
+    Found in this tool's own sample on 2026.09.24: a boom flagged `foh: false`
+    at y=9 with the plaster line at y=10.
+    """
+    out: List[str] = []
+    room = plot.get("room") or {}
+    hz = horizontal_zero(room)
+    pl = hz["y"] if hz and hz["name"] == "plaster line" else None
+    depth = room.get("depth")
+    if pl is None:
+        # No plaster line — a black box. Only the flags can be checked, and a
+        # flag cannot contradict a geometry that does not exist.
+        for p in plot.get("positions") or []:
+            y = p.get("y1")
+            if y is not None and depth is not None and not (0 <= float(y) <= float(depth)):
+                out.append(f"🔴 {p.get('name')} is at y={y}', OUTSIDE the room "
+                           f"(0 to {depth}')")
+        return out
+    for p in plot.get("positions") or []:
+        y = p.get("y1")
+        if y is None:
+            continue
+        geometric = float(y) < float(pl)
+        stated = p.get("foh")
+        if stated is not None and bool(stated) != geometric:
+            where = "downstage" if geometric else "upstage"
+            out.append(f"{p.get('name')} is flagged foh={stated} but sits {where} of "
+                       f"the plaster line ({y}' against {pl}'). One of the two is wrong")
+        if depth is not None and not (0 <= float(y) <= float(depth)):
+            out.append(f"🔴 {p.get('name')} is at y={y}', OUTSIDE the room "
+                       f"(0 to {depth}'). The room is the whole room — house and "
+                       f"stage — so nothing should sit beyond it")
     return out

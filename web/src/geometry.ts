@@ -91,19 +91,17 @@ export function fitView(
   return { scale, panX: -slackX, panY: -slackY - houseFt, width, height };
 }
 
-/** How far downstage the FOH positions reach, in feet (0 if none).
- *  Mirrors Sheet.foh_extent() in the Python. */
+/** DEPRECATED — always 0. Kept so callers do not break.
+ *
+ * It existed to extend the canvas downstage for front-of-house positions drawn
+ * at negative y. That was a wrong model: the room is the whole room, house and
+ * stage, and an FOH position belongs inside it (Jerry, 2026.09.24). Nothing
+ * needs extra canvas any more.
+ */
 export function fohExtent(
-  positions: { y1: number; y2?: number; width?: number; type?: string; foh?: boolean }[],
+  _positions: { y1: number; y2?: number; width?: number; type?: string; foh?: boolean }[],
 ): number {
-  let lowest = 0;
-  for (const p of positions ?? []) {
-    const foh = p.foh ?? ((p.type ?? "").trim().toLowerCase() === "catwalk");
-    if (!foh) continue;
-    const half = (p.width ?? 3) / 2;
-    lowest = Math.min(lowest, p.y1 - half, (p.y2 ?? p.y1) - half);
-  }
-  return lowest < 0 ? Math.abs(lowest) : 0;
+  return 0;
 }
 
 /** Feet as feet-and-inches: 13.75 → 13'-9" */

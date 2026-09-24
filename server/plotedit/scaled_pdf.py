@@ -181,6 +181,25 @@ class Sheet:
         c.circle(*self.P(x, y), self.L(r), stroke=1, fill=1 if fill else 0); c.restoreState()
         if self.dxf: self.dxf.circle(x, y, r)
 
+    def ellipse(self, cx, cy, a, b, angle_deg=0.0, width=0.75, color=black,
+                dash=None, style=None, steps=64):
+        """A rotated ellipse, drawn as a polyline so the DXF export gets real
+        geometry rather than a curve nobody downstream can read."""
+        import math as _m
+        if style:
+            width, dash = LINE_STYLES[style]
+        t = _m.radians(angle_deg)
+        ct, st = _m.cos(t), _m.sin(t)
+        pts = []
+        for i in range(steps + 1):
+            u = 2 * _m.pi * i / steps
+            px, py = a * _m.cos(u), b * _m.sin(u)
+            pts.append((cx + px * ct - py * st, cy + px * st + py * ct))
+        for i in range(steps):
+            x1, y1 = pts[i]
+            x2, y2 = pts[i + 1]
+            self.line(x1, y1, x2, y2, width=width, dash=dash, color=color)
+
     def break_mark(self, x, y, across=0.45, along=0.55, vertical=True):
         """The conventional BREAK: this object continues, but not all of it is drawn.
 
@@ -337,21 +356,14 @@ class Sheet:
 
     @staticmethod
     def foh_extent(positions):
-        """How far downstage the positions reach, in feet (0 if none are FOH).
+        """DEPRECATED — always 0. Kept so callers do not break.
 
-        A plot with a catwalk is not a plot of the stage — it is a plot of the
-        stage AND the house, and the sheet has to be sized for both or the
-        catwalk is clipped off the bottom.
+        It existed to extend the sheet downstage for front-of-house positions
+        drawn at negative y. That was a wrong model: the room is the whole room,
+        house and stage, and an FOH position belongs INSIDE it (Jerry,
+        2026.09.24). Nothing needs extra paper any more.
         """
-        ys = []
-        for p in positions or []:
-            foh = p.get("foh")
-            if foh is None:
-                foh = (p.get("type") or "").strip().lower() == "catwalk"
-            if foh:
-                half = (p.get("width") or 3.0) / 2.0
-                ys += [p.get("y1", 0) - half, p.get("y2", p.get("y1", 0)) - half]
-        return abs(min(ys)) if ys and min(ys) < 0 else 0.0
+        return 0.0
 
     def boom(self, pos, units=(), label=None, center_x=None):
         """A vertical position in PLAN: the mount, and the units hatched over it.
@@ -459,7 +471,7 @@ class Sheet:
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, circuit=None, dimmer=None, wattage=None,
              control="dimmer-per-circuit", symbol_angle="orthogonal",
-             show_pool=True, annotate=False):
+             pool_plane=None, show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -570,9 +582,21 @@ class Sheet:
                     if gel_warn:
                         note += f" — {gel_warn}; level is for open white"
                     result["fc"], result["fc_note"] = fc, note
-                    if show_pool and pl.get("field"):
+                    if show_pool:
+                        # ⭐ The REAL shape, not a circle. A cone only cuts a
+                        # circle when it points straight down; at 30° elevation a
+                        # 26° field lands more than twice as long as it is wide,
+                        # and the long end is the one that reaches the scenery.
+                        sh = ph.pool_shape(kind, (x, y, trim), (fx, fy),
+                                           plane_h=pool_plane if pool_plane is not None else focus_h,
+                                           focus_h=focus_h)
                         self.layer("NOTES")
-                        self.circle(fx, fy, pl["field"] / 2, color=grey, style="pool")
+                        if sh.get("a"):
+                            self.ellipse(sh["cx"], sh["cy"], sh["a"], sh["b"],
+                                         sh["angle"], color=grey, style="pool")
+                            result["pool_shape"] = sh
+                        elif sh.get("note"):
+                            self.warnings.append(f"unit {num}: {sh['note']}")
                         self.layer("UNITS")
                 if annotate:
                     t = f"{ph.fmt_ft(a['throw'])} @ {a['elevation']:.0f}°"
@@ -629,7 +653,20 @@ class Sheet:
             avail_w = (W - 2 * m) / inch; avail_h = (H - 2 * m - 1.3 * inch) / inch
             fit = min(avail_w / real_w, avail_h / real_h) if real_w and real_h else 0
             best = max((k for k, v in SCALES.items() if v <= fit), key=lambda k: SCALES[k], default=None)
-            msg = (f"CLIPPED: drawing spans {real_w:.1f}' x {real_h:.1f}' but the sheet holds "
+            # ⚠ Say WHICH EDGE and by how much. This used to report only the
+            # spans against the sheet size, so a drawing that FITS but is placed
+            # off one edge read as "too big" — sending the reader to change the
+            # scale when the fault was a stray coordinate. The section reported
+            # 53' against a 70' sheet and was clipped all the same: one sight
+            # point at y = -14 lay ten feet off the left edge.
+            over = []
+            if x0b < m: over.append(f"{(m - x0b) / self.pt_per_ft:.1f}' off the LEFT")
+            if y0b < m: over.append(f"{(m - y0b) / self.pt_per_ft:.1f}' off the BOTTOM")
+            if x1b > W - m: over.append(f"{(x1b - (W - m)) / self.pt_per_ft:.1f}' off the RIGHT")
+            if y1b > H - m - 1.3 * inch:
+                over.append(f"{(y1b - (H - m - 1.3 * inch)) / self.pt_per_ft:.1f}' off the TOP")
+            edges = ("; ".join(over) + ". ") if over else ""
+            msg = (f"CLIPPED: {edges}drawing spans {real_w:.1f}' x {real_h:.1f}' but the sheet holds "
                    f"{avail_w/self.paper_in_per_ft:.1f}' x {avail_h/self.paper_in_per_ft:.1f}' at {self.scale_label}. "
                    + (f'Largest standard scale that fits this page: {best}" = 1\'-0". ' if best else "")
                    + "Or use a bigger sheet, or rotate it.")

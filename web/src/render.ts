@@ -17,6 +17,14 @@ const NS = "http://www.w3.org/2000/svg";
 
 /** What the server said about each instrument, keyed by array index. */
 export interface Computed {
+  /** The REAL pool: an ellipse on a horizontal plane. A cone only cuts a circle
+   *  when it points straight down, and at 30° elevation a 26° field lands more
+   *  than twice as long as it is wide. `angle` is the plan direction of the
+   *  major axis; the centre is NOT the aim point — it sits beyond it. */
+  pool?: { a: number; b: number; cx: number; cy: number; angle: number;
+           near: number; far: number; length: number; width: number };
+  /** Why there is no pool — grazing, or a plane above the unit. */
+  pool_note?: string;
   computed: boolean;
   throw?: number; throw_ft?: string;
   elevation?: number; pan?: number;
@@ -158,7 +166,7 @@ export function render(
         "font-size": TEXT * 0.8, "font-family": "system-ui, sans-serif",
         "font-weight": "600", fill: "#222",
       });
-      const foh = isFoh(p) && !p.name.toUpperCase().includes("FOH") ? "  (FOH)" : "";
+      const foh = isFoh(p, plot.room.plasterLine) && !p.name.toUpperCase().includes("FOH") ? "  (FOH)" : "";
       t.textContent = (p.trim ? `${p.name} — trim ${fmtFt(p.trim)}` : p.name) + foh;
       gText.appendChild(t);
     }
@@ -169,10 +177,24 @@ export function render(
     const c = computed[i];
     const hasFocus = inst.focusX !== undefined && inst.focusY !== undefined;
 
-    if (opts.showPools && c?.field && hasFocus) {
-      gPools.appendChild(el("circle", {
-        cx: inst.focusX!, cy: inst.focusY!, r: c.field / 2,
+    // ⭐ The pool is an ELLIPSE. A cone only cuts a circle when it points
+    // straight down; at 30° elevation a 26° field lands more than twice as long
+    // as it is wide, and the long end is the one that reaches the scenery. The
+    // circle that used to be drawn here understated the far end by half and hid
+    // a grazing focus entirely.
+    if (opts.showPools && hasFocus && c?.pool) {
+      gPools.appendChild(el("ellipse", {
+        cx: c.pool.cx, cy: c.pool.cy, rx: c.pool.a, ry: c.pool.b,
+        transform: `rotate(${c.pool.angle} ${c.pool.cx} ${c.pool.cy})`,
         fill: "none", stroke: "#bbb", "stroke-width": W.pool, "stroke-dasharray": "0.6 0.4",
+      }));
+    } else if (opts.showPools && hasFocus && c?.pool_note) {
+      // ⚠ Never silently. "No far edge" is a fact about the focus, not an
+      // absence of information — mark the aim point so it is visible.
+      gPools.appendChild(el("circle", {
+        cx: inst.focusX!, cy: inst.focusY!, r: 0.5,
+        fill: "none", stroke: "#e08a2e", "stroke-width": W.pool * 2,
+        "stroke-dasharray": "0.3 0.3",
       }));
     }
     if (opts.showFocus && hasFocus) {

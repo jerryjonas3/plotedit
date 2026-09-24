@@ -78,7 +78,10 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="1/2",
               sheet=f"Section — cut {cut_desc}, looking stage left",
               rev=str(plot.get("revision", "0"))[:3],
               designer=f"Design: {plot.get('designer', '')}")
-    s.origin(ft(3) + (house + 2 if house else 0), ft(3))
+    # ⚠ The left margin has to absorb what is drawn LEFT of the room: the deck
+    # runs a foot past it, and the labels run further still. The guard reported
+    # 5.4' off the left edge once the sight point moved back inside the room.
+    s.origin(ft(9), ft(3))
 
     s.layer("BASE")
     # §3: the deck, and WHICH zero it is. A section with an unstated reference is
@@ -87,10 +90,24 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="1/2",
     s.text(-house - 1, -ft(1, 2), "STAGE FLOOR = VERTICAL ZERO (±0'-0\")", size=6, bold=True)
 
     # §3: plaster line = horizontal zero; downstage edge; upstage limit.
-    pl = room.get("plasterLine")
-    if pl is not None:
-        s.line(pl, -ft(0, 6), pl, grid + 2, style="plasterline")
-        s.text(pl, grid + ft(2, 4), "PLASTER LINE = HORIZONTAL ZERO", size=6, bold=True, center=True)
+    # §3: "proscenium, plaster line, smoke pocket, or the 'horizontal zero'
+    # location" — and say WHICH. A black box has no plaster line, so printing one
+    # would be drawing a piece of architecture that is not in the building.
+    hz = P.horizontal_zero(room)
+    if hz is not None:
+        s.line(hz["y"], -ft(0, 6), hz["y"], grid + 2, style="plasterline")
+        s.text(hz["y"], grid + ft(2, 4),
+               f"{hz['name'].upper()} = HORIZONTAL ZERO  (0'-0\")",
+               size=6, bold=True, center=True)
+        # ⚠ Say where the OTHER references are relative to it, or the reader has
+        # to do the arithmetic that the drawing exists to save them.
+        for edge, label in ((0.0, "DS EDGE"), (depth, "US LIMIT")):
+            off = edge - hz["y"]
+            s.text(edge, grid + ft(0, 10),
+                   f"{'+' if off >= 0 else ''}{ph.fmt_ft(off)}", size=5, center=True)
+    else:
+        s.note(1, grid + 3.8, "No horizontal zero declared (room.horizontalZero) — "
+                              "dimensions on this drawing have no stated origin.")
     s.line(0, -ft(0, 6), 0, grid + 1, style="centerline")
     s.text(0, grid + ft(1, 4), "DS EDGE", size=5.5, center=True)
     s.line(depth, -ft(0, 6), depth, grid + 1, style="centerline")

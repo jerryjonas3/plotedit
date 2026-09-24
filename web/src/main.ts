@@ -32,6 +32,13 @@ function view(): View {
                  (depth + house + margin * 2) * pxPerFoot, margin, house);
 }
 
+/** The height to cut the pools at. Aiming and cutting are different choices:
+ *  a unit aimed at a face still throws a much larger pool on the deck. */
+function poolPlane(): number | undefined {
+  const v = ($<HTMLSelectElement>("poolplane")?.value ?? "");
+  return v === "" ? undefined : Number(v);
+}
+
 function opts(): RenderOptions {
   return {
     showPools: $<HTMLInputElement>("pools").checked,
@@ -114,7 +121,7 @@ function recompute(delay = 120) {
   clearTimeout(pending);
   pending = setTimeout(async () => {
     try {
-      computed = await compute(store.plot);
+      computed = await compute(store.plot, poolPlane());
       await ensureSymbols();
       paint();
     } catch (e) {
@@ -167,8 +174,12 @@ async function boot() {
     attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
     attachKeyboard(store, { view, onChange: draw, onSettled: () => recompute() });
 
+    // ⚠ poolplane is NOT in this list — it changes the NUMBERS, not just what is
+    // shown, so it has to recompute rather than redraw. Wired separately below;
+    // adding it here would have moved the picker and left the pools unchanged.
     for (const id of ["pools", "focus", "labels", "base", "zoom"])
       $(id).addEventListener("input", draw);
+    $("poolplane").addEventListener("change", () => { void recompute(); });
 
     // ---- export
     $("export").addEventListener("change", async (e) => {
@@ -222,7 +233,7 @@ async function boot() {
       if (store.dirty) { e.preventDefault(); e.returnValue = ""; }
     });
 
-    computed = await compute(store.plot);
+    computed = await compute(store.plot, poolPlane());
     await ensureSymbols();
     paint();
   } catch (e) {
