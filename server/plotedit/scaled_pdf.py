@@ -181,6 +181,26 @@ class Sheet:
         c.circle(*self.P(x, y), self.L(r), stroke=1, fill=1 if fill else 0); c.restoreState()
         if self.dxf: self.dxf.circle(x, y, r)
 
+    def break_mark(self, x, y, across=0.45, along=0.55, vertical=True):
+        """The conventional BREAK: this object continues, but not all of it is drawn.
+
+        ⭐ RP-2 §6.12's Option 1 plate puts one on the boom pipe, and it is what
+        licenses the layout's "may not be to scale" note. A boom eighteen feet
+        tall with four units on it does not need eighteen feet of paper — it
+        needs the four units and their real heights. The break is the honest way
+        to say the middle was left out, instead of silently drawing a short boom.
+
+        ⚠ The LABELLED HEIGHTS remain true. The break says the paper is
+        compressed; it never says a number is approximate.
+        """
+        a, b = across / 2, along / 2
+        if vertical:
+            pts = [(x, y + b), (x + a, y + b * 0.3), (x - a, y - b * 0.3), (x, y - b)]
+        else:
+            pts = [(x + b, y), (x + b * 0.3, y + a), (x - b * 0.3, y - a), (x - b, y)]
+        for i in range(len(pts) - 1):
+            self.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], width=0.9)
+
     def fill_poly(self, points, color=white):
         """Paint a closed polygon with no outline — used to OCCLUDE what is under it.
 
@@ -354,41 +374,67 @@ class Sheet:
                   bold=True, center=False if out > 0 else True)
 
     def boom_elevation(self, pos, units, x, y, height=None, unit_gap=1.5,
-                       layout="option1"):
-        """§6.12 Option 1 — the boom drawn as an elevation beside the plot.
+                       layout="option1", max_gap=2.5):
+        """§6.12 Option 1 — the boom as an elevation beside the plot.
 
-        ⚠ **NOT TO SCALE, and it says so on the sheet.** RP-2 permits it —
-        "layouts may not be to scale" — but every other line on this drawing
-        measures true and carries a scale bar to prove it. A schematic that does
-        not announce itself would be read with a rule, and the heights taken off
-        it would be wrong. The HEIGHTS ARE THE DATA; the spacing is not.
+        ⭐ COMPRESSED, with a BREAK MARK where paper was taken out. RP-2's own
+        plate does this: unit 1 at 8'-0" sits close above unit 2 at 4'-0" with a
+        break between them. A boom eighteen feet tall with four units near the
+        bottom does not need eighteen feet of paper; it needs the four units and
+        their real heights.
 
-        §6.12 also says "choose only one type of layout per plot." `layout` is
+        ⚠ **The labelled heights stay true.** The break says the PAPER is
+        compressed. It never says a number is approximate — the heights are the
+        whole point of the drawing, and a section that fudged them would be worse
+        than none. Every empty run longer than `max_gap` is drawn at `max_gap`
+        and marked.
+
+        §6.12 also says "choose only one type of layout per plot"; `layout` is
         carried so a plot can state which, and `check_booms()` enforces the one.
         """
         from . import symbols as _sym
+        from . import photometrics as _ph
         self.layer("NOTES")
-        top = height if height is not None else (
-            max((u.get("height") or 0) for u in units) + 2 if units else 10)
-        self.line(x, y, x, y + top, style="batten")          # the pipe
-        self.text(x, y + top + ft(0, 8), (pos.get("name") or "").upper(),
+
+        placed = sorted([u for u in units if u.get("height") is not None],
+                        key=lambda z: z["height"])
+        no_height = [u for u in units if u.get("height") is None]
+
+        # The arithmetic lives in compress_heights() so it can be tested without
+        # rendering a PDF — and so a change to it cannot quietly alter a drawing.
+        ys, breaks, top = compress_heights([u["height"] for u in placed], max_gap)
+        drawn = list(zip(placed, ys))
+
+        # The pipe, in segments so each break is a real gap rather than a mark
+        # sitting on top of an unbroken line.
+        cuts = sorted(breaks)
+        seg_from = 0.0
+        for b in cuts:
+            self.line(x, y + seg_from, x, y + b - 0.18, style="batten")
+            seg_from = b + 0.18
+        self.line(x, y + seg_from, x, y + top, style="batten")
+        for b in cuts:
+            self.break_mark(x, y + b)
+
+        self.text(x, y + top + ft(0, 6), (pos.get("name") or "").upper(),
                   size=7, bold=True, center=True)
         self.text(x, y - ft(0, 9), "NOT TO SCALE — heights are the data",
                   size=5, center=True)
-        for i, u in enumerate(sorted(units, key=lambda z: -(z.get("height") or 0))):
-            h = u.get("height")
-            if h is None:
-                self.text(x + unit_gap, y + top - (i + 1) * unit_gap,
-                          f"{u.get('unit')}: NO HEIGHT RECORDED", size=5.5)
-                continue
-            uy = y + h
+        if cuts:
+            self.text(x, y - ft(1, 4), f"{len(cuts)} break{'s' if len(cuts) > 1 else ''} "
+                      f"— pipe compressed", size=5, center=True)
+
+        for u, dy in drawn:
+            uy = y + dy
             self.line(x, uy, x + unit_gap * 0.55, uy, style="leader")
-            _sym.draw(self, _sym.for_type(u.get("type", "")),
-                      x + unit_gap, uy, rotate_deg=90)
-            from . import photometrics as _ph
-            self.text(x - ft(0, 4), uy - ft(0, 2), _ph.fmt_ft(h), size=6)
+            _sym.draw(self, _sym.for_type(u.get("type", "")), x + unit_gap, uy,
+                      rotate_deg=90)
+            self.text(x - ft(0, 4), uy - ft(0, 2), _ph.fmt_ft(u["height"]), size=6)
             self.text(x + unit_gap, uy - ft(0, 3), str(u.get("unit")),
                       size=6, center=True, bold=True)
+        for i, u in enumerate(no_height):
+            self.text(x + unit_gap, y + top - (i + 1) * 0.5,
+                      f"{u.get('unit')}: NO HEIGHT RECORDED", size=5)
         return top
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
@@ -603,6 +649,39 @@ class Sheet:
         c.drawString(cx + 76, cy, 'this bar is 1" when printed at 100%')
         c.save()
         if _dxf and self.dxf_path: _dxf.save(self.dxf_path)
+
+
+def compress_heights(heights, max_gap=2.5):
+    """Where to DRAW a boom's units when the pipe is longer than the paper.
+
+    Returns (drawn_y, breaks, top) — one drawn height per input height, the
+    drawn heights at which a break mark goes, and where the pipe should stop.
+
+    ⭐ RP-2 §6.12's Option 1 plate compresses the pipe and marks it with a break:
+    "this continues, but not all of it is drawn." A boom eighteen feet tall with
+    four units near the bottom does not need eighteen feet of paper.
+
+    ⚠ The LABELLED HEIGHTS stay true — this only moves ink. The break says the
+    paper is compressed; it never says a number is approximate.
+
+    ⚠ And it breaks only where that actually buys paper. A three-foot gap
+    squeezed to two-and-a-half saves half a foot and costs the reader a symbol to
+    stop and interpret, which is a worse drawing rather than a shorter one. So
+    the run has to exceed max_gap by a clear margin. RP-2's own plate carries ONE
+    break on a boom with four units.
+    """
+    worth_it = max_gap + 1.5
+    ys, breaks, cursor, last = [], [], 0.0, 0.0
+    for h in sorted(heights):
+        gap = h - last
+        if gap > worth_it:
+            breaks.append(cursor + max_gap / 2.0)
+            cursor += max_gap
+        else:
+            cursor += gap
+        ys.append(cursor)
+        last = h
+    return ys, breaks, cursor + min(max_gap, 1.2)
 
 
 def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", landscape=True,

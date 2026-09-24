@@ -630,6 +630,43 @@ except Exception:
     _ok = False
 check("a sheet with no fill_poly still draws", _ok, True)
 
+
+print("\na break mark: the pipe continues, but not all of it is drawn")
+from plotedit.scaled_pdf import compress_heights as _C
+
+# ⭐ RP-2 §6.12's Option 1 plate compresses the boom and marks it with a break.
+# Jerry pointed at it 2026.09.23: "that means the whole boom isn't there, i.e.
+# the whole length isn't being represented."
+
+# A shin/mid/head boom fits as it is — nothing to gain, so no break.
+_ys, _b, _top = _C([2, 4, 8])
+check("a short boom is drawn true", _ys, [2.0, 4.0, 8.0])
+check("...with no break", _b, [])
+
+# A tall one is compressed and marked.
+_ys, _b, _top = _C([4.5, 8, 12])
+check("a tall boom is compressed", _ys[-1] < 12, True)
+check("...and carries exactly one break", len(_b), 1)
+check("...placed in the empty run it removed", 0 < _b[0] < _ys[0], True)
+
+# ⚠ Order and spacing between CLOSE units must survive untouched — compression
+# is allowed to remove empty pipe, never to reorder or squeeze the rig.
+check("units stay in order", _ys, sorted(_ys))
+check("the 8'-to-12' gap is untouched", round(_ys[2] - _ys[1], 2), 4.0)
+
+# ⚠ It must not break for a trivial saving: a symbol the reader has to stop and
+# interpret costs more than half a foot of paper.
+check("a 3' run is not worth a break", _C([3, 5])[1], [])
+
+# 🔴 And the heights themselves are never touched. The break says the PAPER is
+# compressed; it never says a number is approximate.
+_true = [4.5, 8, 12]
+_ys, _, _ = _C(_true)
+check("compression returns drawn positions, not modified heights",
+      _true, [4.5, 8, 12])
+check("...and one drawn position per unit", len(_ys), len(_true))
+check("an empty boom does not crash", _C([])[0], [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
