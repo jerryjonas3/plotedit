@@ -139,6 +139,27 @@ def fresnel(size_in=6):
     return [("poly", _mirror(upper), True)]
 
 
+def _double_arrow(p1, p2, head=0.10):
+    """A double-headed arrow from p1 to p2 in (along-axis, cross-axis) feet.
+
+    §6.3.2 draws lamp-axis orientation this way and says it shows "where beam
+    lands or filament orientation". The ARROWHEADS are the meaning: a plain bar
+    could be read as lens rotation, which is the opposite claim, and the two are
+    indistinguishable once drawn. Both heads, always.
+    """
+    (a1, c1), (a2, c2) = p1, p2
+    da, dc = a2 - a1, c2 - c1
+    L = math.hypot(da, dc) or 1e-9
+    ua, uc = da / L, dc / L
+    na, nc = -uc, ua                      # unit normal
+    out = [("line", p1, p2)]
+    for (ta, tc), sign in (((a2, c2), -1), ((a1, c1), 1)):
+        ba, bc = ta + sign * ua * head, tc + sign * uc * head
+        out.append(("line", (ta, tc), (ba + na * head * 0.5, bc + nc * head * 0.5)))
+        out.append(("line", (ta, tc), (ba - na * head * 0.5, bc - nc * head * 0.5)))
+    return out
+
+
 def oval_beam_fresnel(length=1.05, width=0.72, rotation=None):
     """§6.2 "Oval Beam Fresnel" — which is what an ETC Source Four PARNel is.
 
@@ -149,7 +170,8 @@ def oval_beam_fresnel(length=1.05, width=0.72, rotation=None):
     Distinctive against a plain Fresnel: shorter and squatter, with a lens flange
     that stands proud and is clearly WIDER than the body.
 
-    `rotation` in degrees adds the oval-axis bar. An oval beam that nobody has
+    `rotation` in degrees adds the oval-axis arrow (§6.3.2 — double-headed,
+    because it states where the beam lands, not how the lens is turned). An oval beam that nobody has
     been told the angle of is an oval beam somebody will hang wrong, and §6.14.4
     requires an axis note for PAR lamps for exactly this reason.
     """
@@ -175,9 +197,9 @@ def oval_beam_fresnel(length=1.05, width=0.72, rotation=None):
         cx = (flange + back) / 2
         r = min(w * 0.82 / max(abs(math.cos(a)), 1e-6),
                 body_half_len * 0.82 / max(abs(math.sin(a)), 1e-6))
-        out.append(("line",
-                    (cx - r * math.sin(a), -r * math.cos(a)),
-                    (cx + r * math.sin(a), r * math.cos(a))))
+        out += _double_arrow((cx - r * math.sin(a), -r * math.cos(a)),
+                             (cx + r * math.sin(a), r * math.cos(a)),
+                             head=min(0.11, r * 0.42))
     return out
 
 
@@ -287,8 +309,18 @@ def followspot(length=2.4, width=0.9):
     return [("poly", _mirror(upper), True)]
 
 
-def cyc_unit(cells=3, cell=1.0, depth=0.75):
-    """§6.6.2. Rectangles divided into cells — one box per cell."""
+def cyc_unit(cells=3, cell=1.0, depth=0.75, focus=True):
+    """§6.6.2. Rectangles divided into cells — one box per cell.
+
+    RP-2 draws these as plain divided rectangles that "approximate an accurate
+    size & shape", so `cell` and `depth` should be the real unit's dimensions
+    rather than a house style.
+
+    §6.6.1 shows the FOCUS DIRECTION as an arrow BESIDE the unit, not inside it.
+    It matters more here than on any other symbol: a cyc light is asymmetric and
+    aimed up the cloth, so which way it faces is the whole of its behaviour, and
+    the body is a rectangle that looks identical either way round.
+    """
     total = cells * cell
     out = []
     for i in range(cells):
@@ -296,14 +328,35 @@ def cyc_unit(cells=3, cell=1.0, depth=0.75):
         c0 = -total / 2 + i * cell
         out.append(("poly", [(a0, c0), (a0, c0 + cell),
                              (-a0, c0 + cell), (-a0, c0)], True))
+    if focus:
+        tip, tail = -depth * 1.45, -depth * 0.78
+        out.append(("line", (tail, 0.0), (tip, 0.0)))
+        for side in (1, -1):
+            out.append(("line", (tip, 0.0),
+                        (tip + depth * 0.30, side * depth * 0.20)))
     return out
 
 
-def striplight(length=6.0, depth=0.6, lamp="PAR 38"):
-    """§6.7.1. Length follows the real unit — RP-2: 'Measure the instruments.'"""
+def striplight(length=6.0, depth=0.6, lamp="PAR 38", mount="pipe"):
+    """§6.7.1. A long shallow body with a small tab at ONE end.
+
+    **Length follows the real unit.** RP-2 is explicit: "Overall length of the
+    instrument dependent on number of lamps. Measure the instruments." A strip
+    drawn at a default length is the one symbol on a plot that is guaranteed
+    wrong, because its length is the information.
+
+    §6.7.2 distinguishes the mounting: `mount="pipe"` is hung, `mount="trunnion"`
+    is a ground row and carries a second line along the back. An electrician
+    reading a ground row as a hung unit hangs it.
+    """
     a, c = depth / 2, length / 2
-    return [("poly", [(a, -c), (a, c), (-a, c), (-a * 0.7, c),
-                      (-a * 0.7, -c), (-a, -c)], True)]
+    tab = min(depth * 0.55, length * 0.10)
+    out = [("poly", [(a, -c), (a, c - tab), (a + depth * 0.32, c - tab),
+                     (a + depth * 0.32, c), (-a, c), (-a, -c)], True)]
+    if mount == "trunnion":
+        out.append(("line", (-a + depth * 0.22, -c * 0.94),
+                    (-a + depth * 0.22, c * 0.94)))
+    return out
 
 
 # ------------------------------------------------------------------ drawing

@@ -125,6 +125,37 @@ before guessing, and before asking someone to correct the guess.**
 
 ---
 
+## ✅ Approved 2026.09.23
+
+**Jerry reviewed Rev 3 — all 18 symbols and the three line weights — and passed
+them: *"the symbols look good."*** That was the gate on drawing any more, and it
+is now open. §6.1.6 ERS, §6.2 Fresnel and oval-beam, §6.3 PAR, §6.16 LED,
+§6.8 movers, §6.9 practical and §6.18 line weights are settled and should not be
+redrawn without a reason.
+
+**✅ And the one thing approval could not settle, the plate settled.** On the
+PARNel the line through the body could mean the beam's long axis or the lens
+rotation — opposite claims, drawn identically, so no amount of looking resolves
+it. **§6.3.2 answers it: a DOUBLE-HEADED ARROW, meaning "where beam lands or
+filament orientation."** It is the beam, and the arrowheads are what say so.
+Redrawn as an arrow 2026.09.23.
+
+**➡ The lesson: when two readings look identical, asking someone to look is the
+wrong move. Go back to the document.**
+
+## Drawn 2026.09.23, after approval
+
+§6.6 cyc units (1/3/4 cell), §6.7 striplights, §6.10 followspot — Rev 4.
+
+- **The cyc focus arrow goes BESIDE the body, not inside it** (§6.6.1). It
+  matters more here than anywhere else: a cyc light is asymmetric and aimed up
+  the cloth, and the body is a rectangle that looks identical facing either way.
+- **A striplight's length is its information** — RP-2: "Overall length dependent
+  on number of lamps. Measure the instruments." Drawn at a default length it is
+  the one symbol guaranteed to be wrong.
+- **§6.7.2 distinguishes pipe-hung from trunnion** (ground row) with a second
+  line along the back. An electrician reading a ground row as hung hangs it.
+
 ## Order of work
 
 1. **§6.1.6 Enhanced ERS** — the Source Four, which is most of every plot here.

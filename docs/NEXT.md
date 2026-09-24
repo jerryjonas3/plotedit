@@ -231,17 +231,9 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
   ETC publish IES for the whole Source Four and ColorSource range. Anywhere a
   datasheet is thin, the IES is not.
 
-- **Symbols.** Still the open question from day one. Jerry's convention is Field
-  Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are
-  `.vwx` and cannot be reused. **He has not marked up the draft sheet yet.**
-- **Verify the Eos patch** against Nomad. Ten minutes with a scratch show file.
-- **Magic sheet layout** — the data is there, the page is not.
-- **Section view.** `scaled_pdf.section()` already draws one.
-- **Open a file**, not just the sample. And remember the last one.
-- **Multiple positions per drag**, box select, duplicate.
-- **Circuits and loads** — Art's half. `photometrics` has no load table yet.
-- **One-command run** — a single entry point that starts the service and opens
-  the browser, so it works at tech without two terminals.
+- ✅ **Symbols approved 2026.09.23.** Jerry passed all 18 of Rev 3 plus the three line weights. **The gate on drawing more is open.** Next: §6.6 cyc units and §6.7 striplights — both are in his archive (Altman Sky Cyc, ColorSource CYC, Altman Spectra Cyc). Then followspots §6.10 and accessories §6.13.
+
+  **Still not settled by approval:** the PARNel axis line means either beam axis or lens rotation, and both look identical, so his eye cannot resolve it.
 
 ---
 
