@@ -830,6 +830,52 @@ check("a vertical position is left alone — its units differ by height on purpo
                                        "x2": 1, "y2": 1, "trim": 12}],
                         "instruments": [{"unit": 1, "position": "B", "trim": 8}]}), [])
 
+
+print("\ntrims are checked against the ceiling")
+# 🔴 Jerry, 2026.09.24: "I guess we need a ceiling height — the ceiling is
+# probably closer to 16'." Nothing had been checking. A pipe had just been raised
+# to 18' in a room with a 15' grid and the tool drew it, computed footcandles
+# from it and printed it, without a word.
+_rm = {"room": {"width": 33, "depth": 38, "gridHeight": 16.0},
+       "positions": [{"name": "E1", "type": "electric", "x1": 0, "y1": 16,
+                      "x2": 33, "y2": 16, "trim": 14.0}],
+       "instruments": []}
+check("a comfortable trim passes", P.headroom(_rm), [])
+
+_hi = {**_rm, "positions": [dict(_rm["positions"][0], trim=18.0)]}
+check("a trim above the ceiling is caught",
+      any("cannot be hung" in m for m in P.headroom(_hi)), True)
+
+# A pipe hangs below the grid and the instrument below the pipe — a Source Four
+# on a c-clamp is about 20 inches to the lens. 15'-6" under a 16' grid is not
+# impossible, it is tight, and the difference matters.
+_tight = {**_rm, "positions": [dict(_rm["positions"][0], trim=15.5)]}
+_msgs = P.headroom(_tight)
+check("a tight trim is flagged but not called impossible",
+      len(_msgs) == 1 and "cannot be hung" not in _msgs[0], True)
+
+# ⚠ A FOH position hangs from the HOUSE ceiling, which is usually higher. A
+# catwalk at 18' over a room with a 15' stage grid is ordinary — reporting it as
+# a fault teaches the reader to ignore the warnings that are real.
+_cat = {**_rm, "positions": [{"name": "Cat 1", "type": "catwalk", "x1": 0,
+                              "y1": -11, "x2": 33, "y2": -11, "trim": 18.0}]}
+check("a catwalk is NOT judged against the stage grid",
+      any("cannot be hung" in m for m in P.headroom(_cat)), False)
+check("...but says it was not checked", any("not checked" in m for m in P.headroom(_cat)), True)
+_cat2 = {**_cat, "room": {**_rm["room"], "houseCeiling": 22.0}}
+check("...and passes once the house ceiling is known", P.headroom(_cat2), [])
+_cat3 = {**_cat, "room": {**_rm["room"], "houseCeiling": 16.0}}
+check("...and fails against a LOW house ceiling",
+      any("above the HOUSE ceiling" in m for m in P.headroom(_cat3)), True)
+
+# With no ceiling at all, say so rather than passing silently.
+_none = {"room": {"width": 33, "depth": 38}, "positions": _rm["positions"], "instruments": []}
+check("no ceiling recorded is reported, not passed",
+      any("NOT checked against anything" in m for m in P.headroom(_none)), True)
+check("...and a plot with no trims stays quiet",
+      P.headroom({"room": {}, "positions": [{"name": "E", "x1": 0, "y1": 1,
+                                             "x2": 9, "y2": 1}], "instruments": []}), [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

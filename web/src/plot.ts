@@ -115,7 +115,17 @@ export interface Position {
 export interface Room {
   width: number;
   depth: number;
+  /** Floor to grid, in feet — the CEILING. Trims are checked against it. */
   gridHeight?: number;
+  /** Where that figure came from. A grid height off a rental listing is not a
+   *  measurement, and the difference decides whether a 14' trim is comfortable
+   *  or impossible. */
+  gridSource?: string;
+  /** The ceiling over the AUDIENCE, for front-of-house positions. Usually higher
+   *  than the stage grid — a catwalk at 18' in a room with a 15' grid is
+   *  ordinary, and checking it against the grid reports a fault that is not
+   *  there. */
+  houseCeiling?: number;
   /** Where these numbers came from, and how old they are. */
   source?: string;
   /** Optional imported DXF, drawn underneath. Path is relative to the plot file. */

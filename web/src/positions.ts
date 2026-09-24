@@ -119,6 +119,19 @@ export function renderPositions(
     const note = document.createElement("p");
     note.className = "muted pos-note";
     const bits: string[] = [];
+
+    // ⭐ A trim above the ceiling cannot be hung. Nothing checked until
+    // 2026.09.24, when a pipe was raised to 18' in a room with a 15' grid and
+    // the tool drew it, computed levels from it and printed it without a word.
+    const grid = plot.room.gridHeight;
+    const foh = p.foh ?? ((p.type ?? "").toLowerCase() === "catwalk");
+    if (p.trim !== undefined && grid !== undefined && !foh) {
+      if (p.trim > grid) {
+        bits.push(`🔴 ABOVE THE ${grid}' CEILING — this cannot be hung`);
+      } else if (p.trim > grid - 1.5) {
+        bits.push(`under 1'-6" below the ${grid}' grid — a Source Four and its clamp need about that`);
+      }
+    }
     if (isVertical(p)) bits.push("vertical — a POINT in plan; units differ by height");
     if (p.foh ?? (p.type === "catwalk")) bits.push("front of house — negative y, over the audience");
     if (p.circuits?.length) bits.push(`${p.circuits.length} circuits recorded`);

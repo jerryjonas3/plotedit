@@ -9,14 +9,15 @@
   "room": {
     "width": 33,
     "depth": 38,
-    "gridHeight": 15,
+    "gridHeight": 16.0,
     "source": "InterAct rentals page, 2016 SpaceFinder listing. NOT MEASURED \u2014 see the venue research file. Nothing here may be cited in a real plot.",
     "plasterLine": 10.0,
     "sightPoint": {
       "y": -14.0,
       "h": 3.5,
       "source": "EXAMPLE DATA \u2014 no real sight point measured at the Bluver. The worst seat has not been asked for."
-    }
+    },
+    "gridSource": "Jerry's estimate, 2026.09.24: 'the ceiling is probably closer to 16'. NOT MEASURED. The 15' figure in the venue research is from a listing for the Drake's OTHER space (121 seats, 35x26), not the Bluver \u2014 so it was never about this room. MEASURE AT THE SITE VISIT."
   },
   "positions": [
     {
@@ -331,7 +332,8 @@
     "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number \u2014 RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer.",
     "Booms are VERTICAL: in plan they are a point, so every unit shares one x and y and is told apart only by its height. RP-2 6.12 hatches them in plan and puts the readable layout beside the plot, NOT to scale. boomLayout is 'option1' for the whole plot \u2014 the standard allows only one per drawing.",
     "room.sightPoint is where the vertical sightline is struck from \u2014 the eye of the worst seat. RP-2 \u00a73 asks for it on a section; without one the section cannot say what the back row can see.",
-    "One unit carries an HPL 750. RP-2 \u00a76.15 blackens the rear of a symbol for ARC sources; Jerry uses the same mark for a 750W Source Four, which is the only place he has seen a wattage called out on a plot. The instrument key says which meaning is in force."
+    "One unit carries an HPL 750. RP-2 \u00a76.15 blackens the rear of a symbol for ARC sources; Jerry uses the same mark for a 750W Source Four, which is the only place he has seen a wattage called out on a plot. The instrument key says which meaning is in force.",
+    "room.gridHeight is the ceiling, and trims are checked against it. FOH positions are checked against room.houseCeiling instead, because a catwalk hangs over the audience where the ceiling is usually higher \u2014 neither is measured yet."
   ],
   "boomLayout": "option1"
 }

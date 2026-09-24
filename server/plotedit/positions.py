@@ -345,3 +345,80 @@ def apply_trim(plot: Dict[str, Any], position_name: str, trim: float) -> int:
         i["trim"] = float(i["trim"]) + (trim - old)      # keep any deliberate offset
         moved += 1
     return moved
+
+
+# A pipe hangs BELOW the grid, and the instrument hangs below the pipe. A
+# Source Four on a c-clamp is about 20 inches from the pipe to the lens, and the
+# clamp itself wants a couple of inches above. Call it 1'-6" of headroom before
+# a trim is physically impossible rather than merely tight.
+INSTRUMENT_DROP = 1.5
+
+
+def is_foh(pos: Dict[str, Any]) -> bool:
+    """Front of house — over the audience, downstage of the plaster line."""
+    foh = pos.get("foh")
+    if foh is None:
+        return (pos.get("type") or "").strip().lower() == "catwalk"
+    return bool(foh)
+
+
+def headroom(plot: Dict[str, Any]) -> List[str]:
+    """Trims checked against the room's ceiling. Returns problems, worst first.
+
+    🔴 Found 2026.09.24 by Jerry: "I guess we need a ceiling height — the ceiling
+    is probably closer to 16'." Nothing had been checking. A pipe had just been
+    raised to 18' in a room with a 15' grid and the tool drew it, computed
+    footcandles from it and printed it, without a word.
+
+    ⚠ It reports rather than clamping. A grid height that came off a rental
+    listing is not a measurement, and refusing a designer's trim on the strength
+    of a web page would be worse than saying what the page claims.
+    """
+    out: List[str] = []
+    room = plot.get("room") or {}
+    grid = room.get("gridHeight")
+    if grid is None:
+        if any(p.get("trim") is not None for p in plot.get("positions") or []):
+            out.append("no ceiling height recorded (room.gridHeight) — trims are "
+                       "NOT checked against anything. Measure it at the site visit")
+        return out
+
+    src = room.get("gridSource")
+    note = f" (grid {grid}': {src})" if src else f" (grid {grid}')"
+
+    house_ceiling = room.get("houseCeiling")
+    for p in plot.get("positions") or []:
+        trim = p.get("trim")
+        if trim is None:
+            continue
+
+        # ⚠ A FRONT-OF-HOUSE position hangs from the HOUSE ceiling, not the stage
+        # grid, and the house is usually higher — a catwalk over the audience at
+        # 18' in a room with a 15' stage grid is ordinary, not impossible.
+        # Checking it against the grid reports a fault that is not there, which
+        # is worse than not checking: a warning that is wrong teaches the reader
+        # to ignore the ones that are right.
+        if is_foh(p):
+            if house_ceiling is None:
+                out.append(f"{p.get('name')} is front of house at {trim}' and no "
+                           f"house ceiling is recorded (room.houseCeiling) — not "
+                           f"checked. The house is usually higher than the grid")
+            elif trim > house_ceiling:
+                out.append(f"🔴 {p.get('name')} is at {trim}' — above the HOUSE "
+                           f"ceiling ({house_ceiling}')")
+            continue
+
+        if trim > grid:
+            out.append(f"🔴 {p.get('name')} is trimmed at {trim}' — ABOVE the "
+                       f"ceiling{note}. This cannot be hung")
+        elif trim > grid - INSTRUMENT_DROP:
+            out.append(f"{p.get('name')} at {trim}' leaves under "
+                       f"{INSTRUMENT_DROP:.1f}' below the grid{note} — a Source Four "
+                       f"and its clamp need about that much. Check it in the room")
+
+    for i in plot.get("instruments") or []:
+        h = i.get("height")
+        if h is not None and h > grid:
+            out.append(f"🔴 unit {i.get('unit')} on {i.get('position')} is at {h}' "
+                       f"— above the ceiling{note}")
+    return out
