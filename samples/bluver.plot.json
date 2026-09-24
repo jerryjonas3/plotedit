@@ -76,6 +76,26 @@
         9
       ],
       "circuitSource": "EXAMPLE DATA \u2014 no locations, so units cannot be matched automatically."
+    },
+    {
+      "name": "House Right Boom #1",
+      "type": "boom",
+      "x1": 30.5,
+      "y1": 9,
+      "x2": 30.5,
+      "y2": 9,
+      "mount": "boom-base",
+      "foh": false
+    },
+    {
+      "name": "House Left Box Boom 1",
+      "type": "box-boom",
+      "x1": 2.0,
+      "y1": -9.0,
+      "x2": 2.0,
+      "y2": -9.0,
+      "mount": "flange",
+      "foh": true
     }
   ],
   "instruments": [
@@ -235,6 +255,62 @@
       "position": "GRID D",
       "purpose": "BAX",
       "notes": "Lightwright calls this 'ETC Source4 PARNel'; the photometric table key is 'S4 PARNel @25'. See docs/NEXT.md."
+    },
+    {
+      "unit": 1,
+      "channel": 31,
+      "type": "S4 26",
+      "x": 30.5,
+      "y": 9,
+      "height": 12,
+      "trim": 12,
+      "focusX": 20,
+      "focusY": 14,
+      "color": "R52+R119",
+      "position": "House Right Boom #1",
+      "purpose": "Side SR high"
+    },
+    {
+      "unit": 2,
+      "channel": 32,
+      "type": "S4 36",
+      "x": 30.5,
+      "y": 9,
+      "height": 8,
+      "trim": 8,
+      "focusX": 20,
+      "focusY": 16,
+      "color": "R52+R119",
+      "position": "House Right Boom #1",
+      "purpose": "Side SR mid"
+    },
+    {
+      "unit": 3,
+      "channel": 33,
+      "type": "S4 36",
+      "x": 30.5,
+      "y": 9,
+      "height": 4.5,
+      "trim": 4.5,
+      "focusX": 20,
+      "focusY": 18,
+      "color": "R52+R119",
+      "position": "House Right Boom #1",
+      "purpose": "Side SR shin"
+    },
+    {
+      "unit": 1,
+      "channel": 41,
+      "type": "S4 19",
+      "x": 2.0,
+      "y": -9.0,
+      "height": 14,
+      "trim": 14,
+      "focusX": 14,
+      "focusY": 12,
+      "color": "R52+R119",
+      "position": "House Left Box Boom 1",
+      "purpose": "FOH box boom"
     }
   ],
   "notes": [
@@ -246,6 +322,8 @@
     "Accessories ride on the instrument record. RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the body and front-of-lens ones (barn doors, hats) at the nose; only the name is given here.",
     "Cat 1 is a FRONT OF HOUSE catwalk \u2014 over the audience, downstage of the plaster line, so its y is NEGATIVE. It is drawn as a walkway with two architectural edges and a hanging rail on its downstage side, not as a pipe: a unit hung on a catwalk hangs off the rail, not down the middle.",
     "Circuits depend on the house and have NO SET ORDER (Jerry, 2026.09.23). The tool records what the house says and checks the plot against it; it never invents a circuit number. GRID C carries locations so units can be matched to the nearest circuit; GRID D is a bare list, and matching there refuses.",
-    "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number \u2014 RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer."
-  ]
+    "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number \u2014 RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer.",
+    "Booms are VERTICAL: in plan they are a point, so every unit shares one x and y and is told apart only by its height. RP-2 6.12 hatches them in plan and puts the readable layout beside the plot, NOT to scale. boomLayout is 'option1' for the whole plot \u2014 the standard allows only one per drawing."
+  ],
+  "boomLayout": "option1"
 }

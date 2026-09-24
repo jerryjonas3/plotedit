@@ -31,10 +31,36 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # The four ends a position can be numbered from.
 FROM_SR, FROM_SL, FROM_DS, FROM_US = "SR", "SL", "DS", "US"
+# Vertical positions number by height, not by a compass direction.
+FROM_TOP, FROM_BOTTOM = "TOP", "BOTTOM"
+
+
+VERTICAL_TYPES = ("boom", "box-boom", "boom-box", "ladder", "tormentor", "torm")
+
+
+def is_vertical(pos: Dict[str, Any]) -> bool:
+    """A boom, box boom, ladder or tormentor: a pipe that stands up.
+
+    ⭐ In PLAN a vertical position is a POINT, not a line — every unit on it
+    shares one x and y and differs only in height. That is why booms need their
+    own everything: the two-dimensional drawing cannot separate the units, so
+    RP-2 §6.12 puts the layout beside the plot instead of on it.
+    """
+    t = (pos.get("type") or "").strip().lower()
+    if t in VERTICAL_TYPES:
+        return True
+    if t:
+        return False
+    # Untyped: a position with no length is a point, so it stands up.
+    dx = abs(pos.get("x2", pos["x1"]) - pos["x1"])
+    dy = abs(pos.get("y2", pos["y1"]) - pos["y1"])
+    return dx < 0.5 and dy < 0.5
 
 
 def axis(pos: Dict[str, Any]) -> str:
-    """'lateral' (runs stage left to stage right) or 'longitudinal' (US to DS)."""
+    """'vertical' (a boom), 'lateral' (stage left to right) or 'longitudinal' (US-DS)."""
+    if is_vertical(pos):
+        return "vertical"
     dx = abs(pos.get("x2", pos["x1"]) - pos["x1"])
     dy = abs(pos.get("y2", pos["y1"]) - pos["y1"])
     return "longitudinal" if dy > dx else "lateral"
@@ -50,9 +76,14 @@ def number_from(pos: Dict[str, Any]) -> str:
     now and simply defaults.
     """
     explicit = (pos.get("numberFrom") or "").strip().upper()
-    if explicit in (FROM_SR, FROM_SL, FROM_DS, FROM_US):
+    if explicit in (FROM_SR, FROM_SL, FROM_DS, FROM_US, FROM_TOP, FROM_BOTTOM):
         return explicit
-    return FROM_DS if axis(pos) == "longitudinal" else FROM_SR
+    a = axis(pos)
+    if a == "vertical":
+        # Top down, which is how you read anything standing up, and what RP-2's
+        # own §6.12 plate shows: unit 1 at 8'-0", unit 4 at 2'-0".
+        return FROM_TOP
+    return FROM_DS if a == "longitudinal" else FROM_SR
 
 
 def _sort_key(pos: Dict[str, Any]):
@@ -64,6 +95,10 @@ def _sort_key(pos: Dict[str, Any]):
         return (lambda i: i.get("x", 0.0)), False
     if end == FROM_DS:                      # downstage is the MINIMUM y
         return (lambda i: i.get("y", 0.0)), False
+    if end == FROM_TOP:                     # a boom numbers from the HIGHEST unit
+        return (lambda i: i.get("height", i.get("trim", 0.0)) or 0.0), True
+    if end == FROM_BOTTOM:
+        return (lambda i: i.get("height", i.get("trim", 0.0)) or 0.0), False
     return (lambda i: i.get("y", 0.0)), True    # US
 
 
@@ -105,6 +140,53 @@ def describe(pos: Dict[str, Any]) -> str:
     end = {FROM_SR: "stage right — numbers read house left to house right",
            FROM_SL: "stage left — numbers read house right to house left",
            FROM_DS: "farthest downstage — numbers read front to back",
-           FROM_US: "farthest upstage — numbers read back to front"}[number_from(pos)]
+           FROM_US: "farthest upstage — numbers read back to front",
+           FROM_TOP: "the highest unit — numbers read top to bottom",
+           FROM_BOTTOM: "the lowest unit — numbers read bottom to top"}[number_from(pos)]
     how = "set" if pos.get("numberFrom") else "default"
     return f"{pos.get('name', '?')}: unit 1 at {end} ({how})"
+
+
+def check_booms(plot: Dict[str, Any]) -> List[str]:
+    """§6.12 rules that a plot can break. Returns plain-English problems.
+
+    RP-2: **"Choose only one type of layout per plot."** Two layouts on one
+    drawing means the reader has to work out which convention each boom follows,
+    which is exactly the ambiguity the standard exists to remove.
+    """
+    problems: List[str] = []
+    positions = plot.get("positions") or []
+    instruments = plot.get("instruments") or []
+    booms = [p for p in positions if is_vertical(p)]
+    if not booms:
+        return problems
+
+    layouts = {(p.get("layout") or plot.get("boomLayout") or "option1") for p in booms}
+    if len(layouts) > 1:
+        problems.append(
+            f"this plot uses {len(layouts)} boom layouts ({', '.join(sorted(layouts))}) "
+            f"— RP-2 §6.12: choose only one type of layout per plot")
+
+    for p in booms:
+        name = (p.get("name") or "").strip().lower()
+        on = [i for i in instruments
+              if (i.get("position") or "").strip().lower() == name]
+        # ⭐ On a boom the HEIGHT is the only thing separating one unit from
+        # another. Without it the unit cannot be drawn, cannot be numbered and
+        # cannot be hung — it is not a missing nicety, it is the position.
+        missing = [i.get("unit") for i in on if i.get("height") is None]
+        if missing:
+            problems.append(
+                f"{p.get('name')}: units {', '.join(str(u) for u in missing)} have no "
+                f"height. On a boom every unit shares one x and y, so the height is "
+                f"the only thing that tells them apart — and the only thing to hang by")
+        if len(on) > 1:
+            hs = [i.get("height") for i in on if i.get("height") is not None]
+            if len(set(hs)) != len(hs):
+                problems.append(f"{p.get('name')}: two units at the same height — "
+                                f"legal on a sidearm, but say which side")
+        if not p.get("mount"):
+            problems.append(f"{p.get('name')}: no mount recorded (floor plate, boom "
+                            f"base or flange). A floor plate needs floor space and a "
+                            f"sandbag; a flange is already in the building")
+    return problems

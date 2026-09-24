@@ -55,8 +55,16 @@ print("\neos patch — the format is UNVERIFIED and must say so")
 asc = exports.eos_patch(plot)
 check("warning is in the file itself", "HAS NOT BEEN TESTED" in asc, True)
 check("unpatched units are listed, not dropped", asc.count("! Not patched") , 1)
+# Count from the data, not from a number typed here — adding a boom to the
+# sample broke this once already, and the failure read as "the exporter dropped
+# units" rather than "the sample grew."
+# Match the line's SHAPE, not a position name. The original counted lines
+# starting "!   GRID", which quietly stopped counting when the sample gained
+# booms — and the failure read as "the exporter dropped units" rather than "the
+# sample grew a position whose name does not start with GRID".
+import re as _re
 check("every unit is listed as unpatched — the sample has no addresses",
-      sum(1 for line in asc.splitlines() if line.startswith("!   GRID")),
+      len(_re.findall(r"^!   .+ unit \d+ .* ch=", asc, _re.M)),
       len(plot["instruments"]))
 
 print("\nexport endpoints")
@@ -69,8 +77,16 @@ for path, kind, sniff in [("/export/schedule", "text/csv", b"Instrument Schedule
     check(f"{path} content", sniff in r.content, True)
     check(f"{path} is a download", "attachment" in r.headers.get("content-disposition", ""), True)
 
+# ⭐ The sample now carries booms, whose elevations sit beside the plot, and a
+# FOH catwalk over the house. It no longer fits Tabloid at 1/4" — and the right
+# behaviour is to REFUSE, not to clip. That is the guard working, so assert it.
 r = client.post("/export/pdf", json=req)
-check("/export/pdf 200", r.status_code, 200)
+check("a plot with booms will not fit Tabloid at 1/4", r.status_code, 422)
+check("...and the refusal says what would fit", "1/8" in r.json()["detail"], True)
+
+r = client.post("/export/pdf", json={"plot": plot, "page": "ARCH_D",
+                                     "landscape": True})
+check("/export/pdf 200 on the sheet Jerry actually draws on", r.status_code, 200)
 check("/export/pdf is a PDF", r.content[:5], b"%PDF-")
 
 r = client.post("/export/dxf", json=req)

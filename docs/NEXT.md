@@ -402,6 +402,39 @@ R52+R119 at **163 fc**. The tool now returns 163.
 ### Still to do
 
 - Auto-numbering along a position, once the direction is known.
-- **Vertical positions — booms, box booms, ladders.** Explicitly out of scope
-  until asked: RP-2 §6.12 makes them a different drawing problem, with their own
-  height-designation conventions and two accepted layouts.
+### ✅ Booms and box booms — 2026.09.23
+
+**⭐ In plan a boom is a POINT.** Every unit on it shares one x and one y and is
+told apart only by its **height** — which is why a boom needs its own everything.
+`height` is not a nicety on a vertical position; it *is* the position, and a unit
+without one cannot be drawn, numbered or hung. `check_booms()` says so by name.
+
+RP-2 §6.12, followed:
+
+- **Hatched in plan.** *"Hatch or shade acceptable for top view of boom."* Four
+  units at one point would otherwise be a heavier blob; the hatch says *this is a
+  stack*.
+- **The readable layout goes BESIDE the plot** — the pipe as an elevation with
+  each unit at its height. `boom_elevation()`.
+- **⚠ And it is NOT TO SCALE, which it prints on itself.** RP-2 permits this
+  (*"layouts may not be to scale"*), but every other line on this sheet measures
+  true and carries a scale bar to prove it. A schematic that did not announce
+  itself would be read with a rule. **The heights are the data; the spacing is
+  not.**
+- **One layout per plot**, per the standard. `boomLayout`, and two on one drawing
+  is reported.
+- **Three mounts**, because they are different hardware: **floor plate** (needs
+  floor space and a sandbag), **boom base**, **flange** (already in the
+  building). A missing mount is flagged.
+- **Numbered top down** — the reading direction for anything standing up, and
+  what RP-2's own plate shows: unit 1 at 8'-0", unit 4 at 2'-0".
+
+**A box boom is a boom that is front of house**, so it carries `foh` and lands at
+negative y with the catwalks.
+
+**🔴 A plot with booms needs a bigger sheet.** The elevations sit off the
+stage-left edge, and the sample no longer fits Tabloid at ¼" — the export
+**refuses** rather than clipping, and names ⅛" as what would fit. Arch D at ¼"
+holds it, which is the sheet Jerry draws on anyway.
+
+### Still to do

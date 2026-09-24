@@ -293,6 +293,68 @@ class Sheet:
                 ys += [p.get("y1", 0) - half, p.get("y2", p.get("y1", 0)) - half]
         return abs(min(ys)) if ys and min(ys) < 0 else 0.0
 
+    def boom(self, pos, units=(), label=None):
+        """A vertical position in PLAN: the mount, and the units hatched over it.
+
+        ⭐ In plan a boom is a POINT. Every unit on it shares one x and y and
+        differs only in height, so the drawing cannot separate them — which is
+        why §6.12 says "hatch or shade acceptable for top view of boom" and puts
+        the readable layout BESIDE the plot. Call `boom_elevation()` for that.
+        """
+        from . import symbols as _sym
+        self.layer("POSITIONS")
+        x, y = pos["x1"], pos["y1"]
+        _sym.draw(self, _sym.boom_mount(pos.get("mount")), x, y, width=1.0)
+        if units:
+            # One symbol, hatched, standing for the stack. Drawing four on top of
+            # each other would just be a heavier blob.
+            prims = _sym.for_type(units[0].get("type", ""))
+            _sym.draw(self, prims, x, y, rotate_deg=pos.get("rotation", 0.0))
+            _sym.draw(self, _sym.hatch(prims), x, y,
+                      rotate_deg=pos.get("rotation", 0.0), width=0.35)
+        text = (label if label is not None else pos.get("name", "")).upper()
+        if units:
+            text += f"  ({len(units)} units)"
+        self.text(x, y + ft(1, 2), text, size=7, bold=True, center=True)
+
+    def boom_elevation(self, pos, units, x, y, height=None, unit_gap=1.5,
+                       layout="option1"):
+        """§6.12 Option 1 — the boom drawn as an elevation beside the plot.
+
+        ⚠ **NOT TO SCALE, and it says so on the sheet.** RP-2 permits it —
+        "layouts may not be to scale" — but every other line on this drawing
+        measures true and carries a scale bar to prove it. A schematic that does
+        not announce itself would be read with a rule, and the heights taken off
+        it would be wrong. The HEIGHTS ARE THE DATA; the spacing is not.
+
+        §6.12 also says "choose only one type of layout per plot." `layout` is
+        carried so a plot can state which, and `check_booms()` enforces the one.
+        """
+        from . import symbols as _sym
+        self.layer("NOTES")
+        top = height if height is not None else (
+            max((u.get("height") or 0) for u in units) + 2 if units else 10)
+        self.line(x, y, x, y + top, style="batten")          # the pipe
+        self.text(x, y + top + ft(0, 8), (pos.get("name") or "").upper(),
+                  size=7, bold=True, center=True)
+        self.text(x, y - ft(0, 9), "NOT TO SCALE — heights are the data",
+                  size=5, center=True)
+        for i, u in enumerate(sorted(units, key=lambda z: -(z.get("height") or 0))):
+            h = u.get("height")
+            if h is None:
+                self.text(x + unit_gap, y + top - (i + 1) * unit_gap,
+                          f"{u.get('unit')}: NO HEIGHT RECORDED", size=5.5)
+                continue
+            uy = y + h
+            self.line(x, uy, x + unit_gap * 0.55, uy, style="leader")
+            _sym.draw(self, _sym.for_type(u.get("type", "")),
+                      x + unit_gap, uy, rotate_deg=90)
+            from . import photometrics as _ph
+            self.text(x - ft(0, 4), uy - ft(0, 2), _ph.fmt_ft(h), size=6)
+            self.text(x + unit_gap, uy - ft(0, 3), str(u.get("unit")),
+                      size=6, center=True, bold=True)
+        return top
+
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, circuit=None, dimmer=None,

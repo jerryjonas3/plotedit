@@ -508,6 +508,64 @@ def _shift(prim, da):
     return (k, (prim[1][0] + da, prim[1][1])) + tuple(prim[2:])
 
 
+# ------------------------------------------------------------- §6.12 booms
+
+def boom_mount(kind="boom-base", size=1.4):
+    """§6.12 — how a boom meets the floor, drawn in PLAN.
+
+        floor-plate   a square around the unit
+        boom-base     a large circle (the base plate seen from above)
+        flange        a small circle with a crosshair
+
+    It is not decoration: a floor plate needs floor space and a sandbag, a flange
+    is a permanent fitting, and an electrician reading one as the other brings
+    the wrong hardware.
+    """
+    k = (kind or "boom-base").strip().lower().replace("_", "-")
+    if k in ("floor-plate", "plate", "floorplate"):
+        h = size / 2
+        return [("poly", [(h, -h), (h, h), (-h, h), (-h, -h)], True)]
+    if k in ("flange", "flange-mount"):
+        r = size * 0.18
+        return [("circle", (0.0, 0.0), r),
+                ("line", (-r * 1.9, 0.0), (r * 1.9, 0.0)),
+                ("line", (0.0, -r * 1.9), (0.0, r * 1.9))]
+    r = size / 2
+    return [("circle", (0.0, 0.0), r), ("circle", (0.0, 0.0), r * 0.16)]
+
+
+def hatch(prims, spacing=0.09, angle_deg=45.0):
+    """Diagonal fill lines across a symbol's bounding box.
+
+    §6.12: "Hatch or shade acceptable for top view of boom." A boom's units are
+    stacked vertically, so in plan they land on top of each other — hatching is
+    what tells the reader this is a pile of instruments at one point rather than
+    one instrument.
+    """
+    a0, a1 = _extent(prims)
+    cs = [q[1] for p in prims if p[0] == "poly" for q in p[1]]
+    if not cs:
+        return []
+    c0, c1 = min(cs), max(cs)
+    out, t = [], math.tan(math.radians(angle_deg)) or 1.0
+    span = (a1 - a0) + (c1 - c0) / t
+    n = max(1, int(span / spacing))
+    for i in range(n + 1):
+        a = a0 + i * spacing
+        # clip the diagonal to the box
+        p1 = (max(a0, min(a1, a)), c0)
+        p2a = a - (c1 - c0) / t
+        if p2a < a0:
+            p2 = (a0, c0 + (a - a0) * t)
+        else:
+            p2 = (p2a, c1)
+        if p2[1] > c1:
+            continue
+        if a0 <= p1[0] <= a1 and a0 <= p2[0] <= a1:
+            out.append(("line", p1, p2))
+    return out
+
+
 # ------------------------------------------------------------------ drawing
 
 def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):

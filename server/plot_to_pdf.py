@@ -13,6 +13,10 @@ from plotedit.scaled_pdf import Sheet, ft, check
 from plotedit import photometrics as ph
 
 
+# How much width one boom elevation needs, including its labels.
+BOOM_PITCH = 5.5
+
+
 def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dxf=None):
     plot = json.load(open(plot_path))
     room = plot["room"]
@@ -25,7 +29,17 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
     # to make room for them or they are clipped straight off the bottom of the
     # sheet and only the clipping guard would ever say so.
     house = Sheet.foh_extent(plot.get("positions"))
-    s.origin(ft(4), ft(4) + (house + 1.5 if house else 0))
+
+    # The boom elevations sit off the stage-left edge at negative x, so the
+    # origin has to make room for them too — the same failure as the catwalk,
+    # in the other axis. Counted BEFORE the origin is set, not discovered by the
+    # clipping guard afterwards.
+    from plotedit import positions as _P
+    _named = {(p.get("name") or "").strip().lower() for p in plot["positions"]
+              if _P.is_vertical(p)}
+    _with_units = {(i.get("position") or "").strip().lower() for i in plot["instruments"]} & _named
+    boom_space = len(_with_units) * BOOM_PITCH + 2.0 if _with_units else 0.0
+    s.origin(ft(4) + boom_space, ft(4) + (house + 1.5 if house else 0))
 
     s.layer("BASE")
     # §6.18: architecture is HEAVY; the reference lines are MEDIUM and dashed;
@@ -37,9 +51,27 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
     s.dim(0, -1.5, room["width"], -1.5)
     s.dim(-1.5, 0, -1.5, room["depth"])
 
+    from plotedit import positions as P
+    booms = [p for p in plot["positions"] if P.is_vertical(p)]
     for p in plot["positions"]:
+        if P.is_vertical(p):
+            on = [i for i in plot["instruments"]
+                  if (i.get("position") or "").strip().lower() == (p.get("name") or "").strip().lower()]
+            s.boom(p, units=on)
+            continue
         label = p["name"] + (f" — trim {ph.fmt_ft(p['trim'])}" if p.get("trim") else "")
         s.position(p, label=label)
+
+    # §6.12: the readable layout goes BESIDE the plot, because in plan a boom is
+    # a point. Placed off the room's stage-left edge, which is the low-x side.
+    bx = -(BOOM_PITCH * 0.75)
+    for p in booms:
+        on = [i for i in plot["instruments"]
+              if (i.get("position") or "").strip().lower() == (p.get("name") or "").strip().lower()]
+        if on:
+            s.boom_elevation(p, on, bx, 1.0,
+                             layout=p.get("layout") or plot.get("boomLayout", "option1"))
+            bx -= BOOM_PITCH
 
     rows = []
     for inst in plot["instruments"]:

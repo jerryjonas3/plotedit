@@ -348,6 +348,55 @@ _w, _n = ph.watts_for("SHEHDS 19")
 check("an unpublished wattage stays None", _w, None)
 check("...and says to get the datasheet", "datasheet" in _n, True)
 
+
+print("\nbooms: a pipe that stands up is a POINT in plan")
+_boom = {"name": "HR Boom 1", "type": "boom", "x1": 30, "y1": 9, "x2": 30,
+         "y2": 9, "mount": "boom-base"}
+_box = {"name": "HL Box Boom 1", "type": "box-boom", "x1": 2, "y1": -9,
+        "x2": 2, "y2": -9, "mount": "flange"}
+check("a boom is vertical", P.is_vertical(_boom), True)
+check("so is a box boom", P.is_vertical(_box), True)
+check("an electric is not", P.is_vertical({"type": "electric", "x1": 0, "y1": 16,
+                                           "x2": 33, "y2": 16}), False)
+# An untyped position with no length is a point, so it stands up.
+check("a zero-length position is read as vertical",
+      P.is_vertical({"x1": 5, "y1": 5, "x2": 5, "y2": 5}), True)
+
+# ⭐ On a boom the HEIGHT is the only thing separating one unit from another —
+# they share an x and a y. RP-2's own 6.12 plate numbers top down: 1 at 8'-0",
+# 4 at 2'-0".
+check("a boom numbers from the top", P.number_from(_boom), "TOP")
+_bu = [{"unit": 9, "position": "HR Boom 1", "height": h, "x": 30, "y": 9}
+       for h in (4.5, 12, 8)]
+P.number(_bu, _boom)
+check("unit 1 is the HIGHEST",
+      next(i["height"] for i in _bu if i["unit"] == 1), 12)
+check("...and unit 3 the lowest",
+      next(i["height"] for i in _bu if i["unit"] == 3), 4.5)
+
+# RP-2 6.12: "Choose only one type of layout per plot."
+_mixed = {"positions": [dict(_boom, layout="option1"), dict(_box, layout="option2")],
+          "instruments": [{"unit": 1, "position": "HR Boom 1", "height": 8}]}
+check("two boom layouts on one plot is caught",
+      any("only one type of layout" in m for m in P.check_booms(_mixed)), True)
+
+# A unit with no height cannot be drawn, numbered or hung.
+_noh = {"positions": [_boom],
+        "instruments": [{"unit": 1, "position": "HR Boom 1", "height": 8},
+                        {"unit": 2, "position": "HR Boom 1"}]}
+check("a boom unit with no height is caught",
+      any("no height" in m for m in P.check_booms(_noh)), True)
+check("a missing mount is caught",
+      any("no mount recorded" in m
+          for m in P.check_booms({"positions": [dict(_boom, mount=None)],
+                                  "instruments": []})), True)
+check("no booms, no complaints", P.check_booms({"positions": [], "instruments": []}), [])
+
+# The three mounts are different hardware, not three ways of drawing one thing.
+check("floor plate, boom base and flange all draw",
+      len({len(sym.boom_mount(m)) for m in ("floor-plate", "boom-base", "flange")}), 3)
+check("hatching produces lines", len(sym.hatch(sym.for_type("S4 26"))) > 5, True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
