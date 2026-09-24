@@ -10,6 +10,7 @@ import { Store } from "./store.js";
 import { attachPointer, attachKeyboard } from "./interact.js";
 import { renderInspector } from "./inspector.js";
 import { renderPositions } from "./positions.js";
+import { renderDetails } from "./details.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const svg = $<HTMLElement>("plot") as unknown as SVGSVGElement;
@@ -97,6 +98,14 @@ function fillTable() {
 }
 
 function drawInspector() {
+  // ⚠ Two callbacks, because two kinds of field. A designer's name only prints;
+  // a room width moves every position and every check that depends on one.
+  // Wiring both to draw() would leave the throws and the headroom warnings
+  // describing a room that is no longer there.
+  renderDetails($("details"), store, {
+    onChange: () => { paintChrome(); draw(); },
+    onGeometry: () => { paintChrome(); draw(); recompute(); },
+  });
   renderPositions($("positions"), store, { onChange: () => { draw(); recompute(); } });
   renderInspector($("inspector"), store, computed, {
     fixtures: Object.keys(fixtureTable).sort(),
@@ -112,6 +121,7 @@ function paint() {
   draw();
   fillTable();
   drawInspector();
+  paintChrome();
   $("dirty").textContent = store.dirty ? "Unsaved changes" : "";
   ($("undo") as HTMLButtonElement).disabled = !store.canUndo;
   ($("redo") as HTMLButtonElement).disabled = !store.canRedo;
@@ -125,6 +135,15 @@ function paint() {
     : "none selected";
   $("pos-count").textContent = String(store.plot.positions.length);
   $("sched-count").textContent = String(store.plot.instruments.length);
+}
+
+/** The header's own copy of the show and venue, so editing them in the panel
+ *  is visibly the same fact as the one at the top of the window. */
+function paintChrome(): void {
+  $("show").textContent = store.plot.show || "Untitled";
+  $("venue").textContent =
+    [store.plot.venue, store.plot.revision].filter(Boolean).join(" · ");
+  $("det-count").textContent = store.plot.venue || "no venue";
 }
 
 /** Fetch RP-2 outlines for any fixture type not already held. */
@@ -294,8 +313,7 @@ async function boot() {
     store = new Store(json as Plot);
     fixtureTable = await fixtures();
 
-    $("show").textContent = store.plot.show;
-    $("venue").textContent = [store.plot.venue, store.plot.revision].filter(Boolean).join(" · ");
+    paintChrome();
     // ⚠ The room's provenance and the plot notes are not shown in the app at
     // all — not as a block, not as a tooltip. Jerry, 2026.09.24: "lose it."
     // The PDF still prints the room's source across the top of the drawing,

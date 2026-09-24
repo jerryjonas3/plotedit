@@ -203,6 +203,8 @@
     .panel.instrument .count { background:var(--primary); color:var(--on-primary); }
     .panel.positions > header { background:var(--secondary-container); color:var(--on-secondary-container); }
     .panel.positions .count { background:var(--secondary); color:var(--on-secondary); }
+    .panel.details > header { background:var(--tertiary-container); color:var(--on-tertiary-container); }
+    .panel.details .count { background:var(--tertiary); color:var(--on-tertiary); }
     .panel.schedule > header { background:var(--surface-container-high); color:var(--on-surface); }
     .panel.schedule .count { background:var(--outline); color:#fff; }
     .panel.schedule { flex:1 1 auto; display:flex; flex-direction:column; min-height:220px; }
@@ -226,6 +228,11 @@
                background:var(--surface-container-lowest); transition:box-shadow .15s; }
     .pos-row:hover { box-shadow:var(--elev-1); }
     .pos-field { display:flex; flex-direction:column; gap:2px; }
+    .pos-field.wide { grid-column:1/-1; }
+    /* A sub-heading inside a card, for the groups in Show & Venue. M3 label-small. */
+    .group-label { grid-column:1/-1; margin:0 0 2px; font-size:11px; line-height:16px;
+                   letter-spacing:.5px; font-weight:500; text-transform:uppercase;
+                   color:var(--on-surface-variant); }
     .pos-field span { font-size:11px; line-height:16px; letter-spacing:.5px;
                       color:var(--on-surface-variant); }
     .pos-field input, .pos-field select { font-size:13px; height:30px; }
@@ -310,6 +317,14 @@
   <main>
     <div id="canvas"><svg id="plot"></svg></div>
     <aside>
+      <section class="panel details">
+        <header>
+          <span class="material-symbols-outlined">theater_comedy</span>
+          <h2>Show &amp; Venue</h2>
+          <span class="count" id="det-count"></span>
+        </header>
+        <div class="body" id="details"></div>
+      </section>
       <section class="panel instrument">
         <header>
           <span class="material-symbols-outlined">flashlight_on</span>

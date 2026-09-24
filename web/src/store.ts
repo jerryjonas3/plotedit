@@ -5,7 +5,7 @@
  * cloned on every edit and history is just an array of snapshots. No diffing,
  * no proxies, nothing to debug at two in the morning during a tech.
  */
-import type { Plot, Instrument, Position } from "./plot.js";
+import type { Plot, Instrument, Position, Room } from "./plot.js";
 
 export type Listener = () => void;
 
@@ -121,6 +121,32 @@ export class Store {
     this._dirty = true;
     this.emit();
     return orphaned;
+  }
+
+  /** Change the plot's own fields — show, venue, designer, studio, revision.
+   *
+   * ⭐ These had NO WAY IN but hand-editing the .plot.json, and on 2026.09.24
+   * they started to matter: the renderer stopped hardcoding "Twin Oaks Studios"
+   * and "Design: Jerry Jonas", so a title block now says whatever the file
+   * says. Without somewhere to type them, the only way to stop a new plot
+   * printing nothing — or the wrong name — was a text editor.
+   */
+  setMeta(patch: Partial<Plot>): void {
+    this.begin(null);
+    Object.assign(this._plot, patch);
+    this._dirty = true;
+    this.emit();
+  }
+
+  /** Change the room. ⚠ Every one of these moves the DRAWING, not just a label:
+   *  width and depth resize it, the grid height and house ceiling are what
+   *  trims are checked against, and the plaster line decides which positions
+   *  are front of house. The caller has to recompute, not just redraw. */
+  setRoom(patch: Partial<Room>): void {
+    this.begin(null);
+    Object.assign(this._plot.room, patch);
+    this._dirty = true;
+    this.emit();
   }
 
   remove(index: number): void {

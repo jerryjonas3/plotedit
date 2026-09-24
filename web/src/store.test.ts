@@ -1,6 +1,7 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
 import { plotFileName, type Plot } from "./plot.js";
+import { feet } from "./details.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -87,6 +88,37 @@ check("punctuation only does NOT give a hidden dotfile", plotFileName("???"), "p
 check("nor does an empty title", plotFileName(""), "plot.plot.json");
 check("runs of spaces collapse", plotFileName("A   B"), "A B.plot.json");
 check("a very long title is cut", plotFileName("x".repeat(200)).length, 90);
+
+console.log("\nshow and venue are editable, and undoable");
+{
+  const start = base();
+  const s2 = new Store(structuredClone(start));
+  s2.setMeta({ designer: "A N Other", studio: "Some Other Shop" });
+  check("the designer is set", s2.plot.designer, "A N Other");
+  check("...and the studio", s2.plot.studio, "Some Other Shop");
+  check("...and the plot is dirty", s2.dirty, true);
+  s2.undo();
+  check("...and undo puts the old name back", s2.plot.designer, start.designer);
+
+  // ⚠ A patch, not a replacement. Setting the width used to be the moment to
+  // find out the rest of the room had gone with it.
+  const w0 = s2.plot.room.depth;
+  s2.setRoom({ width: 60 });
+  check("the room width changes", s2.plot.room.width, 60);
+  check("...and the depth is untouched", s2.plot.room.depth, w0);
+  s2.undo();
+  check("...and undo restores the width", s2.plot.room.width, start.room.width);
+}
+
+console.log("\nan empty box is NOT zero");
+// 🔴 A grid height of 0 claims the ceiling is on the floor. Undefined means
+// "not known", and the headroom checks already say so out loud rather than
+// passing quietly — reading "" as 0 would turn a missing measurement into a
+// confident, wrong one.
+check("blank is unknown", feet(""), undefined);
+check("nonsense is unknown too", feet("abc"), undefined);
+check("zero is zero", feet("0"), 0);
+check("a real number survives", feet("16.5"), 16.5);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
