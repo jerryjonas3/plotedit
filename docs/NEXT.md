@@ -424,6 +424,31 @@ both what Jerry asked for and what RP-2's own §6.12 plate does: the plan symbol
 carry no numbers, the layout beside the plot carries them all. What stays in plan
 is a short name, placed outboard, so a reader can tell which boom the point is.
 
+### ✅ Testing the tests — 2026.09.23
+
+**Twice in one day a suite printed its pass/fail verdict in the MIDDLE of the
+file**, so anything appended afterwards ran without affecting the exit code: the
+suite could print failures and still exit 0. `test_package.py` and
+`test_agreement.py`, both found by accident, both while adding checks that landed
+in the dead zone.
+
+**`verify_suites.py` makes it a thing that gets checked rather than noticed.** It
+injects a guaranteed failure into each suite, runs it, restores the file, and
+requires **exit 1 AND the failure named in the output**.
+
+    cd server && python3 verify_suites.py
+
+All six pass. **Run it whenever a suite gains a section.**
+
+⚠ Worth recording: the first two attempts to prove a break were themselves
+broken. One mutated a line the assertion never looked at, so nothing could fail.
+The other inserted an unindented statement into an indented block, so the run
+died of `IndentationError` and "exited 1" for the wrong reason — which looks
+exactly like success. The script now injects at **top level only** and reports a
+syntax error as *unverified*, never as a pass.
+
+**A test you have never watched fail is not yet a test.**
+
 ### Still to do
 
 - Auto-numbering along a position, once the direction is known.
@@ -486,5 +511,30 @@ with a barn door on the nose. And boom labels come off the plan view, which is
 both what Jerry asked for and what RP-2's own §6.12 plate does: the plan symbols
 carry no numbers, the layout beside the plot carries them all. What stays in plan
 is a short name, placed outboard, so a reader can tell which boom the point is.
+
+### ✅ Testing the tests — 2026.09.23
+
+**Twice in one day a suite printed its pass/fail verdict in the MIDDLE of the
+file**, so anything appended afterwards ran without affecting the exit code: the
+suite could print failures and still exit 0. `test_package.py` and
+`test_agreement.py`, both found by accident, both while adding checks that landed
+in the dead zone.
+
+**`verify_suites.py` makes it a thing that gets checked rather than noticed.** It
+injects a guaranteed failure into each suite, runs it, restores the file, and
+requires **exit 1 AND the failure named in the output**.
+
+    cd server && python3 verify_suites.py
+
+All six pass. **Run it whenever a suite gains a section.**
+
+⚠ Worth recording: the first two attempts to prove a break were themselves
+broken. One mutated a line the assertion never looked at, so nothing could fail.
+The other inserted an unindented statement into an indented block, so the run
+died of `IndentationError` and "exited 1" for the wrong reason — which looks
+exactly like success. The script now injects at **top level only** and reports a
+syntax error as *unverified*, never as a pass.
+
+**A test you have never watched fail is not yet a test.**
 
 ### Still to do
