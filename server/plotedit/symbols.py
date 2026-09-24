@@ -359,6 +359,48 @@ def striplight(length=6.0, depth=0.6, lamp="PAR 38", mount="pipe"):
     return out
 
 
+# ------------------------------------------------------- §6.13 accessories
+
+# RP-2 §6.13 lists ten accessory symbols. Only these four are drawn, because
+# Jerry said 2026.09.23 that beam projectors, scoops and fluorescents are
+# "basically gone" and asked for barn doors and top hats. The standard is from
+# 2006 and still treats all of them as current; the working designer is the
+# better authority on what is still in a rental stock.
+#
+# All four hang on a MOUNTING LINE that stands proud of the body at top and
+# bottom — on the plate that line is the gel-frame edge they clip into, and it
+# is what makes an accessory read as attached rather than as a second object
+# floating in front of the instrument.
+
+
+def barn_door(panels=2, size=0.55, flare=1.55):
+    """§6.13. Two-panel is an OPEN trapezoid; four-panel is CLOSED at the front.
+
+    That is the whole of the distinction on the plate, and it is enough: the
+    reader is being told how many flaps there are, not what they look like.
+    """
+    w = size / 2
+    d = size * 0.95
+    out = [("line", (0.0, -w), (0.0, w)),
+           ("line", (0.0, w), (-d, w * flare)),
+           ("line", (0.0, -w), (-d, -w * flare))]
+    if panels >= 4:
+        out.append(("line", (-d, w * flare), (-d, -w * flare)))
+    return out
+
+
+def top_hat(size=0.5, half=False):
+    """§6.13. A square on its mounting line; a half hat is that square cut corner
+    to corner, so the two read apart at a glance even at 1/2" scale."""
+    w = size / 2
+    out = [("line", (0.0, -w * 1.55), (0.0, w * 1.55))]      # gel-frame edge, proud
+    if half:
+        out.append(("poly", [(0.0, w), (0.0, -w), (-size, -w)], True))
+    else:
+        out.append(("poly", [(0.0, -w), (-size, -w), (-size, w), (0.0, w)], True))
+    return out
+
+
 # ------------------------------------------------------------------ drawing
 
 def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):

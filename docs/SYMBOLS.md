@@ -156,6 +156,26 @@ wrong move. Go back to the document.**
 - **§6.7.2 distinguishes pipe-hung from trunnion** (ground row) with a second
   line along the back. An electrician reading a ground row as hung hangs it.
 
+## 🔴 Three sections deliberately NOT drawn
+
+**Jerry, 2026.09.23: beam projectors (§6.4), scoops (§6.5) and fluorescents
+(§6.7.3) are "basically gone."** They are not skipped for lack of time and they
+are not a to-do. **Do not draw them to "complete the set."**
+
+RP-2 is from 2006 and still treats all three as current equipment, which is
+exactly the point: **a standard records what was in stock when it was written,
+and the working designer is the better authority on what is in stock now.** The
+same will be true of something else in the standard within a few years.
+
+**Drawn instead, at his request: §6.13 barn doors and top hats** — 2-panel,
+4-panel, top hat, half hat. The other six accessories on that plate (scrollers,
+CYM mixer, douser, sightline, rigging point) are not drawn; nobody has asked.
+
+**⚠ Accessories are drawn but not yet attached.** The data model carries no
+accessory field, so a barn door cannot yet be put on an instrument — only drawn
+beside one. §6.14.2 puts a gate accessory INSIDE the body and these go at the
+front; both need a field before they mean anything on a plot.
+
 ## Order of work
 
 1. **§6.1.6 Enhanced ERS** — the Source Four, which is most of every plot here.
