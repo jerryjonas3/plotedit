@@ -60,7 +60,13 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                   if (i.get("position") or "").strip().lower() == (p.get("name") or "").strip().lower()]
             s.boom(p, units=on, center_x=room['width'] / 2)
             continue
-        label = p["name"] + (f" — trim {ph.fmt_ft(p['trim'])}" if p.get("trim") else "")
+        # ⚠ Trim on the plan only where the position can MOVE. RP-2 §2.1 asks
+        # for "trim measurements for MOVABLE mounting positions" — a dead-hung
+        # grid pipe is not one, and a number that cannot change is clutter on
+        # every pipe in the room. The SECTION carries trim for everything.
+        # (Jerry, 2026.09.24.)
+        label = p["name"] + (f" — trim {ph.fmt_ft(p['trim'])}"
+                             if p.get("trim") and p.get("movable") else "")
         s.position(p, label=label)
 
     # §6.12: the readable layout goes BESIDE the plot, because in plan a boom is

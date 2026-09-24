@@ -167,7 +167,13 @@ export function render(
         "font-weight": "600", fill: "#222",
       });
       const foh = isFoh(p, plot.room.plasterLine) && !p.name.toUpperCase().includes("FOH") ? "  (FOH)" : "";
-      t.textContent = (p.trim ? `${p.name} — trim ${fmtFt(p.trim)}` : p.name) + foh;
+      // ⚠ Trim only on a position that can MOVE. RP-2 §2.1 asks for "trim
+      // measurements for MOVABLE mounting positions" — a dead-hung grid pipe is
+      // not one, and printing a number that cannot change is clutter on every
+      // pipe in the room. The section carries trim for everything; the plan
+      // carries it only where it is a decision. (Jerry, 2026.09.24.)
+      const showTrim = p.trim !== undefined && p.movable === true;
+      t.textContent = (showTrim ? `${p.name} — trim ${fmtFt(p.trim!)}` : p.name) + foh;
       gText.appendChild(t);
     }
   }
@@ -344,13 +350,12 @@ function labels(inst: Instrument, c?: Computed, symbolAngle?: string): SVGElemen
     t.textContent = side.join(" · ");
     g.appendChild(t);
   }
-  if (c?.footcandles) {
-    const t = el("text", {
-      transform: counterFlip(inst.x + 0.75, inst.y - 0.7),
-      "font-size": TEXT * 0.45, "font-family": "system-ui, sans-serif", fill: "#888",
-    });
-    t.textContent = `${c.throw_ft} @ ${c.elevation?.toFixed(0)}° · ${c.footcandles} fc`;
-    g.appendChild(t);
-  }
+  // ⚠ NO throw, elevation or footcandles on the drawing. Jerry, 2026.09.24:
+  // "the fc and throw isn't needed on the plot, we can see it if we inspect the
+  // instrument." They are working numbers, not something an electrician reads
+  // off a pipe — and the paper never printed them either (scaled_pdf's
+  // `annotate` defaults to False), so the screen was the odd one out.
+  //
+  // They are still computed, still in the inspector, and still on the schedule.
   return g;
 }

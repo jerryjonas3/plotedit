@@ -66,6 +66,11 @@ export interface Position {
   x2: number; y2: number;
   /** Trim height in feet, if the whole position shares one. */
   trim?: number;
+  /** Can this position's height actually change — a flown electric, a boom that
+   *  gets re-set? RP-2 §2.1 asks for trim on the plan for MOVABLE positions
+   *  only. A dead-hung grid pipe is not one, and a number that cannot change is
+   *  clutter on every pipe in the room. The SECTION carries trim regardless. */
+  movable?: boolean;
   /** What KIND of position, which decides how it is drawn.
    *
    *  An electric, pipe or grid is one heavy batten line. A catwalk is a
