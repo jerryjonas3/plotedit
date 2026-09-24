@@ -351,9 +351,13 @@ function labels(inst: Instrument, c?: Computed, symbolAngle?: string,
   // an accessory hung off the nose.
   const clear = symbolRadius(prims) + 0.25;
 
+  // ⚠ Clear the symbol by the CIRCLE'S OWN RADIUS. The screen draws this circle
+  // at 0.55 ft where the paper's is 0.24, so the paper's offset left the screen
+  // circle lapping over the instrument body.
+  const R = 0.55;
   if (inst.channel !== undefined) {
-    const b = behind(clear + 0.21);   // = notation()'s above + size/2
-    g.appendChild(el("circle", { cx: b.x, cy: b.y, r: 0.55,
+    const b = behind(clear + R + 0.1);
+    g.appendChild(el("circle", { cx: b.x, cy: b.y, r: R,
       fill: "#fff", stroke: "#111", "stroke-width": 0.07 }));
     add(b.x - inst.x, b.y - inst.y - 0.2, String(inst.channel), TEXT * 0.62, "600");
   }
@@ -363,16 +367,19 @@ function labels(inst: Instrument, c?: Computed, symbolAngle?: string,
   // also ran back across the unit. Type is still in the inspector and the key.
   if (inst.color) {
     const size = TEXT * 0.5;
-    // Half the label's own footprint along the axis: a unit aimed downstage
-    // needs its cap height, one aimed stage left needs half its width.
+    // ⚠ A CENTRED label is right in front of a unit aimed up or downstage and
+    // wrong in front of one aimed to a side: centring puts half the string on
+    // the far side, so clearing the symbol means pushing the whole label out by
+    // half its width. "R52+R119" landed 2'-5" out where its neighbours sat at
+    // 1'-6", which is what made the sideways units look unlike the rest.
+    // Anchor the INNER EDGE and let the label run outward instead.
     const rad = (drawn * Math.PI) / 180;
-    const w = inst.color.length * size * 0.55;
-    const pad = Math.abs(Math.sin(rad)) * w / 2 + Math.abs(Math.cos(rad)) * size / 2;
-    const f = behind(-(clear + pad));
+    const across = Math.abs(Math.sin(rad)) > Math.abs(Math.cos(rad));
+    const f = behind(-(clear + (across ? 0 : size / 2)));
     const t = el("text", {
       transform: counterFlip(f.x, f.y),
       "font-size": size, "font-family": "system-ui, sans-serif", fill: "#555",
-      "text-anchor": "middle",
+      "text-anchor": across ? (Math.sin(rad) > 0 ? "start" : "end") : "middle",
     });
     t.textContent = inst.color;
     g.appendChild(t);

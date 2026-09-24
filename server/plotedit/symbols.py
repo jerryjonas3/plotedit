@@ -832,22 +832,31 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     # cap height, one pointing stage left needs half the STRING WIDTH, which for
     # a two-colour string is several times more.
     _tp = getattr(sheet, "pt_per_ft", None)
+    _h = (7 / _tp) if _tp else 0.30          # cap height in feet
 
-    def _pad(text, pt=7):
-        """Half the label's own footprint along the instrument axis, in feet."""
-        if not _tp:
-            return 0.0
-        w = sheet.c.stringWidth(text, "Helvetica", pt) / _tp
-        h = pt / _tp
-        return abs(_sa) * w / 2 + abs(_ca) * h / 2
+    # ⚠ A CENTRED label is right in front of a unit aimed up or downstage and
+    # wrong in front of one aimed to a side. Centring puts HALF the string on
+    # the far side, so clearing the symbol means pushing the whole label out by
+    # half its width — "R52+R119" ended up 2'-5" from a unit whose neighbours
+    # sat at 1'-6", which is what made the sideways units look unlike the rest.
+    # Anchor the INNER EDGE instead and let the label run outward. Same reason
+    # Sheet.text grew `align` for the boom height labels.
+    _across = abs(_sa) > abs(_ca)            # the axis runs across the page
+    _align = ("left" if _sa > 0 else "right") if _across else "center"
 
-    d = -above
+    d = -(above + (0.0 if _across else _h / 2))
+    fx, fy = _along(d)
+    # A second line stacks DOWN THE PAGE next to a sideways unit, and further
+    # OUT along the axis in front of a vertical one — stacking down the page
+    # there would walk it back through a unit aimed upstage.
+    step = 0
     for text in [t for t in (color, purpose) if t]:
-        pad = _pad(text)
-        d -= pad
-        fx, fy = _along(d)
-        sheet.text(fx, fy, text, size=7, center=True)
-        d -= pad + (7 / _tp * 0.45 if _tp else 0.32)
+        if _across:
+            sheet.text(fx, fy - step * _h * 1.25, text, size=7, align=_align)
+        else:
+            gx, gy = _along(d - step * _h * 1.25)
+            sheet.text(gx, gy, text, size=7, center=True)
+        step += 1
 
     # ⭐ §6.14.2 puts the INSTRUMENT NUMBER INSIDE THE BODY, with the wattage
     # just below it in the barrel — not in the stack underneath. Jerry asked for
@@ -885,7 +894,9 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     # ⚠ Every container steps FURTHER BEHIND along the axis. Stepping down the
     # page put the second and third containers back through the instrument on
     # anything aimed downstage, where behind is +y.
-    d = above + size * 0.5
+    # + 0.62 size, not 0.5: the hexagon's own corner reaches 0.58 size, so a
+    # container centred at the clearance still laps over the symbol.
+    d = above + size * 0.62
 
     # In a dimmer-per-circuit house the circuit and the dimmer are one number,
     # so a dimmer that merely repeats the circuit is not drawn twice.
