@@ -1,11 +1,25 @@
 # plotedit
 
 A light plot editor that draws to **USITT RP-2 (2006)** — the symbols, the
-notation, the line weights and the section checklist — and computes what the
-rig actually does: throws, beam angles, the shape of each pool on the floor, and
+notation, the line weights and the section checklist — and computes what the rig
+actually does: throws, beam angles, the shape of each pool on the floor, and
 footcandles through gel.
 
 It runs entirely on your own machine. Nothing is uploaded anywhere.
+
+**Not a CAD program.** The ground plan comes in as DXF; this never draws
+architecture. See [docs/SPEC.md](docs/SPEC.md) for scope and architecture.
+
+## Why it exists
+
+Vectorworks is subscription-only and Lightwright has followed. A designer lighting
+ten units on a pipe in a 75-seat room pays a professional-tier subscription to do it.
+The tools exist for large productions; nobody serves the small room.
+
+It also fixes a real problem: a `.vwx` file needs a live subscription to open. Two
+shows in this designer's own archive are locked inside drawings nothing on the
+machine can read. **A plot here is plain JSON** — readable in a text editor, diffable,
+and still openable in twenty years.
 
 ---
 
@@ -97,6 +111,16 @@ zero — a grid height of 0 would be a claim that the ceiling is on the floor.
 
 ---
 
+## Layout
+
+```
+server/plotedit/   the Python that does the work, plus a FastAPI wrapper
+web/src/           the TypeScript front end
+symbols/           instrument symbols, drawn to USITT RP-2
+samples/           a test ground plan and a test plot
+docs/SPEC.md       scope, architecture, the instrument record, v1 vs later
+```
+
 ## Developing it
 
 ```bash
@@ -115,3 +139,28 @@ cd web && npx tsc --noEmit && npm run test:all
 `verify_suites.py` is worth knowing about: it breaks each test suite on purpose
 and requires it to fail *and* name what broke. A suite that passes when the code
 is wrong is worse than no suite, and this repo has had two.
+
+---
+
+## Data sources
+
+Photometrics come from ETC's own datasheets; gel transmissions from Rosco's product
+pages and the myColor swatch app. **Every fixture row names its source.** Where two
+sources disagree — the ETC Europe spread table of 2000 and the modern US datasheets
+differ on the 26° and 36° — both are kept and the preferred one is marked.
+
+## Names
+
+Paperwork calls a fixture `ETC Source4 36deg`; the photometric table calls it
+`S4 36`. **None of the 38 distinct instrument names in the source archive matched
+a table key** — plots imported from Lightwright drew correctly and were silently
+unlit, every throw computed and every pool and level blank.
+
+`server/plotedit/fixture_names.py` resolves them: normalise, then explicit
+aliases, then a list of real fixtures with no photometrics on file and the reason
+why. **81% of the archive resolves**; the remainder say what is missing rather
+than returning nothing.
+
+```bash
+cd server && python3 test_names.py
+```
