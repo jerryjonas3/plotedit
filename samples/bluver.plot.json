@@ -203,9 +203,10 @@
       "trim": 14,
       "focusX": 16.5,
       "focusY": 14,
-      "lamp": "HPL 575",
+      "lamp": "HPL 750",
       "position": "GRID D",
-      "purpose": "BAX"
+      "purpose": "BAX",
+      "notes": "750W \u2014 drawn with the blackened rear per RP-2 \u00a76.15's mark"
     },
     {
       "unit": 3,
@@ -329,7 +330,8 @@
     "Circuits depend on the house and have NO SET ORDER (Jerry, 2026.09.23). The tool records what the house says and checks the plot against it; it never invents a circuit number. GRID C carries locations so units can be matched to the nearest circuit; GRID D is a bare list, and matching there refuses.",
     "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number \u2014 RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer.",
     "Booms are VERTICAL: in plan they are a point, so every unit shares one x and y and is told apart only by its height. RP-2 6.12 hatches them in plan and puts the readable layout beside the plot, NOT to scale. boomLayout is 'option1' for the whole plot \u2014 the standard allows only one per drawing.",
-    "room.sightPoint is where the vertical sightline is struck from \u2014 the eye of the worst seat. RP-2 \u00a73 asks for it on a section; without one the section cannot say what the back row can see."
+    "room.sightPoint is where the vertical sightline is struck from \u2014 the eye of the worst seat. RP-2 \u00a73 asks for it on a section; without one the section cannot say what the back row can see.",
+    "One unit carries an HPL 750. RP-2 \u00a76.15 blackens the rear of a symbol for ARC sources; Jerry uses the same mark for a 750W Source Four, which is the only place he has seen a wattage called out on a plot. The instrument key says which meaning is in force."
   ],
   "boomLayout": "option1"
 }

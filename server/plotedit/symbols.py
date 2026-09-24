@@ -456,7 +456,7 @@ def _extent(prims):
     """(min_a, max_a) of a symbol, so a front accessory can be put at its nose."""
     vals = []
     for p in prims:
-        if p[0] == "poly":
+        if p[0] in ("poly", "fill"):
             vals += [q[0] for q in p[1]]
         elif p[0] == "line":
             vals += [p[1][0], p[2][0]]
@@ -545,8 +545,21 @@ def radius(prims):
     """
     best = 0.0
     for p in prims:
-        pts = p[1] if p[0] == "poly" else ([p[1], p[2]] if p[0] == "line" else [p[1]])
-        pad = p[2] if p[0] == "circle" else 0.0
+        # ⚠ Match the kind explicitly. The old version treated anything that was
+        # not a poly or a line as a single point, so adding the "fill" primitive
+        # made it try to unpack a whole point LIST as one (a, c) pair. A
+        # fall-through default is a bug waiting for the next primitive.
+        kind = p[0]
+        if kind in ("poly", "fill"):
+            pts, pad = p[1], 0.0
+        elif kind == "line":
+            pts, pad = [p[1], p[2]], 0.0
+        elif kind == "circle":
+            pts, pad = [p[1]], p[2]
+        elif kind == "text":
+            pts, pad = [p[1]], 0.0
+        else:
+            continue
         for a, c in pts:
             best = max(best, math.hypot(a, c) + pad)
     return best
@@ -584,6 +597,51 @@ def hatch(prims, spacing=0.09, angle_deg=45.0):
     return out
 
 
+# ---------------------------------------------------- shading the rear
+
+def _clip_behind(pts, cut):
+    """The part of a closed polygon with along-axis >= cut (Sutherland-Hodgman)."""
+    out = []
+    n = len(pts)
+    for i in range(n):
+        a0, c0 = pts[i]
+        a1, c1 = pts[(i + 1) % n]
+        in0, in1 = a0 >= cut, a1 >= cut
+        if in0:
+            out.append((a0, c0))
+        if in0 != in1 and a1 != a0:
+            t = (cut - a0) / (a1 - a0)
+            out.append((cut, c0 + t * (c1 - c0)))
+    return out
+
+
+def shade_rear(prims, frac=0.30):
+    """A SOLID BLACK rear on the body — §6.15's arc-source mark.
+
+    ⭐ RP-2 blackens the back of the symbol for arc sources (HMI and the like),
+    and §6.0 sanctions the technique generally: "Further differentiation or
+    notation may be necessary to distinguish between luminaires of approximately
+    the same size. This may include SHADING THE SYMBOL..."
+
+    Jerry, 2026.09.23, uses the same mark for a 750W Source Four: "I've never
+    seen [wattage] on plots except for 750w S4 where the back is blackened —
+    like they have for HMI lamps in the spec."
+
+    ⚠ So one mark carries two meanings depending on the plot, which is exactly
+    why the INSTRUMENT KEY has to say which. A shaded symbol nobody explained is
+    a symbol read as the other thing.
+    """
+    bodies = [p for p in prims if p[0] == "poly" and p[2]]
+    if not bodies:
+        return []
+    pts = max(bodies, key=lambda p: len(p[1]))[1]
+    lo = min(a for a, _ in pts)
+    hi = max(a for a, _ in pts)
+    cut = hi - (hi - lo) * frac
+    back = _clip_behind(list(pts), cut)
+    return [("fill", back)] if len(back) >= 3 else []
+
+
 # ------------------------------------------------------------------ drawing
 
 def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):
@@ -616,6 +674,10 @@ def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):
 
     for p in prims:
         kind = p[0]
+        if kind == "fill":
+            if hasattr(sheet, "fill_poly"):
+                sheet.fill_poly([T(*q) for q in p[1]], color=_black())
+            continue
         if kind == "poly":
             pts = [T(*q) for q in p[1]]
             closed = p[2]
@@ -772,9 +834,12 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
     if unit is not None:
         ux, uy = _along(body_center)
         sheet.text(ux, uy - size * 0.2, str(unit), size=7, center=True, bold=True)
-    if wattage:
-        wx, wy = _along(body_center + size * 0.9)
-        sheet.text(wx, wy - size * 0.16, str(wattage), size=5, center=True)
+    # ⚠ No wattage on the symbol. Jerry, 2026.09.23: "I've never seen it on
+    # plots except for 750w S4 where the back is blackened." §6.14.2 does show a
+    # wattage inside the body, but a recommended practice records what MAY be
+    # drawn; the working convention is the shaded rear, and that is drawn
+    # instead. `wattage` is kept in the signature so callers do not break, and
+    # ignored on purpose.
 
     # below the symbol: circuit (hex), dimmer (rect), channel (circle)
     by = y - above

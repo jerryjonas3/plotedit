@@ -107,6 +107,13 @@ def accessories_used(plot: Dict[str, Any]) -> List[str]:
     return out
 
 
+def shaded_used(plot: Dict[str, Any]) -> bool:
+    """Does any instrument on this plot carry the shaded-rear mark?"""
+    from .scaled_pdf import _shade_rear_for
+    return any(_shade_rear_for(i.get("type"), i.get("lamp"))
+               for i in plot.get("instruments", []))
+
+
 def draw(sheet, plot, x, y, width=11.0, line=0.85, title="INSTRUMENT KEY"):
     """Draw the key at (x, y) — its TOP-left corner — in plot feet.
 
@@ -162,10 +169,16 @@ def draw(sheet, plot, x, y, width=11.0, line=0.85, title="INSTRUMENT KEY"):
     cy -= line
     rows = [("hexagon", "circuit & dimmer" if control == "dimmer-per-circuit" else "circuit"),
             ("circle", "channel"),
-            ("number in the body", "unit number"),
-            ("small number below it", "wattage")]
+            ("number in the body", "unit number")]
     if control == "hard-and-soft-patch":
         rows.insert(1, ("rectangle", "dimmer"))
+    # ⭐ §6.15's shaded rear means "arc source"; Jerry uses it for a 750W lamp.
+    # ONE MARK, TWO MEANINGS — so the key must say which, and only when the plot
+    # actually uses it. A shaded symbol nobody explained is read as the other
+    # thing.
+    if shaded_used(plot):
+        rows.append(("blackened back of the body", "750W lamp (§6.15's arc-source "
+                                                   "mark, used here for the lamp)"))
     for shape, means in rows:
         sheet.text(x + 0.4, cy, f"{shape} = {means}", size=5.5)
         cy -= line * 0.72

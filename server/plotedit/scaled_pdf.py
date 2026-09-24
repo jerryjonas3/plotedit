@@ -373,6 +373,9 @@ class Sheet:
         self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
                   bold=True, center=False if out > 0 else True)
 
+    def _unused_marker(self):
+        pass
+
     def boom_elevation(self, pos, units, x, y, height=None, unit_gap=1.5,
                        layout="option1", max_gap=2.5):
         """§6.12 Option 1 — the boom as an elevation beside the plot.
@@ -492,6 +495,14 @@ class Sheet:
         _lo, _hi = _sym._extent(_base)
         _center = (_lo + _hi) / 2.0
         _prims = _base
+
+        # §6.15 / §6.0: a SHADED REAR. RP-2 blackens the back of the symbol for
+        # arc sources; Jerry uses the same mark for a 750W Source Four, which is
+        # the only place he has seen a wattage called out on a plot at all.
+        # Inserted FIRST so the body's own outline is stroked back over it.
+        if _shade_rear_for(kind, lamp):
+            _prims = _sym.shade_rear(_base) + list(_base)
+
         if accessories:
             _prims, _unknown = _sym.with_accessories(_prims, accessories)
             for w in _unknown:
@@ -649,6 +660,30 @@ class Sheet:
         c.drawString(cx + 76, cy, 'this bar is 1" when printed at 100%')
         c.save()
         if _dxf and self.dxf_path: _dxf.save(self.dxf_path)
+
+
+def _shade_rear_for(kind, lamp=None):
+    """Should this instrument's back be blackened? (§6.15, and Jerry's 750 mark.)
+
+    Two cases, one mark:
+      · an ARC source — RP-2 §6.15 blackens the rear of HMI and the like;
+      · a tungsten unit carrying MORE than the default lamp — Jerry, 2026.09.23:
+        "the only [wattage] I've seen on plots is 750w S4 where the back is
+        blackened, like they have for HMI lamps in the spec."
+
+    ⚠ It reads the lamp, not the fixture: the same Source Four is a 575 or a 750
+    depending on what is in it, so shading by fixture type would mark the whole
+    rig or none of it.
+    """
+    from . import photometrics as _ph
+    key, row, _ = _ph.lookup(kind)
+    if row and str(row.get("family", "")).lower() in ("arc", "hmi"):
+        return True
+    if not lamp:
+        return False
+    w = _ph.lamp_watts(lamp)
+    default = _ph.lamp_watts(_ph.DEFAULT_LAMP)
+    return bool(w and default and w > default)
 
 
 def compress_heights(heights, max_gap=2.5):

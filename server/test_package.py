@@ -573,12 +573,51 @@ check("0° and 180° are symmetric about the baseline nudge",
       round(_at0[1] - _mid, 3), round(-(_at180[1] - _mid), 3))
 check("...and neither strays sideways", (_at0[0], _at180[0]), (0.0, 0.0))
 
-# §6.14.2 puts the wattage below the number, still inside — further back.
+# ⚠ NO wattage on the symbol. §6.14.2 shows one, but a recommended practice
+# records what MAY be drawn. Jerry, 2026.09.23: "I've never seen it on plots
+# except for 750w S4 where the back is blackened — like they have for HMI lamps
+# in the spec." The working convention is the shaded rear, drawn instead.
 _w0 = _where("575", unit=7, wattage=575, rotate_deg=0.0, body_center=_C)
-check("the wattage is drawn too", _w0 is not None, True)
-check("...further back than the number", _w0[1] > _at0[1], True)
-check("...and the number still clears the pipe at the yoke",
-      abs(_at0[1]) > 0.05, True)
+check("the wattage is NOT drawn on the symbol", _w0, None)
+check("the number still clears the pipe at the yoke", abs(_at0[1]) > 0.05, True)
+
+print("\n§6.15's shaded rear — arc sources, and Jerry's 750W mark")
+from plotedit.scaled_pdf import _shade_rear_for as _SR
+
+# ⚠ It reads the LAMP, not the fixture: the same Source Four is a 575 or a 750
+# depending on what is in it, so shading by type would mark the whole rig or none.
+check("a 750 gets the mark", _SR("S4 26", "HPL 750"), True)
+check("a 575 does not", _SR("S4 26", "HPL 575"), False)
+check("an unstated lamp does not — it is a 575", _SR("S4 26", None), False)
+check("the long-life 575X does not either", _SR("S4 36", "HPL 575X"), False)
+check("an LED does not", _SR("Lustr 26 EDLT", None), False)
+
+_body = sym.for_type("S4 26")
+_sh = sym.shade_rear(_body)
+check("the shade is one filled polygon", (len(_sh), _sh[0][0]), (1, "fill"))
+_lo, _hi = sym._extent(_body)
+_pts = _sh[0][1]
+check("...covering the BACK of the body, not the lens",
+      min(a for a, _ in _pts) > (_lo + _hi) / 2, True)
+check("...and reaching the very back", round(max(a for a, _ in _pts), 2), round(_hi, 2))
+
+# radius() must cope with the new primitive. The old version treated anything
+# that was not a poly or a line as a single POINT, so "fill" made it try to
+# unpack a whole list as one (a, c) pair — a fall-through default is a bug
+# waiting for the next primitive.
+check("radius() handles a fill prim", sym.radius(_sh + list(_body)) > 0, True)
+
+# ⭐ ONE MARK, TWO MEANINGS — §6.15 says arc source, Jerry says 750W lamp. So the
+# key must say which, and only when the plot actually uses it.
+# Imported here rather than relying on where else in this file it happens to be
+# bound — a test that depends on the order of unrelated sections is a test that
+# breaks when someone reorders them.
+from plotedit import key as _key
+import json as _js
+_p = _js.load(open("../samples/bluver.plot.json"))
+check("the key explains the mark when it is used", _key.shaded_used(_p), True)
+check("...and does not when it is not",
+      _key.shaded_used({"instruments": [{"type": "S4 26", "lamp": "HPL 575"}]}), False)
 
 
 print("\nthe instrument is drawn as if it sits ABOVE the pipe")
