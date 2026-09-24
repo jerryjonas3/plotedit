@@ -293,7 +293,7 @@ class Sheet:
                 ys += [p.get("y1", 0) - half, p.get("y2", p.get("y1", 0)) - half]
         return abs(min(ys)) if ys and min(ys) < 0 else 0.0
 
-    def boom(self, pos, units=(), label=None):
+    def boom(self, pos, units=(), label=None, center_x=None):
         """A vertical position in PLAN: the mount, and the units hatched over it.
 
         ⭐ In plan a boom is a POINT. Every unit on it shares one x and y and
@@ -312,10 +312,19 @@ class Sheet:
             _sym.draw(self, prims, x, y, rotate_deg=pos.get("rotation", 0.0))
             _sym.draw(self, _sym.hatch(prims), x, y,
                       rotate_deg=pos.get("rotation", 0.0), width=0.35)
+        # Jerry, 2026.09.23: "the labels don't need to be on the overhead view of
+        # the boom, just on the other view." RP-2's own §6.12 plate agrees — the
+        # plan symbols carry no numbers; the layout beside the plot carries them
+        # all. So no unit count, no notation, just enough to say WHICH boom this
+        # point is, placed OUTBOARD so it never lands on the room or on a
+        # position label.
         text = (label if label is not None else pos.get("name", "")).upper()
-        if units:
-            text += f"  ({len(units)} units)"
-        self.text(x, y + ft(1, 2), text, size=7, bold=True, center=True)
+        if center_x is None:
+            out = -1
+        else:
+            out = 1 if x >= center_x else -1      # away from the middle of the room
+        self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
+                  bold=True, center=False if out > 0 else True)
 
     def boom_elevation(self, pos, units, x, y, height=None, unit_gap=1.5,
                        layout="option1"):
@@ -358,7 +367,7 @@ class Sheet:
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, circuit=None, dimmer=None,
-             control="dimmer-per-circuit",
+             control="dimmer-per-circuit", symbol_angle="orthogonal",
              show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
@@ -389,20 +398,39 @@ class Sheet:
         if focus_to and trim is not None:
             from . import photometrics as _ph
             pan = _ph.aim((x, y, trim), (focus_to[0], focus_to[1], focus_h))["pan"]
+        # ⭐ RP-2 p.2, in its own words: "It is acceptable to visually orient the
+        # angle of each drawn luminaire to either focus points or 90° axes."
+        # Jerry, 2026.09.23: "most plots display the instruments on even 90
+        # degree mounts... usually it's an option." So `orthogonal` is the
+        # default and the true angle is snapped to the nearest quarter turn.
+        #
+        # 🔴 THE SNAP IS COSMETIC AND MUST STAY THAT WAY. `pan` below is the real
+        # aim, and every throw, pool and footcandle is computed from it. A unit
+        # drawn at 0° while pointing at 320° is a drawing convention; a unit
+        # COMPUTED at 0° would be a lie about the light.
+        draw_deg = pan
+        if (symbol_angle or "orthogonal").startswith("orth"):
+            draw_deg = round(pan / 90.0) * 90.0
+
         _prims = _sym.for_type(kind, lens_rotation)
         if accessories:
             _prims, _unknown = _sym.with_accessories(_prims, accessories)
             for w in _unknown:
                 self.warnings.append(f"unit {num}: {w}")
-        _sym.draw(self, _prims, x, y, rotate_deg=pan)
+        _sym.draw(self, _prims, x, y, rotate_deg=draw_deg)
 
         # §6.14 notation. RP-2 allows leaving categories out rather than
         # cluttering the plot, so only what was supplied is drawn.
         # §6.14.1: hexagon = circuit, rectangle = dimmer, circle = channel. The
         # SHAPE carries the meaning, so a circuit must never be drawn in a circle.
+        # Clear the symbol by its own size rather than by a constant. A fixed
+        # 11" put the channel circle on top of every ellipsoidal, because an ERS
+        # reaches nearly a foot past its yoke — and further still once an
+        # accessory is hung on the nose.
+        _clear = _sym.radius(_prims) + ft(0, 3)
         _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
                       circuit=circuit, dimmer=dimmer, control=control,
-                      above=ft(0, 11))
+                      above=_clear)
         result = None
         if focus_to:
             fx, fy = focus_to

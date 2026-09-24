@@ -133,6 +133,16 @@ export interface Plot {
   control?: ControlModel;
   /** RP-2 §6.12: "choose only one type of layout per plot." */
   boomLayout?: "option1" | "option2";
+  /** How instruments are ANGLED on the drawing. RP-2 p.2: "It is acceptable to
+   *  visually orient the angle of each drawn luminaire to either focus points
+   *  or 90° axes." Most plots use 90° mounts, so that is the default: a unit
+   *  aiming at 320° is drawn at 0°.
+   *
+   *  🔴 Cosmetic ONLY. Every throw, pool and footcandle comes from the real
+   *  focus — a unit DRAWN at 0° is a convention, a unit COMPUTED at 0° is a lie
+   *  about where the light lands. test_agreement.py renders the same plot both
+   *  ways and requires identical numbers. */
+  symbolAngle?: "orthogonal" | "focus";
   /** Bump when the shape changes incompatibly. */
   formatVersion: 1;
   show: string;

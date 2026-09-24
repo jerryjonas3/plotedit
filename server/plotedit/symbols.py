@@ -534,6 +534,24 @@ def boom_mount(kind="boom-base", size=1.4):
     return [("circle", (0.0, 0.0), r), ("circle", (0.0, 0.0), r * 0.16)]
 
 
+def radius(prims):
+    """The farthest any part of a symbol reaches from its yoke, in feet.
+
+    Notation has to clear the SYMBOL, and symbols are not one size: an ERS is
+    1'-8" long, a PAR is squat, a striplight is six feet. A fixed offset put the
+    channel circle on top of the instrument for the long ones. And because the
+    symbol rotates with its focus, the clearance has to be radial — a distance,
+    not a direction.
+    """
+    best = 0.0
+    for p in prims:
+        pts = p[1] if p[0] == "poly" else ([p[1], p[2]] if p[0] == "line" else [p[1]])
+        pad = p[2] if p[0] == "circle" else 0.0
+        for a, c in pts:
+            best = max(best, math.hypot(a, c) + pad)
+    return best
+
+
 def hatch(prims, spacing=0.09, angle_deg=45.0):
     """Diagonal fill lines across a symbol's bounding box.
 

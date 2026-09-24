@@ -399,6 +399,31 @@ would not deliver.
 paperwork before any of this existed, puts a 575 S4 26° at 14 feet through
 R52+R119 at **163 fc**. The tool now returns 163.
 
+### ✅ 90-degree mounts, and label clearance — 2026.09.23
+
+**Jerry: *"most plots display the instruments on even 90 degree mounts. Even
+though the lamp may be actually pointing 320 degrees, it would be displayed on
+the plot as 0 degrees. Usually it's an option."*** He was unsure whether the
+standard covers it. **It does, in so many words** — RP-2 p.2: *"It is acceptable
+to visually orient the angle of each drawn luminaire to either focus points or
+90° axes."*
+
+`symbolAngle` — **`orthogonal` by default**, `focus` for the true angle.
+
+**🔴 The snap is COSMETIC and the tests hold it that way.** A unit *drawn* at 0°
+while aiming at 320° is a drawing convention; a unit *computed* at 0° would be a
+lie about where the light lands. `test_agreement.py` renders the same plot in
+both modes and requires every throw, pan and footcandle to be identical —
+verified to fail when a difference is introduced on purpose.
+
+**Labels.** The notation now clears each symbol **by the symbol's own radius**
+rather than by a fixed 11 inches, which had been putting the channel circle on
+top of every ellipsoidal — an ERS reaches past a foot from its yoke, and further
+with a barn door on the nose. And boom labels come off the plan view, which is
+both what Jerry asked for and what RP-2's own §6.12 plate does: the plan symbols
+carry no numbers, the layout beside the plot carries them all. What stays in plan
+is a short name, placed outboard, so a reader can tell which boom the point is.
+
 ### Still to do
 
 - Auto-numbering along a position, once the direction is known.
@@ -436,5 +461,30 @@ negative y with the catwalks.
 stage-left edge, and the sample no longer fits Tabloid at ¼" — the export
 **refuses** rather than clipping, and names ⅛" as what would fit. Arch D at ¼"
 holds it, which is the sheet Jerry draws on anyway.
+
+### ✅ 90-degree mounts, and label clearance — 2026.09.23
+
+**Jerry: *"most plots display the instruments on even 90 degree mounts. Even
+though the lamp may be actually pointing 320 degrees, it would be displayed on
+the plot as 0 degrees. Usually it's an option."*** He was unsure whether the
+standard covers it. **It does, in so many words** — RP-2 p.2: *"It is acceptable
+to visually orient the angle of each drawn luminaire to either focus points or
+90° axes."*
+
+`symbolAngle` — **`orthogonal` by default**, `focus` for the true angle.
+
+**🔴 The snap is COSMETIC and the tests hold it that way.** A unit *drawn* at 0°
+while aiming at 320° is a drawing convention; a unit *computed* at 0° would be a
+lie about where the light lands. `test_agreement.py` renders the same plot in
+both modes and requires every throw, pan and footcandle to be identical —
+verified to fail when a difference is introduced on purpose.
+
+**Labels.** The notation now clears each symbol **by the symbol's own radius**
+rather than by a fixed 11 inches, which had been putting the channel circle on
+top of every ellipsoidal — an ERS reaches past a foot from its yoke, and further
+with a barn door on the nose. And boom labels come off the plan view, which is
+both what Jerry asked for and what RP-2's own §6.12 plate does: the plan symbols
+carry no numbers, the layout beside the plot carries them all. What stays in plan
+is a short name, placed outboard, so a reader can tell which boom the point is.
 
 ### Still to do

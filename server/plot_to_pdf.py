@@ -57,7 +57,7 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
         if P.is_vertical(p):
             on = [i for i in plot["instruments"]
                   if (i.get("position") or "").strip().lower() == (p.get("name") or "").strip().lower()]
-            s.boom(p, units=on)
+            s.boom(p, units=on, center_x=room['width'] / 2)
             continue
         label = p["name"] + (f" — trim {ph.fmt_ft(p['trim'])}" if p.get("trim") else "")
         s.position(p, label=label)
@@ -85,7 +85,8 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    lens_rotation=inst.get("lensRotation"),
                    accessories=inst.get("accessories"),
                    circuit=inst.get("circuit"), dimmer=inst.get("dimmer"),
-                   control=plot.get("control", "dimmer-per-circuit"))
+                   control=plot.get("control", "dimmer-per-circuit"),
+                   symbol_angle=plot.get("symbolAngle", "orthogonal"))
         rows.append(r)
 
     if room.get("source"):
