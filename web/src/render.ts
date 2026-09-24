@@ -271,7 +271,26 @@ export function render(
     const isSel = opts.selected === i;
     const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)], plot.symbolAngle);
     g.setAttribute("data-index", String(i));
-    if (isSel) g.classList.add("selected");
+    if (isSel) {
+      g.classList.add("selected");
+      // ⭐ A HALO, drawn first so it sits behind the symbol.
+      //
+      // 🔴 The old highlight was an accident. `svg .instrument.selected rect`
+      // matched nothing — RP-2 symbols are POLYGONS, drawn as <path> — and the
+      // circle rule was landing on the invisible hit disc, filling a foot-wide
+      // blob over the unit. Removing the blob (2026.09.24) removed the only
+      // visible sign of selection with it, which is what Jerry saw as "the
+      // highlight is broken": a tiny green yoke dot and nothing else.
+      //
+      // A ring sized to the symbol reads at any zoom and, unlike tinting the
+      // outline, does not compete with the line weights — §6.18 gives those
+      // meaning, and a selection is about the EDITOR, not about the drawing.
+      g.insertBefore(el("circle", {
+        cx: inst.x, cy: inst.y,
+        r: symbolRadius(opts.symbols?.[symbolKey(inst)]) + 0.28,
+        class: "halo",
+      }), g.firstChild);
+    }
     // A generous invisible disc so a 9-inch symbol is still easy to grab.
     g.appendChild(el("circle", {
       cx: inst.x, cy: inst.y, r: 1.1, fill: "transparent",
@@ -520,6 +539,12 @@ function elevation(b: BoomElevation, all: Instrument[],
       class: "instrument" + (idx >= 0 && idx === selected ? " selected" : ""),
       transform: `translate(${x + b.unit_gap} ${uy}) rotate(-90)`,
     });
+    // The same halo in the elevation — it is the only place a boom unit can be
+    // selected, so it is the only place the selection can show.
+    if (idx >= 0 && idx === selected) {
+      st.appendChild(el("circle", { cx: 0, cy: 0,
+        r: symbolRadius(u.prims) + 0.28, class: "halo" }));
+    }
     paintPrims(st, u.prims);
     g.appendChild(st);
     if (idx >= 0) {
