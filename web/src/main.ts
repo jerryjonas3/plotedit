@@ -296,17 +296,10 @@ async function boot() {
 
     $("show").textContent = store.plot.show;
     $("venue").textContent = [store.plot.venue, store.plot.revision].filter(Boolean).join(" · ");
-    // ⚠ The room's provenance and the plot notes are NOT printed in the panel
-    // any more. Jerry, 2026.09.24: "lose the huge notes on the schedule section
-    // — it's not needed." On the Bluver plot that was four lines of "NOT
-    // MEASURED, see the venue research file" under every screenful of schedule.
-    //
-    // It is not dropped, only moved off the screen: the PDF still carries it as
-    // the note across the top of the drawing, which is where it matters, and it
-    // stays here as the venue line's tooltip. A caveat about where the room
-    // dimensions came from should not be deleted just because it is long.
-    $("venue").title =
-      [store.plot.room.source, ...(store.plot.notes ?? [])].filter(Boolean).join("  ");
+    // ⚠ The room's provenance and the plot notes are not shown in the app at
+    // all — not as a block, not as a tooltip. Jerry, 2026.09.24: "lose it."
+    // The PDF still prints the room's source across the top of the drawing,
+    // which is the copy that leaves the building.
 
     store.subscribe(paint);
     attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
