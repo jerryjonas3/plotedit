@@ -210,8 +210,19 @@ FIXTURES = {
                           "(46x73 goniometric); datasheet confirms 4,856 lm / 100 W. "
                           "ASYMMETRIC — angles are the vertical plane through the peak at 70°."),
 
-    "SHEHDS 19": dict(field=19.0, beam=None, cd=None, ref_lamp="LED 350W", family="LED",
-                   source="SHEHDS 350W RGBW Profile manual: 'Beam Angle 19°'. No output data published — measure it."),
+    # Jerry's own two units. ⚠ Their CANDELA is unpublished and is staying that
+    # way — Jerry, 2026.09.23: "forget the SHEHDS units, that was a one off."
+    # Not an open task, not something to measure, not to be raised again. They go
+    # on specials and isolated areas where a computed level was never the point.
+    #
+    # The WATTAGE is known and is worth having: 350W each, from the model name
+    # and from his own venue notes for Without Consent, which planned a separate
+    # circuit around it. That makes them count properly in a load table.
+    "SHEHDS 19": dict(field=19.0, beam=None, cd=None, ref_lamp="LED 350W", family="SHEHDS",
+                   watts=350.0,
+                   source="SHEHDS 350W RGBW Profile manual: 'Beam Angle 19°'. 350W from the "
+                          "model and from Jerry's Without Consent rig notes. No output data "
+                          "published and none being sought — a one-off, per Jerry 2026.09.23."),
 }
 
 # Candela multiplying factors from the ETC lamp tables (per barrel, 300-hr lamps).
@@ -248,6 +259,9 @@ FAMILY_WATTS = {
                                    "'133 W / 1.4 W at 120 V'"},
 }
 FAMILY_WATTS["ColorSource Zoom"] = FAMILY_WATTS["ColorSource"]
+# Jerry's own units. 350W each, from the model name and his own rig notes.
+FAMILY_WATTS["SHEHDS"] = {"_typical": 350.0,
+                          "_source": "SHEHDS 350W RGBW Profile — the model name, corroborated by Jerry's Without Consent rig notes"}
 
 # Jerry, 2026.09.23: "ETC S4 incandescents are 575 watts unless noted — there
 # are 750." So a Source Four with no lamp recorded is an HPL 575.
@@ -278,6 +292,14 @@ def watts_for(kind, lamp=None, mode=None):
             return None, f"{use!r} is not a lamp name, so no wattage"
         return w, (f"at {use}" if lamp else f"at {use} (assumed — S4s are 575 unless noted)")
 
+    # A row's OWN wattage wins over the family's. The Spectra Cyc 100 carries
+    # 94.1W straight off its IES file — a real measurement, better than any
+    # family default — and looking only at FAMILY_WATTS made it invisible, so a
+    # cyc counted as zero in a load table while the number sat in the row.
+    own = row.get("watts")
+    if own:
+        return float(own), f"{key}: {row.get('source', '')[:120]}"
+
     table = FAMILY_WATTS.get(fam)
     if not table:
         return None, (f"no published wattage for the {fam or kind!r} family — "
@@ -286,7 +308,10 @@ def watts_for(kind, lamp=None, mode=None):
         return table[mode], f"{fam} at {mode} — {table['_source']}"
     w = table["_typical"]
     extra = "" if mode is None else f" ({mode!r} not published separately)"
-    return w, (f"{fam}, ETC's typical figure{extra}. ⚠ TYPICAL IS NOT PEAK — "
+    # Say whose figure it is. Most of this table is ETC's; the SHEHDS entry is
+    # not, and a note that says "ETC's" about a fixture ETC never made is the
+    # same class of error as a candela with the wrong lamp on it.
+    return w, (f"{fam}, the published typical draw{extra}. ⚠ TYPICAL IS NOT PEAK — "
                f"for a capacity check use the highest mode. {table['_source']}")
 
 
@@ -562,5 +587,5 @@ def report(kind, unit, target, lamp=None, mode=None, gel=None):
 if __name__ == "__main__":
     print(report("S4 26", (6, 20, 14), (10, 10, 5.5), lamp="HPL 575"))
     print(report("S4 36", (16.5, 20, 14), (16.5, 10, 5.5), lamp="HPL 575"))
-    print(report("SHEHDS 19", (27, 20, 14), (22, 10, 5.5)))
+    print(report("Lustr 26 EDLT", (27, 20, 14), (22, 10, 5.5), mode="Regulated 3200K"))
     print("8' pool at 17' throw:", [(k, round(d, 1)) for k, d, e in lens_for(8, 17)[:3]])

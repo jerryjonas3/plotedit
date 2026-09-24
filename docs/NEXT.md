@@ -538,3 +538,21 @@ syntax error as *unverified*, never as a pass.
 **A test you have never watched fail is not yet a test.**
 
 ### Still to do
+
+---
+
+## Closed, not forgotten: the SHEHDS units
+
+**Jerry, 2026.09.23: *"forget the SHEHDS units, that was a one off."*** Their
+**candela is unpublished and is not being sought** — no meter, no email, no
+standing task. They go on specials and isolated areas where a computed level was
+never the point.
+
+**What was worth keeping before closing it: they are 350W each**, from the model
+name and corroborated by his own *Without Consent* rig notes, which planned a
+separate circuit around them. So they now count properly in a load table — the
+one place their absence would have silently understated a total.
+
+**➡ "Forget it" is worth reading twice.** The output was the part to drop. The
+wattage was sitting in a business file the whole time and was the part that
+mattered for safety.

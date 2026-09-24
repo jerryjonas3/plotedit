@@ -216,7 +216,7 @@ def load(instruments: List[Dict[str, Any]], positions: List[Dict[str, Any]],
             w, note = ph.watts_for(i.get("type"), i.get("lamp"), i.get("mode"))
             if note and "TYPICAL IS NOT PEAK" in note and "typical" not in seen_notes:
                 seen_notes.add("typical")
-                notes.append("LED figures are ETC's TYPICAL draw, not peak — for a "
+                notes.append("LED figures are the published TYPICAL draw, not peak — for a "
                              "capacity check, compute the highest mode the rig can be run in")
         if w in (None, ""):
             missing.append(i.get("unit"))

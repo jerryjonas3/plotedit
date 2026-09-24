@@ -302,10 +302,13 @@ check("a fifth unit puts it over", any("is OVER" in m for m in _notes), True)
 # confirmed reads as a pass, which is worse than no check at all.
 check("no rating means no verdict",
       any("nothing is judged" in m for m in C.load(_load, _pp)[1]), True)
+# The Spectra Cyc 50 is the example now: Altman publish no wattage for it at all.
+# (It was the SHEHDS until 2026.09.23, when its 350W turned out to be recorded in
+# Jerry's own rig notes — see below.)
 check("units with no wattage are named, and the total called a floor",
       any("a floor, not a total" in m
           for m in C.load([{"unit": 9, "position": "E1", "circuit": 3,
-                            "type": "SHEHDS 19"}], _pp)[1]), True)
+                            "type": "Altman Spectra Cyc 50"}], _pp)[1]), True)
 
 
 print("\nan S4 with no lamp recorded is an HPL 575, not the reference 750")
@@ -344,9 +347,28 @@ check("every wattage names its source",
       "datasheet" in ph.watts_for("Lustr 26 EDLT")[1].lower()
       or "Guide" in ph.watts_for("Lustr 26 EDLT")[1], True)
 # A fixture with no published figure is reported, not estimated.
-_w, _n = ph.watts_for("SHEHDS 19")
+_w, _n = ph.watts_for("Altman Spectra Cyc 50")
 check("an unpublished wattage stays None", _w, None)
 check("...and says to get the datasheet", "datasheet" in _n, True)
+
+# ⭐ A row's OWN wattage beats the family default. The Spectra Cyc 100 carries
+# 94.1W straight off its IES file — a real measurement — and watts_for() used to
+# look only at FAMILY_WATTS, so a cyc counted as ZERO in a load table while the
+# number sat in the row two feet away.
+check("a row's own wattage is used", ph.watts_for("Altman Spectra Cyc 100 RGBA")[0], 94.1)
+check("...and cites the IES it came from",
+      "IES" in ph.watts_for("Altman Spectra Cyc 100 RGBA")[1], True)
+
+# Jerry's own units: "forget the SHEHDS units, that was a one off" (2026.09.23).
+# The OUTPUT is closed — unpublished, not being sought, not a task. The WATTAGE
+# was in his own rig notes all along and is the part that mattered, because a
+# 350W unit counting as zero understates a load in the direction that trips.
+check("a SHEHDS is 350W, from the model and Jerry's own notes",
+      ph.watts_for("SHEHDS 19")[0], 350.0)
+check("...and its candela is still, deliberately, unknown",
+      ph.FIXTURES["SHEHDS 19"]["cd"], None)
+check("...with the source saying it is not being chased",
+      "one-off" in ph.FIXTURES["SHEHDS 19"]["source"], True)
 
 
 print("\nbooms: a pipe that stands up is a POINT in plan")

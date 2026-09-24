@@ -242,7 +242,8 @@ room.
    along the axis.
 2. **The SHEHDS 19° draws as an ellipsoidal, not as an LED.** It is an LED
    profile, and RP-2 (2006) has no symbol that is both. The lens matters more to
-   an electrician than the source does. **Revisit if it ever confuses anyone.**
+   an electrician than the source does. **Settled — not revisiting.** Jerry,
+   2026.09.23: *"forget the SHEHDS units, that was a one off."*
 
 ## §6.18 line weights ✅
 
