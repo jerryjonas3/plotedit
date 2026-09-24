@@ -34,6 +34,13 @@
     aside { border-left:1px solid var(--line); overflow:auto; background:#fff;
             display:grid; grid-template-rows:auto 1fr; }
     .panel { padding:10px 12px; border-bottom:1px solid var(--line); }
+    .pos-row { border:1px solid var(--line); border-radius:4px; padding:6px 8px;
+               margin-bottom:8px; display:grid;
+               grid-template-columns:repeat(auto-fit,minmax(88px,1fr)); gap:4px 8px; }
+    .pos-field { display:flex; flex-direction:column; font-size:11px; }
+    .pos-field span { color:#666; }
+    .pos-field input, .pos-field select { font-size:11px; padding:2px 3px; }
+    .pos-note { grid-column:1/-1; margin:2px 0 0; font-size:10px; line-height:1.35; }
     .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em;
                 color:var(--quiet); margin:0 0 8px; }
     .fields { display:grid; grid-template-columns:auto 1fr; gap:5px 8px; align-items:center; }
@@ -95,6 +102,7 @@
     <div id="canvas"><svg id="plot"></svg></div>
     <aside>
       <div class="panel"><h2>Instrument</h2><div id="inspector"></div></div>
+      <div class="panel"><h2>Positions</h2><div id="positions"></div></div>
       <div class="panel" style="overflow:auto">
         <h2>Schedule</h2>
         <table id="schedule"><thead><tr>

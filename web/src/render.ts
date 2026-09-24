@@ -10,7 +10,7 @@
  * room — which matters when something looks wrong on screen.
  */
 import { svgTransform, counterFlip, fmtFt, type View } from "./geometry.js";
-import { symbolKey, type Plot, type Instrument } from "./plot.js";
+import { symbolKey, isVertical, isFoh, type Plot, type Instrument } from "./plot.js";
 import type { SymbolPrim } from "./api.js";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -102,18 +102,64 @@ export function render(
       stroke: "#e8e8e8", "stroke-width": W.dim }));
 
   // ---- positions
-  for (const p of plot.positions) {
+  //
+  // ⭐ The TYPE decides the drawing, and the difference is physical — not a
+  // style. An electric is a pipe. A catwalk is a WALKWAY you stand on, with the
+  // units hanging off a rail rather than down its middle, so a unit drawn on its
+  // centre is drawn three feet from where it is. A boom is a POINT in plan.
+  // Mirrors Sheet.position() and Sheet.boom() in the Python.
+  const bar = (x1: number, y1: number, x2: number, y2: number, w: number) =>
     gPos.appendChild(el("line", {
-      x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2,
-      stroke: "#222", "stroke-width": W.position, "stroke-linecap": "round",
+      x1, y1, x2, y2, stroke: "#222", "stroke-width": w, "stroke-linecap": "round",
     }));
+
+  for (const p of plot.positions) {
+    const kind = (p.type ?? "electric").trim().toLowerCase();
+
+    if (isVertical(p)) {
+      // A boom in plan: its mount, and one hatched symbol standing for the
+      // stack. Drawing four units on top of each other is just a heavier blob.
+      const half = (p.width ?? 1.4) / 2;
+      if ((p.mount ?? "boom-base") === "floor-plate") {
+        gPos.appendChild(el("rect", {
+          x: p.x1 - half, y: p.y1 - half, width: half * 2, height: half * 2,
+          fill: "none", stroke: "#222", "stroke-width": W.position * 0.7,
+        }));
+      } else if (p.mount === "flange") {
+        gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.36,
+          fill: "none", stroke: "#222", "stroke-width": W.position * 0.7 }));
+      } else {
+        gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half,
+          fill: "none", stroke: "#222", "stroke-width": W.position * 0.7 }));
+        gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.16,
+          fill: "none", stroke: "#222", "stroke-width": W.position * 0.5 }));
+      }
+    } else if (kind === "catwalk" || kind === "truss") {
+      const half = (p.width ?? (kind === "catwalk" ? 3.0 : 1.5)) / 2;
+      for (const side of [1, -1])
+        bar(p.x1, p.y1 + side * half, p.x2, p.y2 + side * half,
+            kind === "catwalk" ? W.room : W.position);
+      if (kind === "catwalk") {
+        // the pipe, INBOARD of the downstage rail — on the rail the two lines
+        // coincide and the pipe disappears
+        const off = p.railOffset ?? half * 0.55;
+        bar(p.x1, p.y1 - off, p.x2, p.y2 - off, W.position);
+      }
+    } else {
+      bar(p.x1, p.y1, p.x2, p.y2, W.position);
+    }
+
     if (opts.showLabels) {
+      const half = isVertical(p) ? (p.width ?? 1.4) / 2
+                 : (kind === "catwalk" || kind === "truss")
+                   ? (p.width ?? (kind === "catwalk" ? 3.0 : 1.5)) / 2 : 0;
       const t = el("text", {
-        transform: counterFlip(p.x1, p.y1 + 0.8),
+        transform: counterFlip(p.x1, Math.max(p.y1, p.y2 ?? p.y1) + half + 0.8),
         "font-size": TEXT * 0.8, "font-family": "system-ui, sans-serif",
         "font-weight": "600", fill: "#222",
       });
-      t.textContent = p.trim ? `${p.name} — trim ${fmtFt(p.trim)}` : p.name;
+      const foh = isFoh(p) && !p.name.toUpperCase().includes("FOH") ? "  (FOH)" : "";
+      t.textContent = (p.trim ? `${p.name} — trim ${fmtFt(p.trim)}` : p.name) + foh;
       gText.appendChild(t);
     }
   }

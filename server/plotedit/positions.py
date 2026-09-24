@@ -291,3 +291,57 @@ def channel_note():
     """A line for the plot's legend, since the standard does not set this."""
     return ("Channels run house left to house right. (RP-2 sets unit numbering "
             "but does not address channels.)")
+
+
+def trim_conflicts(plot: Dict[str, Any]) -> List[str]:
+    """Where a position's trim and its units' trims disagree.
+
+    🔴 Found 2026.09.24 by editing a trim in the browser and watching nothing
+    happen: the label read "GRID C — trim 18'-0"" while every unit on it went on
+    computing from 14. Two places held the same fact and only one of them was
+    being read, so the drawing could STATE one trim and COMPUTE another.
+
+    A unit hung below its pipe is legal — a sidearm, a drop-arm, a boom head —
+    so this reports rather than corrects. But it must report: the silent version
+    is a plot whose printed trim is a lie.
+    """
+    out: List[str] = []
+    for p in plot.get("positions") or []:
+        trim = p.get("trim")
+        if trim is None or is_vertical(p):
+            continue
+        name = (p.get("name") or "").strip().lower()
+        off = [(i.get("unit"), i.get("trim")) for i in plot.get("instruments") or []
+               if (i.get("position") or "").strip().lower() == name
+               and i.get("trim") is not None
+               and abs(float(i["trim"]) - float(trim)) > 0.02]
+        if off:
+            listed = ", ".join(f"unit {u} at {t}'" for u, t in off[:4])
+            more = f" (+{len(off) - 4} more)" if len(off) > 4 else ""
+            out.append(f"{p.get('name')} is trimmed at {trim}' but {listed}{more}. "
+                       f"Legal on a sidearm — but if the pipe moved, the units did not")
+    return out
+
+
+def apply_trim(plot: Dict[str, Any], position_name: str, trim: float) -> int:
+    """Move a position's trim AND every unit on it that was at the old trim.
+
+    Units that were deliberately off the pipe keep their offset — moving a pipe
+    should carry the rig with it without flattening a drop-arm.
+    """
+    name = (position_name or "").strip().lower()
+    pos = next((p for p in plot.get("positions") or []
+                if (p.get("name") or "").strip().lower() == name), None)
+    if pos is None:
+        return 0
+    old = pos.get("trim")
+    pos["trim"] = trim
+    if old is None:
+        return 0
+    moved = 0
+    for i in plot.get("instruments") or []:
+        if (i.get("position") or "").strip().lower() != name or i.get("trim") is None:
+            continue
+        i["trim"] = float(i["trim"]) + (trim - old)      # keep any deliberate offset
+        moved += 1
+    return moved

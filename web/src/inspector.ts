@@ -23,6 +23,8 @@ export interface Field {
 export const FIELDS: Field[] = [
   { key: "unit", label: "Unit", kind: "number", step: 1 },
   { key: "channel", label: "Channel", kind: "number", step: 1 },
+  { key: "circuit", label: "Circuit", kind: "text",
+    hint: "The HOUSE circuit. Never generated — circuits depend on the house and have no set order" },
   { key: "dimmer", label: "Dimmer", kind: "number", step: 1 },
   { key: "address", label: "Address", kind: "number", step: 1 },
   { key: "type", label: "Type", kind: "select", photometric: true },

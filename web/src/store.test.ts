@@ -71,5 +71,12 @@ check("just past the end clamps to the end", snapToPosition(33.6, 20, p),
 check("far past the end does not snap", snapToPosition(40, 20, p).position, null);
 
 console.log();
+
+
+// ⚠ The verdict goes LAST. It used to sit in the middle of the file, so
+// anything appended after it ran WITHOUT affecting the exit code — the suite
+// could print failures and still exit 0. The same defect was found in two of the
+// Python suites on 2026.09.23; verify_suites.py checks those, and did not cover
+// these.
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

@@ -797,6 +797,39 @@ _right, _left = sorted(_hits, key=lambda r: r.y0)          # right-aligned is hi
 check("the right-aligned label ends BEFORE the pipe", _right.x1 <= _px + 1, True)
 check("...while the left-aligned one crosses it", _left.x1 > _px, True)
 
+
+print("\nmoving a pipe moves its rig — the trim is in two places")
+# 🔴 Found 2026.09.24 by editing a trim in the browser and watching nothing
+# happen. The label read "GRID C — trim 18'-0"" while every unit on it went on
+# computing from 14: two places held the same fact and only one was read, so the
+# drawing could STATE one trim and COMPUTE another.
+_tp = {"positions": [{"name": "E1", "type": "electric", "x1": 0, "y1": 16,
+                      "x2": 33, "y2": 16, "trim": 14}],
+       "instruments": [{"unit": 1, "position": "E1", "trim": 14},
+                       {"unit": 2, "position": "E1", "trim": 14}]}
+check("a plot in agreement reports nothing", P.trim_conflicts(_tp), [])
+_moved = P.apply_trim(_tp, "E1", 18)
+check("raising the pipe moves every unit", _moved, 2)
+check("...to the new height", [i["trim"] for i in _tp["instruments"]], [18.0, 18.0])
+check("...and nothing is left in conflict", P.trim_conflicts(_tp), [])
+
+# A unit hung below its pipe is legal — a sidearm, a drop-arm — so this reports
+# rather than corrects. But it must REPORT: the silent version is a plot whose
+# printed trim is a lie.
+_tp["instruments"][0]["trim"] = 12.0
+check("a deliberate drop is reported, not corrected",
+      len(P.trim_conflicts(_tp)), 1)
+check("...naming the unit", "unit 1" in P.trim_conflicts(_tp)[0], True)
+
+# ⚠ And the offset survives the next move: a drop-arm stays a drop-arm.
+P.apply_trim(_tp, "E1", 20)
+check("a deliberate offset is carried, not flattened",
+      sorted(i["trim"] for i in _tp["instruments"]), [14.0, 20.0])
+check("a vertical position is left alone — its units differ by height on purpose",
+      P.trim_conflicts({"positions": [{"name": "B", "type": "boom", "x1": 1, "y1": 1,
+                                       "x2": 1, "y2": 1, "trim": 12}],
+                        "instruments": [{"unit": 1, "position": "B", "trim": 8}]}), [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

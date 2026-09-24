@@ -1,5 +1,5 @@
 /** Load a plot, draw it, let it be edited. */
-import { fitView, type View } from "./geometry.js";
+import { fitView, fohExtent, type View } from "./geometry.js";
 import { isPlot, symbolKey, type Plot } from "./plot.js";
 import { render, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols,
@@ -7,6 +7,7 @@ import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols,
 import { Store } from "./store.js";
 import { attachPointer, attachKeyboard } from "./interact.js";
 import { renderInspector } from "./inspector.js";
+import { renderPositions } from "./positions.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const svg = $<HTMLElement>("plot") as unknown as SVGSVGElement;
@@ -21,8 +22,14 @@ function view(): View {
   const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
   const margin = 4;
   const { width, depth } = store.plot.room;
-  return fitView(width, depth, (width + margin * 2) * pxPerFoot,
-                 (depth + margin * 2) * pxPerFoot, margin);
+  // ⭐ The canvas has to be tall enough for the HOUSE as well as the stage.
+  // Front-of-house positions sit at negative y, and a view fitted to the room
+  // alone simply does not show them — no warning, no clipping guard, just a
+  // catwalk that is not there.
+  const house = fohExtent(store.plot.positions);
+  return fitView(width, depth,
+                 (width + margin * 2) * pxPerFoot,
+                 (depth + house + margin * 2) * pxPerFoot, margin, house);
 }
 
 function opts(): RenderOptions {
@@ -67,6 +74,7 @@ function fillTable() {
 }
 
 function drawInspector() {
+  renderPositions($("positions"), store, { onChange: () => { draw(); recompute(); } });
   renderInspector($("inspector"), store, computed, {
     fixtures: Object.keys(fixtureTable).sort(),
     lamps: ["HPL 750", "HPL 575", "HPL 575X"],

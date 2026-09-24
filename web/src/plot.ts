@@ -179,3 +179,27 @@ export function symbolKey(inst: Instrument): string {
   const acc = (inst.accessories ?? []).map(a => a.trim()).filter(Boolean);
   return acc.length ? `${inst.type}|${acc.join("+")}` : inst.type;
 }
+
+/** Is this position a pipe that STANDS UP — a boom, box boom, ladder, torm?
+ *
+ * ⭐ In plan a vertical position is a POINT: every unit on it shares one x and y
+ * and is told apart only by its height. Mirrors positions.is_vertical() in the
+ * Python, including the part that measures rather than trusting the name — a
+ * "box boom" is a point in some houses and a rail with real extent in others.
+ */
+export function isVertical(p: Position): boolean {
+  const t = (p.type ?? "").trim().toLowerCase();
+  const dx = Math.abs((p.x2 ?? p.x1) - p.x1);
+  const dy = Math.abs((p.y2 ?? p.y1) - p.y1);
+  if (["boom", "box-boom", "boom-box", "ladder", "tormentor", "torm"].includes(t))
+    return !(dx > 0.5 || dy > 0.5);
+  if (t) return false;
+  return dx < 0.5 && dy < 0.5;
+}
+
+/** Front of house — over the audience, downstage of the plaster line, negative y.
+ *  A catwalk is FOH unless it says otherwise. */
+export function isFoh(p: Position): boolean {
+  if (p.foh !== undefined) return p.foh;
+  return (p.type ?? "").trim().toLowerCase() === "catwalk";
+}

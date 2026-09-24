@@ -71,12 +71,39 @@ export function counterFlip(x: number, y: number): string {
 /** Fit a room of w × h feet into the surface, with a margin in feet. */
 export function fitView(
   roomW: number, roomH: number, width: number, height: number, marginFt = 3,
+  houseFt = 0,
 ): View {
-  const scale = Math.min(width / (roomW + marginFt * 2), height / (roomH + marginFt * 2));
-  // center the room in whatever space is left over
+  // ⭐ `houseFt` is how far DOWNSTAGE the plot reaches past the room — front of
+  // house positions sit over the audience at negative y. Fit to the room alone
+  // and a catwalk is simply not on screen, which is the same failure the PDF had
+  // before foh_extent(); there the clipping guard caught it, and here nothing
+  // would: the drawing just quietly lacks a position.
+  const totalH = roomH + houseFt;
+  const scale = Math.min(width / (roomW + marginFt * 2), height / (totalH + marginFt * 2));
+  // center what is actually drawn, not just the room
   const slackX = (width / scale - roomW) / 2;
-  const slackY = (height / scale - roomH) / 2;
-  return { scale, panX: -slackX, panY: -slackY, width, height };
+  const slackY = (height / scale - totalH) / 2;
+  // ⚠ MINUS houseFt. toScreen() is y_screen = height − (y_plot − panY)·scale, so
+  // a point is on the canvas only while y_plot ≥ panY. The house sits at
+  // NEGATIVE y, so panY has to move further negative to reach it. Adding it
+  // opened the space upstage instead — empty paper at the back of the room and
+  // the catwalk still off the bottom.
+  return { scale, panX: -slackX, panY: -slackY - houseFt, width, height };
+}
+
+/** How far downstage the FOH positions reach, in feet (0 if none).
+ *  Mirrors Sheet.foh_extent() in the Python. */
+export function fohExtent(
+  positions: { y1: number; y2?: number; width?: number; type?: string; foh?: boolean }[],
+): number {
+  let lowest = 0;
+  for (const p of positions ?? []) {
+    const foh = p.foh ?? ((p.type ?? "").trim().toLowerCase() === "catwalk");
+    if (!foh) continue;
+    const half = (p.width ?? 3) / 2;
+    lowest = Math.min(lowest, p.y1 - half, (p.y2 ?? p.y1) - half);
+  }
+  return lowest < 0 ? Math.abs(lowest) : 0;
 }
 
 /** Feet as feet-and-inches: 13.75 → 13'-9" */
