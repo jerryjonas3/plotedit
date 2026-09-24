@@ -150,6 +150,11 @@
        matched nothing for four months and the only visible highlight was a bug
        filling the invisible hit disc. The halo is an element render() adds, so
        it cannot be silently selecting nothing. */
+    /* ⚠ A unit that could not be computed. Amber, not red: nothing is WRONG
+       with the plot, something is MISSING from it — usually a trim. */
+    svg .instrument.uncomputed path,
+    svg .instrument.uncomputed line { stroke:#b26a00; }
+    svg .instrument.uncomputed circle:not(.hit) { stroke:#b26a00; fill:#b26a00; }
     svg .halo { fill:var(--primary); fill-opacity:.16;
                 stroke:var(--primary); stroke-opacity:.9; stroke-width:.08; }
     /* 🔴 :not(.hit). Every symbol carries an INVISIBLE disc a foot across so a

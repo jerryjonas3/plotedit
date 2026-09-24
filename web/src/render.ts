@@ -252,11 +252,24 @@ export function render(
       }));
     }
     if (opts.showFocus && hasFocus) {
+      const selNow = isSelNow(opts, i);
+      // ⭐ Jerry, 2026.09.24: "if we click on a lamp, the focus point should be
+      // highlighted too." A unit and where it is AIMED are one fact, and with
+      // fifteen focus points in a room the leader alone does not say which one
+      // belongs to the light you just clicked. The leader goes primary too, so
+      // the eye can follow it from one end to the other.
       gFocus.appendChild(el("line", {
         x1: inst.x, y1: inst.y, x2: inst.focusX!, y2: inst.focusY!,
-        stroke: "#999", "stroke-width": W.focus, "stroke-dasharray": "0.5 0.35",
+        stroke: selNow ? "var(--primary)" : "#999",
+        "stroke-width": W.focus * (selNow ? 1.8 : 1),
+        "stroke-dasharray": "0.5 0.35",
       }));
-      const fh = el("g", { class: "focus-handle" + (isSelNow(opts, i) ? " selected" : "") });
+      const fh = el("g", { class: "focus-handle" + (selNow ? " selected" : "") });
+      if (selNow) {
+        fh.appendChild(el("circle", {
+          cx: inst.focusX!, cy: inst.focusY!, r: 0.75, class: "halo",
+        }));
+      }
       fh.appendChild(el("circle", {
         cx: inst.focusX!, cy: inst.focusY!, r: 0.25,
         fill: "none", stroke: "#999", "stroke-width": W.focus,
@@ -271,6 +284,18 @@ export function render(
     const isSel = opts.selected === i;
     const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)], plot.symbolAngle);
     g.setAttribute("data-index", String(i));
+    // 🔴 A unit the server could not compute draws NO pool and NO focus, and
+    // used to say nothing about why — which reads as "the tool did not bother"
+    // rather than "this unit has no trim". Jerry, 2026.09.24, on a unit added
+    // before the boom-height fix: "I added a light and it doesn't draw the
+    // pool." It could not: with no trim there is no throw, no pool and no
+    // footcandles. Marked on the drawing now, with the reason on hover.
+    if (c && !c.computed) {
+      g.classList.add("uncomputed");
+      const t = document.createElementNS(NS, "title");
+      t.textContent = `Unit ${inst.unit}: ${c.note ?? "not computed"}`;
+      g.appendChild(t);
+    }
     if (isSel) {
       g.classList.add("selected");
       // ⭐ A HALO, drawn first so it sits behind the symbol.
