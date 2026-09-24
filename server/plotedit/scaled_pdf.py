@@ -275,7 +275,7 @@ class Sheet:
         self.line(x1, y, x2, y, style="batten")
         if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
 
-    def position(self, pos, label=None):
+    def position(self, pos, label=None, label_at=None):
         """Draw one horizontal hanging position from a plot record.
 
         `type` decides the drawing, and the distinction is not decoration:
@@ -352,7 +352,15 @@ class Sheet:
         if label:
             # CAPS on a plot — Jerry, 2026.09.22: "probably caps are more legible."
             text = label.upper() + ("  (FOH)" if foh and "FOH" not in label.upper() else "")
-            self.text(x1, top + ft(0, 6), text, size=7, bold=True)
+            # ⭐ `label_at` comes from labels.place(), which fits every name around
+            # the units and around the other names. Without it the name always
+            # went to the pipe's stage-left end, which is how CAT 1 and HOUSE
+            # LEFT BOX BOOM 1 ended up on top of each other and on the box boom.
+            if label_at:
+                self.text(label_at["x"], label_at["y"], text, size=7, bold=True,
+                          align=label_at["align"])
+            else:
+                self.text(x1, top + ft(0, 6), text, size=7, bold=True)
 
     @staticmethod
     def foh_extent(positions):
@@ -365,7 +373,7 @@ class Sheet:
         """
         return 0.0
 
-    def boom(self, pos, units=(), label=None, center_x=None):
+    def boom(self, pos, units=(), label=None, center_x=None, label_at=None):
         """A vertical position in PLAN: the mount, and the units hatched over it.
 
         ⭐ In plan a boom is a POINT. Every unit on it shares one x and y and
@@ -391,12 +399,13 @@ class Sheet:
         # point is, placed OUTBOARD so it never lands on the room or on a
         # position label.
         text = (label if label is not None else pos.get("name", "")).upper()
-        if center_x is None:
-            out = -1
+        if label_at:
+            self.text(label_at["x"], label_at["y"], text, size=6, bold=True,
+                      align=label_at["align"])
         else:
-            out = 1 if x >= center_x else -1      # away from the middle of the room
-        self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
-                  bold=True, center=False if out > 0 else True)
+            out = -1 if center_x is None else (1 if x >= center_x else -1)
+            self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
+                      bold=True, center=False if out > 0 else True)
 
     def _unused_marker(self):
         pass
@@ -472,7 +481,7 @@ class Sheet:
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, circuit=None, dimmer=None, wattage=None,
              control="dimmer-per-circuit", symbol_angle="orthogonal",
-             pool_plane=None, show_pool=True, annotate=False):
+             pool_plane=None, show_pool=True, annotate=False, in_plan=True):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -492,7 +501,19 @@ class Sheet:
 
         show_pool draws the field pool at the focus point; annotate prints the
         numbers beside it. Returns the dict (or None if no trim/focus given).
-        Everything is recorded in self.units for the schedule and the section."""
+        Everything is recorded in self.units for the schedule and the section.
+
+        ⭐ in_plan=False draws NO SYMBOL and NO NOTATION — for a unit on a boom,
+        which RP-2 §6.12 draws in an elevation beside the plot instead. In plan a
+        boom is a POINT: its units share one x and one y, so drawing them there
+        stacks every symbol and every channel circle on the same spot. That is
+        what plot_to_pdf did until 2026.09.24, on top of the hatched stack
+        Sheet.boom() had already drawn to stand for them.
+
+        ⚠ The FOCUS LEADER and the POOL are still drawn, and the row is still
+        computed and recorded. Where a boom's light lands is the most useful
+        thing it contributes to a plan — it is only the symbols that cannot be
+        told apart at a point."""
         self.layer("UNITS")
         # The symbol itself, drawn to USITT RP-2 (2006). See symbols.py and
         # docs/SYMBOLS.md — the shape and the mark inside it carry the fixture
@@ -546,7 +567,8 @@ class Sheet:
             self.circle(focus_to[0], focus_to[1], ft(0, 3), color=grey, style="leader")
             self.layer("UNITS")
 
-        _sym.draw(self, _prims, x, y, rotate_deg=draw_deg)
+        if in_plan:
+            _sym.draw(self, _prims, x, y, rotate_deg=draw_deg)
 
         # §6.14 notation. RP-2 allows leaving categories out rather than
         # cluttering the plot, so only what was supplied is drawn.
@@ -557,10 +579,11 @@ class Sheet:
         # reaches nearly a foot past its yoke — and further still once an
         # accessory is hung on the nose.
         _clear = _sym.radius(_prims) + ft(0, 3)
-        _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
-                      circuit=circuit, dimmer=dimmer, wattage=wattage,
-                      control=control, rotate_deg=draw_deg,
-                      body_center=_center, above=_clear)
+        if in_plan:
+            _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
+                          circuit=circuit, dimmer=dimmer, wattage=wattage,
+                          control=control, rotate_deg=draw_deg,
+                          body_center=_center, above=_clear)
         result = None
         if focus_to:
             fx, fy = focus_to

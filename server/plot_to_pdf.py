@@ -51,21 +51,47 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
     s.dim(-1.5, 0, -1.5, room["depth"])
 
     from plotedit import positions as P
+    from plotedit import labels as L
     booms = [p for p in plot["positions"] if P.is_vertical(p)]
+
+    # ⭐ Fit every position NAME before drawing any of them, around the units and
+    # around each other. Placed one at a time at the pipe's stage-left end, CAT 1
+    # and HOUSE LEFT BOX BOOM 1 landed on top of each other AND on the box
+    # boom's symbol — three marks in one place, the important one underneath.
+    # The browser asks POST /labels for the same slots.
+    def _measure(text, _c=s.c, _p=s.pt_per_ft):
+        return _c.stringWidth(text, "Helvetica-Bold", 7) / _p
+
+    # ⚠ The drawable area, in plot feet. Without it the fitter is free to move a
+    # name to the far end of a pipe to dodge a symbol and put it off the edge of
+    # the sheet — trading a collision for a position with no name at all, which
+    # is the worse of the two.
+    _W, _H = s.page_pt
+    _bounds = (-(s.ox - s.margin) / s.pt_per_ft,
+               -(s.oy - s.margin) / s.pt_per_ft,
+               (_W - s.margin - s.ox) / s.pt_per_ft,
+               (_H - s.margin - s.oy) / s.pt_per_ft)
+
+    spots = {id(p): a for p, a in
+             zip(plot["positions"],
+                 L.plan(plot["positions"], plot["instruments"], _measure,
+                        room_width=room["width"], bounds=_bounds))}
+
     for p in plot["positions"]:
+        at = spots.get(id(p))
         if P.is_vertical(p):
             on = [i for i in plot["instruments"]
                   if (i.get("position") or "").strip().lower() == (p.get("name") or "").strip().lower()]
-            s.boom(p, units=on, center_x=room['width'] / 2)
+            s.boom(p, units=on, center_x=room['width'] / 2,
+                   label=at["text"] if at else None, label_at=at)
             continue
         # ⚠ Trim on the plan only where the position can MOVE. RP-2 §2.1 asks
         # for "trim measurements for MOVABLE mounting positions" — a dead-hung
         # grid pipe is not one, and a number that cannot change is clutter on
         # every pipe in the room. The SECTION carries trim for everything.
-        # (Jerry, 2026.09.24.)
-        label = p["name"] + (f" — trim {ph.fmt_ft(p['trim'])}"
-                             if p.get("trim") and p.get("movable") else "")
-        s.position(p, label=label)
+        # (Jerry, 2026.09.24.) labels.text_for() assembles it, so the screen and
+        # the paper cannot disagree about what a pipe is called.
+        s.position(p, label=at["text"] if at else p["name"], label_at=at)
 
     # §6.12: the readable layout goes BESIDE the plot, because in plan a boom is
     # a point. Placed off the room's stage-left edge, which is the low-x side.
@@ -75,6 +101,11 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
         if spot:
             s.boom_elevation(p, _B.units_on(p, plot["instruments"]), spot["x"], spot["y"],
                              layout=p.get("layout") or plot.get("boomLayout", "option1"))
+
+    # ⭐ A unit on a BOOM is drawn in its elevation, not in plan — see
+    # Sheet.unit(in_plan=...). Its focus and its pool are still drawn here.
+    _boom_names = {(p.get("name") or "").strip().lower()
+                   for p in plot["positions"] if P.is_vertical(p)}
 
     rows = []
     for inst in plot["instruments"]:
@@ -92,7 +123,9 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    wattage=inst.get("wattage"),
                    symbol_angle=plot.get("symbolAngle", "orthogonal"),
                    pool_plane=pool_plane if pool_plane is not None
-                              else plot.get("poolPlane"))
+                              else plot.get("poolPlane"),
+                   in_plan=(inst.get("position") or "").strip().lower()
+                           not in _boom_names)
         rows.append(r)
 
     # ⭐ The key goes ON THE PLOT. §5.0 allows it "in any location that does not

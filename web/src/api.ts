@@ -193,3 +193,33 @@ export async function booms(plot: Plot): Promise<{ booms: BoomElevation[]; space
   const j = await r.json();
   return { booms: j.booms as BoomElevation[], space: j.space as number };
 }
+
+/** Where one position's NAME goes, fitted around the units and the other names.
+ *
+ * ⚠ The rule is labels.py — the same call the PDF makes — so the screen and the
+ * paper choose the same slot. `x`/`y` are plot feet, `align` says which end of
+ * the string is anchored, and `text` is the name as it should read (CAPS, trim
+ * and (FOH) suffixes already applied) so the two drawings cannot disagree about
+ * what a pipe is called.
+ */
+export interface PositionLabel {
+  name: string; text: string;
+  x: number; y: number; align: "left" | "right" | "center";
+  overlap: number;
+}
+
+export async function positionLabels(
+  plot: Plot, charW: number, textH: number,
+  bounds?: [number, number, number, number],
+): Promise<PositionLabel[]> {
+  const r = await fetch("/api/labels", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      positions: plot.positions, instruments: plot.instruments,
+      room_width: plot.room.width, char_w: charW, text_h: textH,
+      ...(bounds ? { bounds } : {}),
+    }),
+  });
+  if (!r.ok) throw new Error(`labels failed: ${r.status}`);
+  return (await r.json()).labels as PositionLabel[];
+}

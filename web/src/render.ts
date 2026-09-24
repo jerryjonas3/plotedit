@@ -11,7 +11,7 @@
  */
 import { svgTransform, counterFlip, fmtFt, notationAnchor, symbolRadius, type View } from "./geometry.js";
 import { symbolKey, isVertical, isFoh, type Plot, type Instrument } from "./plot.js";
-import type { SymbolPrim, BoomElevation } from "./api.js";
+import type { SymbolPrim, BoomElevation, PositionLabel } from "./api.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -46,6 +46,9 @@ export interface RenderOptions {
   basePaths?: { layer: string; points: [number, number][] }[];
   /** RP-2 symbol outlines by fixture type, from GET /symbols. */
   symbols?: Record<string, SymbolPrim[]>;
+  /** Where each position's NAME goes, from POST /labels. Without it the names
+   *  fall back to the pipe's stage-left end, which is what collided. */
+  labels?: PositionLabel[];
   /** §6.12 boom elevations, from POST /booms. Without them a boom's units are
    *  not drawn at all — they are NOT silently dropped back into plan, where
    *  they would stack on one point again. */
@@ -67,6 +70,10 @@ function el(name: string, attrs: Record<string, string | number>): SVGElement {
  *  to grow with zoom, the way ink on paper does. */
 const W = { room: 0.25, position: 0.4, focus: 0.08, pool: 0.06, dim: 0.06 };
 const TEXT = 1.0;      // feet — about 12" tall, legible at a whole-room zoom
+// Position names, and the width of one character at that size. The server fits
+// the names but cannot measure this font, so the estimate is sent to it.
+export const POS_TEXT = TEXT * 0.8;
+export const POS_CHAR_W = POS_TEXT * 0.55;
 
 export function render(
   svg: SVGSVGElement, plot: Plot, view: View,
@@ -173,14 +180,15 @@ export function render(
     }
 
     if (opts.showLabels) {
+      // ⭐ The SLOT comes from the server, fitted around the units and around
+      // the other names. Placed at the pipe's stage-left end regardless, CAT 1
+      // and HOUSE LEFT BOX BOOM 1 landed on each other and on the box boom's
+      // symbol. The TEXT comes from there too — trim and (FOH) suffixes are
+      // assembled once, so the two drawings call a pipe the same thing.
+      const at = (opts.labels ?? []).find(l => l.name === p.name);
       const half = isVertical(p) ? (p.width ?? 1.4) / 2
                  : (kind === "catwalk" || kind === "truss")
                    ? (p.width ?? (kind === "catwalk" ? 3.0 : 1.5)) / 2 : 0;
-      const t = el("text", {
-        transform: counterFlip(p.x1, Math.max(p.y1, p.y2 ?? p.y1) + half + 0.8),
-        "font-size": TEXT * 0.8, "font-family": "system-ui, sans-serif",
-        "font-weight": "600", fill: "#222",
-      });
       const foh = isFoh(p, plot.room.plasterLine) && !p.name.toUpperCase().includes("FOH") ? "  (FOH)" : "";
       // ⚠ Trim only on a position that can MOVE. RP-2 §2.1 asks for "trim
       // measurements for MOVABLE mounting positions" — a dead-hung grid pipe is
@@ -188,7 +196,16 @@ export function render(
       // pipe in the room. The section carries trim for everything; the plan
       // carries it only where it is a decision. (Jerry, 2026.09.24.)
       const showTrim = p.trim !== undefined && p.movable === true;
-      t.textContent = (showTrim ? `${p.name} — trim ${fmtFt(p.trim!)}` : p.name) + foh;
+      const fallback = (showTrim ? `${p.name} — trim ${fmtFt(p.trim!)}` : p.name) + foh;
+      const t = el("text", {
+        transform: at
+          ? counterFlip(at.x, at.y)
+          : counterFlip(p.x1, Math.max(p.y1, p.y2 ?? p.y1) + half + 0.8),
+        "font-size": POS_TEXT, "font-family": "system-ui, sans-serif",
+        "font-weight": "600", fill: "#222",
+        "text-anchor": at ? ({ left: "start", right: "end", center: "middle" })[at.align] : "start",
+      });
+      t.textContent = at ? at.text : fallback;
       gText.appendChild(t);
     }
   }
@@ -203,10 +220,14 @@ export function render(
 
   // ---- instruments
   plot.instruments.forEach((inst, i) => {
-    // ⚠ A unit on a boom is drawn in the ELEVATION, never in plan. Three units
-    // at one x and y put three symbols and three channel circles on the same
-    // spot, which is what the browser did until 2026.09.24.
-    if (onABoom.has((inst.position ?? "").trim().toLowerCase())) return;
+    // ⚠ A unit on a boom gets NO SYMBOL and NO LABELS in plan — it is drawn in
+    // the elevation instead. Three units at one x and y put three symbols and
+    // three channel circles on the same spot.
+    //
+    // ⭐ Its FOCUS and its POOL are still drawn. Where a boom's light lands is
+    // the most useful thing it contributes to a plan; it is only the symbols
+    // that cannot be told apart at a point. Mirrors Sheet.unit(in_plan=False).
+    const inPlan = !onABoom.has((inst.position ?? "").trim().toLowerCase());
     const c = computed[i];
     const hasFocus = inst.focusX !== undefined && inst.focusY !== undefined;
 
@@ -246,6 +267,7 @@ export function render(
       }));
       gFocus.appendChild(fh);
     }
+    if (!inPlan) return;
     const isSel = opts.selected === i;
     const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)], plot.symbolAngle);
     g.setAttribute("data-index", String(i));

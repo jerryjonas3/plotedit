@@ -190,6 +190,93 @@ if _strip(_api["booms"]) != _strip(_lay):
 else:
     print(f"  ok   screen and paper place {len(_lay)} booms identically")
 
+# ---------------------------------------------------------------- labels
+# ⭐ A position's NAME has to be readable. Placed at the pipe's stage-left end
+# regardless of what was already there, CAT 1 and HOUSE LEFT BOX BOOM 1 landed
+# on each other AND on the box boom's symbol — three marks in one place, with
+# the one an electrician reads first underneath.
+#
+# 🔴 And a name must never be fitted somewhere that is not on the paper. The
+# first version dodged the box boom by moving CAT 1 to the stage-right end, 22
+# feet off the edge of the sheet: a collision traded for a position with no name
+# at all, which is the worse of the two.
+from plotedit import labels as _L
+
+print()
+_meas = lambda t: len(t) * 0.26
+
+# 🔴 THE RULE ITSELF, on cases built to make it fail. Checking only that the
+# Bluver plot comes out clean proved nothing: breaking the fitter on purpose
+# still passed, because that plot has slack everywhere. These do not.
+_first = [(0.0, 10.0, "left"), (0.0, 4.0, "left")]      # preferred, then fallback
+_blocked = _L.place([{"candidates": _first, "w": 3.0, "h": 0.4}],
+                    obstacles=[_L.disc(1.0, 10.0, 1.2)])[0]
+if (_blocked["x"], _blocked["y"]) != (0.0, 4.0):
+    fails.append(f"a label sat on an obstacle rather than taking its second "
+                 f"choice: {_blocked}")
+else:
+    print("  ok   a blocked first choice gives way to the next slot")
+
+_clear = _L.place([{"candidates": _first, "w": 3.0, "h": 0.4}], obstacles=[])[0]
+if (_clear["x"], _clear["y"]) != (0.0, 10.0):
+    fails.append("a label moved although its first choice was clear")
+else:
+    print("  ok   a clear first choice is kept")
+
+# Off the sheet beats nothing. The clear slot is out of bounds, the crowded one
+# is on the paper: take the paper. A name nobody can see is not a name.
+_edge = _L.place([{"candidates": [(50.0, 10.0, "left"), (0.0, 10.0, "left")],
+                   "w": 3.0, "h": 0.4}],
+                 obstacles=[_L.disc(1.0, 10.0, 1.2)],
+                 bounds=(-5.0, -5.0, 20.0, 20.0))[0]
+if _edge["x"] != 0.0:
+    fails.append(f"a label was fitted OFF THE SHEET at x={_edge['x']} to dodge a "
+                 f"symbol — a position with no name is worse than a crowded one")
+else:
+    print("  ok   a slot off the sheet loses to a crowded one that is on it")
+
+# Two labels wanting one spot: the second gives way, the first does not move.
+_pair = _L.place([{"candidates": _first, "w": 3.0, "h": 0.4},
+                  {"candidates": _first, "w": 3.0, "h": 0.4}])
+if _pair[0]["y"] != 10.0 or _pair[1]["y"] != 4.0:
+    fails.append(f"two labels took the same slot: {_pair}")
+else:
+    print("  ok   the second of two labels gives way to the first")
+
+# ---- and the real plot, at the sheet the PDF actually uses
+_BOUNDS = (-17.0, -4.0, 23.0, 36.0)
+_spots = _L.plan(plot["positions"], plot["instruments"], _meas,
+                 room_width=plot["room"]["width"], bounds=_BOUNDS)
+
+if len(_spots) != len(plot["positions"]):
+    fails.append(f"{len(plot['positions'])} positions but {len(_spots)} labels")
+else:
+    print(f"  ok   every one of {len(_spots)} positions keeps its name")
+
+_boxes = [_L._box(s_["x"], s_["y"], _meas(s_["text"]), 0.4, s_["align"]) for s_ in _spots]
+for _i in range(len(_boxes)):
+    for _j in range(_i + 1, len(_boxes)):
+        if _L._overlap(_boxes[_i], _boxes[_j]) > 0:
+            fails.append(f"labels collide: {_spots[_i]['text']} over {_spots[_j]['text']}")
+
+_on_sym = [s_ for s_, b in zip(_spots, _boxes)
+           if any(_L._overlap(b, _L.disc(i["x"], i["y"], 1.35)) > 0
+                  for i in plot["instruments"])]
+fails += [f"'{s_['text']}' sits on an instrument" for s_ in _on_sym]
+if not _on_sym:
+    print("  ok   no name overlaps another name or an instrument")
+
+_lapi = client.post("/labels", json={
+    "positions": plot["positions"], "instruments": plot["instruments"],
+    "room_width": plot["room"]["width"], "char_w": 0.26, "text_h": 0.4,
+    "bounds": list(_BOUNDS)}).json()["labels"]
+_key2 = lambda rs: [(r["text"], round(r["x"], 4), round(r["y"], 4), r["align"]) for r in rs]
+if _key2(_lapi) != _key2(_spots):
+    fails.append("the /labels endpoint and the PDF's own fit disagree — the screen "
+                 "and the paper would put the same name in different places")
+else:
+    print(f"  ok   screen and paper choose the same slot for all {len(_spots)} names")
+
 # The suite's verdict comes LAST, so anything added after it still counts. It
 # used to sit in the middle, which meant an appended check could fail while the
 # suite exited 0 — the same defect found in test_package.py the same day.

@@ -26,6 +26,7 @@ from . import photometrics as ph
 from . import positions as P
 from . import exports, dxf_bridge, symbols as sym
 from . import booms
+from . import labels as lbl
 from . import fixture_names
 
 app = FastAPI(
@@ -510,6 +511,43 @@ def boom_layout(req: BoomRequest) -> Dict[str, Any]:
             "pitch": booms.BOOM_PITCH,
             "space": booms.space_needed(req.positions, req.instruments),
             "source": "USITT RP-2 (2006) 6.12, Option 1"}
+
+
+# ----------------------------------------------------------------- labels
+
+class LabelRequest(BaseModel):
+    positions: List[Dict[str, Any]]
+    instruments: List[Dict[str, Any]]
+    room_width: Optional[float] = None
+    # The drawable area in plot feet, (x0, y0, x1, y1). The browser's canvas is
+    # sized to what it draws, so it normally has none — but pass it if there is
+    # one, or a name can be fitted somewhere that is not on the page.
+    bounds: Optional[List[float]] = None
+    # Feet per CHARACTER at the browser's own label size. Text metrics belong to
+    # whoever is drawing: ReportLab measures Helvetica, the browser measures
+    # whatever the system gave it, and neither can measure for the other.
+    char_w: float = 0.26
+    text_h: float = 0.42
+
+
+@app.post("/labels")
+def label_layout(req: LabelRequest) -> Dict[str, Any]:
+    """Where each position's NAME goes, fitted around the units and each other.
+
+    ⭐ RP-2 §2.1 wants every position identified but does not say where the name
+    sits — on a drawing that is a fitting problem. Placed one at a time at the
+    pipe's stage-left end, `CAT 1  (FOH)` and `HOUSE LEFT BOX BOOM 1` landed on
+    top of each other and both across the box boom's symbol.
+
+    ⚠ The RULE is labels.py, the same call plot_to_pdf makes, so the screen and
+    the paper choose the same slot. Only the width measurement differs, because
+    it has to.
+    """
+    out = lbl.plan(req.positions, req.instruments,
+                   lambda t: len(t) * req.char_w,
+                   room_width=req.room_width, text_h=req.text_h,
+                   bounds=tuple(req.bounds) if req.bounds else None)
+    return {"labels": out, "source": "USITT RP-2 (2006) 2.1"}
 
 
 # ----------------------------------------------------------------- names

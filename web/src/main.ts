@@ -1,10 +1,11 @@
 /** Load a plot, draw it, let it be edited. */
 import { fitView, fohExtent, type View } from "./geometry.js";
 import { isPlot, symbolKey, type Plot } from "./plot.js";
-import { render, type Computed, type RenderOptions } from "./render.js";
+import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
+         positionLabels,
          type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim,
-         type BoomElevation } from "./api.js";
+         type BoomElevation, type PositionLabel } from "./api.js";
 import { Store } from "./store.js";
 import { attachPointer, attachKeyboard } from "./interact.js";
 import { renderInspector } from "./inspector.js";
@@ -21,7 +22,7 @@ let symbolCache: Record<string, SymbolPrim[]> = {};
 
 function view(): View {
   const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
-  const margin = 4;
+  const margin = VIEW_MARGIN;
   const { width, depth } = store.plot.room;
   // ⭐ The canvas has to be tall enough for the HOUSE as well as the stage.
   // Front-of-house positions sit at negative y, and a view fitted to the room
@@ -40,8 +41,12 @@ function view(): View {
  *  a unit aimed at a face still throws a much larger pool on the deck. */
 /** How much width the §6.12 boom elevations need, in feet. Filled by the
  *  server; 0 until it answers, which simply means no elevations are drawn yet. */
+/** Clear air drawn around the room, in feet. Also what a position name is
+ *  allowed to use beyond the walls. */
+const VIEW_MARGIN = 4;
 let boomSpace = 0;
 let boomLayout: BoomElevation[] = [];
+let labelLayout: PositionLabel[] = [];
 
 function poolPlane(): number | undefined {
   const v = ($<HTMLSelectElement>("poolplane")?.value ?? "");
@@ -57,6 +62,7 @@ function opts(): RenderOptions {
     basePaths: $<HTMLInputElement>("base").checked ? basePlan?.paths : undefined,
     symbols: symbolCache,
     booms: boomLayout,
+    labels: labelLayout,
   };
 }
 
@@ -142,6 +148,26 @@ async function ensureBooms() {
   }
 }
 
+/** Where the position names go, fitted around the units and each other. Asked
+ *  of the server so the screen and the paper choose the same slots. */
+async function ensureLabels() {
+  try {
+    // ⚠ The canvas edge, in plot feet. Without it the fitter will happily put
+    // a long name in clear air past the stage-right wall — clear of every
+    // symbol and off the side of the view, which is a position with no name.
+    // The margin is a CONSTANT chosen before fitting, so there is no circle
+    // between "where do the labels go" and "how wide is the canvas".
+    const { width, depth } = store.plot.room;
+    labelLayout = await positionLabels(store.plot, POS_CHAR_W, POS_TEXT,
+      [-boomSpace, -VIEW_MARGIN, width + VIEW_MARGIN, depth + VIEW_MARGIN]);
+  } catch (e) {
+    // ⚠ Fall back to the old stage-left-end placement rather than dropping the
+    // names. A collision is untidy; an unnamed pipe is unusable.
+    labelLayout = [];
+    status(e instanceof Error ? e.message : String(e), true);
+  }
+}
+
 /** Ask the Python what the light does. Debounced — a drag is one request. */
 let pending: ReturnType<typeof setTimeout>;
 function recompute(delay = 120) {
@@ -151,6 +177,7 @@ function recompute(delay = 120) {
       computed = await compute(store.plot, poolPlane());
       await ensureSymbols();
       await ensureBooms();
+      await ensureLabels();
       paint();
     } catch (e) {
       showError(e);
@@ -264,6 +291,7 @@ async function boot() {
     computed = await compute(store.plot, poolPlane());
     await ensureSymbols();
     await ensureBooms();
+    await ensureLabels();
     paint();
   } catch (e) {
     showError(e);
