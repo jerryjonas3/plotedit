@@ -25,3 +25,6 @@ out/
 
 # node
 web/node_modules/
+
+# Plots a designer saves from the editor. User data, not repo content.
+plots/

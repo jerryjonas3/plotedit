@@ -12,6 +12,7 @@ sources through rather than stripping them. A number without provenance is how
 the EDLT figures got mistaken for standard-tube figures in the first place.
 """
 import io
+import json
 import os
 import tempfile
 import unicodedata
@@ -26,6 +27,7 @@ from . import photometrics as ph
 from . import positions as P
 from . import exports, dxf_bridge, symbols as sym
 from . import booms
+from . import store as plotstore
 from . import labels as lbl
 from . import fixture_names
 
@@ -468,6 +470,57 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
         out[t] = _prims_json(shape)
     return {"symbols": out, "warnings": warnings,
             "source": "USITT RP-2 (2006), plates pp.4-9"}
+
+
+# ----------------------------------------------------------------- plots on disk
+
+class SaveRequest(BaseModel):
+    name: str
+    plot: Dict[str, Any]
+
+
+@app.get("/plots")
+def list_plots() -> Dict[str, Any]:
+    """Every plot in the plots folder, newest first."""
+    return {"plots": plotstore.listing(), "folder": str(plotstore.root())}
+
+
+@app.get("/plots/{name}")
+def read_plot(name: str) -> Dict[str, Any]:
+    try:
+        return {"name": name, "plot": plotstore.read(name)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"no plot called {name}")
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=422, detail=f"{name} will not parse: {e}")
+
+
+@app.post("/save")
+def save_plot(req: SaveRequest) -> Dict[str, Any]:
+    """Write a plot to disk, overwriting it.
+
+    ⭐ Jerry, 2026.09.24: "the save is not automatically overwriting the file —
+    it tries a new name Without Consent.plot (1).json." That bracket is the
+    browser's DOWNLOAD behaviour: Save was built on the File System Access API,
+    which only Chrome and Edge have, so everywhere else every press left another
+    copy in Downloads. The server has a filesystem; it does the writing now, in
+    every browser, by the same code.
+
+    ⚠ The name is a NAME. It is written in the plots folder and nowhere else —
+    see store.resolve(), which checks the spelling AND checks the resolved path
+    is still inside that folder.
+    """
+    try:
+        path = plotstore.write(req.name, req.plot)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except OSError as e:
+        # ⚠ Never a silent success. A save that did not happen and says nothing
+        # is how a day of work goes missing.
+        raise HTTPException(status_code=500, detail=f"could not write {req.name}: {e}")
+    return {"name": path.name, "path": str(path), "bytes": path.stat().st_size}
 
 
 # ----------------------------------------------------------------- booms

@@ -73,6 +73,58 @@ print("\nlens")
 opts = client.get("/lens", params={"pool": 8, "throw": 17}).json()["options"]
 check("26 deg is the closest to an 8ft pool", opts[0]["type"], "S4 26")
 
+print("\nsaving a plot writes ONE file, and overwrites it")
+# ⭐ Jerry, 2026.09.24: "the save is not automatically overwriting the file — it
+# tries a new name Without Consent.plot (1).json." That bracket is a browser
+# DOWNLOAD. The server writes the file now, so Save means the same thing in
+# every browser — and pressing it twice has to leave one file, not two.
+import os as _os
+import tempfile as _tf
+from plotedit import store as _ps
+
+_os.environ["PLOTEDIT_PLOTS"] = _tf.mkdtemp()
+_plot = {"formatVersion": 1, "show": "Save Test", "room": {"width": 10, "depth": 10},
+         "positions": [], "instruments": []}
+
+r1 = client.post("/save", json={"name": "Save Test.plot.json", "plot": _plot})
+check("a save succeeds", r1.status_code, 200)
+r2 = client.post("/save", json={"name": "Save Test.plot.json",
+                                "plot": {**_plot, "show": "Save Test v2"}})
+check("...and saving again succeeds", r2.status_code, 200)
+check("...to the SAME path", r2.json()["path"], r1.json()["path"])
+_files = _os.listdir(_ps.root())
+check("...leaving exactly one file", len(_files), 1)
+check("...with the SECOND save's content",
+      client.get("/plots/Save Test.plot.json").json()["plot"]["show"], "Save Test v2")
+check("...readable by more than its owner",
+      oct(_os.stat(r1.json()["path"]).st_mode & 0o004), "0o4")
+
+# 🔴 The name is a NAME. A page must not be able to write outside the folder.
+for _bad in ["../escape.json", "/etc/passwd.json", "a/b.json", ".json",
+             "notes.txt", "..\\win.json"]:
+    _r = client.post("/save", json={"name": _bad, "plot": _plot})
+    if _r.status_code != 400:
+        FAILS.append(f"{_bad!r} was accepted as a plot name ({_r.status_code})")
+check("every path that escapes the plots folder is refused",
+      len(_os.listdir(_ps.root())), 1)
+
+# 🔴 A SYMLINK inside the plots folder. This is the case the containment check
+# exists for, and the name-pattern check cannot see it: "shared.json" is a
+# perfectly good plot name, and if it happens to be a link into Dropbox — or
+# anywhere else — following it writes outside the folder. Designers do symlink
+# plots into a show folder, so this is an ordinary accident, not an attack.
+_outside = _os.path.join(_tf.mkdtemp(), "someone-elses.json")
+with open(_outside, "w") as _fh:
+    _fh.write('{"keep": "me"}')
+_os.symlink(_outside, _os.path.join(_ps.root(), "shared.json"))
+_r = client.post("/save", json={"name": "shared.json", "plot": _plot})
+check("a name that is a symlink out of the folder is refused", _r.status_code, 400)
+with open(_outside) as _fh:
+    check("...and the file it pointed at is untouched", _fh.read(), '{"keep": "me"}')
+
+check("a plot that is not there is a 404", client.get("/plots/nope.json").status_code, 404)
+check("the listing names the folder", "folder" in client.get("/plots").json(), True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

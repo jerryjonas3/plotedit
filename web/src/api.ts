@@ -230,3 +230,40 @@ export async function positionLabels(
   if (!r.ok) throw new Error(`labels failed: ${r.status}`);
   return (await r.json()).labels as PositionLabel[];
 }
+
+/** A plot on disk, as GET /plots lists it. */
+export interface PlotFile { name: string; show: string; bytes: number; modified: number }
+
+export async function listPlots(): Promise<{ plots: PlotFile[]; folder: string }> {
+  const r = await fetch("/api/plots");
+  if (!r.ok) throw new Error(`could not list plots: ${r.status}`);
+  return r.json();
+}
+
+export async function loadPlot(name: string): Promise<Plot> {
+  const r = await fetch(`/api/plots/${encodeURIComponent(name)}`);
+  if (!r.ok) throw new Error(await detailOf(r));
+  return (await r.json()).plot as Plot;
+}
+
+/** Write a plot to disk, overwriting it.
+ *
+ * ⭐ Through the SERVER, not the browser. Save was built on the File System
+ * Access API, which only Chrome and Edge have — everywhere else it fell back to
+ * a download and every press left another copy: "Without Consent.plot (1).json"
+ * (Jerry, 2026.09.24). This is a tool with its own local server, so the server
+ * writes the file and Save means the same thing in every browser.
+ */
+export async function savePlot(name: string, plot: Plot): Promise<{ path: string }> {
+  const r = await fetch("/api/save", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, plot }),
+  });
+  if (!r.ok) throw new Error(await detailOf(r));
+  return r.json();
+}
+
+async function detailOf(r: Response): Promise<string> {
+  const d = await r.json().then(j => j.detail).catch(() => r.statusText);
+  return typeof d === "string" ? d : JSON.stringify(d);
+}

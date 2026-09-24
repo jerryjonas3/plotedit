@@ -3,7 +3,7 @@ import { fitView, fohExtent, type View } from "./geometry.js";
 import { isPlot, symbolKey, plotFileName, type Plot } from "./plot.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
-         positionLabels,
+         positionLabels, savePlot, listPlots, loadPlot,
          type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim,
          type BoomElevation, type PositionLabel } from "./api.js";
 import { Store } from "./store.js";
@@ -214,77 +214,98 @@ function recompute(delay = 120) {
   }, delay);
 }
 
-/** The file this plot was last saved to, if the browser can hold one.
+/** The file on disk this plot belongs to, or null for one never saved.
  *
- * ⭐ Jerry, 2026.09.24: "we should have a save and save as button." There was
- * only one button and it was Save As in disguise — every press pushed another
- * copy into Downloads, so a session of ten saves left ten files and the newest
- * one was whichever had the longest numeric suffix.
+ * ⭐ Jerry, 2026.09.24: "the save is not automatically overwriting the file —
+ * it tries a new name Without Consent.plot (1).json." That bracket is the
+ * browser's DOWNLOAD behaviour. Save was built on the File System Access API,
+ * which can overwrite in place — but only Chrome and Edge have it, so anywhere
+ * else every press dropped another copy in Downloads and the real plot was
+ * whichever had the longest number in brackets.
  *
- * ⚠ The File System Access API is not everywhere. Where it is missing, Save
- * cannot overwrite anything and both buttons download — which is the OLD
- * behaviour, so nothing is lost, but the app SAYS so rather than letting the
- * button quietly mean something different from what it says.
+ * ⚠ ONE code path now, through the server, which has a filesystem and needs no
+ * permission to use it. Two paths — a browser API here, a server call there —
+ * would mean Save behaved differently on different machines, which is exactly
+ * the class of divergence that has cost a day already in this repo.
  */
-let fileHandle: FileSystemFileHandle | null = null;
-const canWriteFiles = typeof window.showSaveFilePicker === "function";
+let savedAs: string | null = null;
 
 function plotJson(): string {
   return JSON.stringify(store.plot, null, 2);
 }
 
-function suggestedName(): string {
-  return plotFileName(store.plot.show);
-}
-
-function download(): void {
-  const blob = new Blob([plotJson()], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = suggestedName();
-  a.click();
-  URL.revokeObjectURL(a.href);
+async function saveTo(name: string): Promise<void> {
+  const { path } = await savePlot(name, store.plot);
+  savedAs = name;
   store.markSaved();
-  status(canWriteFiles ? `Downloaded ${suggestedName()}`
-                       : `Downloaded ${suggestedName()} — this browser cannot save in place`);
-}
-
-async function writeTo(handle: FileSystemFileHandle): Promise<void> {
-  const w = await handle.createWritable();
-  await w.write(plotJson());
-  await w.close();
-  store.markSaved();
-  status(`Saved ${handle.name}`);
+  status(`Saved ${path}`);
+  void refreshOpenList();
 }
 
 async function saveAs(): Promise<void> {
-  if (!canWriteFiles) { download(); return; }
+  const suggested = savedAs ?? plotFileName(store.plot.show);
+  const name = window.prompt(
+    "Save this plot as — a file name, saved in the plots folder:", suggested);
+  if (name === null) return;          // cancelled is not an error
   try {
-    const handle = await window.showSaveFilePicker!({
-      suggestedName: suggestedName(),
-      types: [{ description: "Light plot", accept: { "application/json": [".json"] } }],
-    });
-    fileHandle = handle;
-    await writeTo(handle);
+    await saveTo(name.trim());
   } catch (e) {
-    // ⚠ Cancelling a file dialog is not an error. Reporting it as one trains
-    // the reader to ignore the status line, which is where the REAL failures
-    // are about to appear.
-    if (e instanceof DOMException && e.name === "AbortError") return;
     status(e instanceof Error ? e.message : String(e), true);
   }
 }
 
 async function save(): Promise<void> {
-  if (!fileHandle) { await saveAs(); return; }
+  if (!savedAs) { await saveAs(); return; }
   try {
-    await writeTo(fileHandle);
+    await saveTo(savedAs);
   } catch (e) {
-    // The file moved, or permission lapsed. Ask again rather than silently
-    // failing to save what the button said it saved.
-    status(`Could not write ${fileHandle.name} — choose where to save it`, true);
-    fileHandle = null;
-    await saveAs();
+    // ⚠ Say so, and say which file. A save that did not happen and reports
+    // nothing is how a day of work goes missing.
+    status(e instanceof Error ? e.message : String(e), true);
+  }
+}
+
+/** Keep the Open menu in step with what is actually on disk. */
+async function refreshOpenList(): Promise<void> {
+  const sel = $("open") as HTMLSelectElement;
+  try {
+    const { plots, folder } = await listPlots();
+    sel.replaceChildren();
+    const head = document.createElement("option");
+    head.value = ""; head.textContent = plots.length ? "Open…" : "Open… (none saved yet)";
+    sel.appendChild(head);
+    for (const p of plots) {
+      const o = document.createElement("option");
+      o.value = p.name;
+      o.textContent = p.show ? `${p.show} — ${p.name}` : p.name;
+      sel.appendChild(o);
+    }
+    sel.title = `Plots in ${folder}`;
+  } catch (e) {
+    // The list is a convenience; failing to fetch it must not stop the editor.
+    sel.title = e instanceof Error ? e.message : String(e);
+  }
+}
+
+async function openPlot(name: string): Promise<void> {
+  // ⚠ Ask before throwing away unsaved work. The old download-based save never
+  // had an Open, so this question never came up.
+  if (store.dirty && !window.confirm(
+        "This plot has unsaved changes. Open a different one and lose them?")) {
+    return;
+  }
+  try {
+    const plot = await loadPlot(name);
+    store = new Store(plot);
+    savedAs = name;
+    store.subscribe(paint);
+    attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
+    attachKeyboard(store, { view, onChange: draw, onSettled: () => recompute() });
+    symbolCache = {};
+    await recompute(0);
+    status(`Opened ${name}`);
+  } catch (e) {
+    status(e instanceof Error ? e.message : String(e), true);
   }
 }
 
@@ -379,10 +400,13 @@ async function boot() {
     $("redo").addEventListener("click", () => { store.redo(); recompute(); });
     $("save").addEventListener("click", () => void save());
     $("saveas").addEventListener("click", () => void saveAs());
-    if (!canWriteFiles) {
-      ($("save") as HTMLButtonElement).title =
-        "This browser cannot save in place — both buttons download a copy";
-    }
+    $("open").addEventListener("change", (e) => {
+      const sel = e.target as HTMLSelectElement;
+      const name = sel.value;
+      sel.value = "";
+      if (name) void openPlot(name);
+    });
+    void refreshOpenList();
     // ⌘S saves, ⇧⌘S saves as. The browser's own Save-page dialog is not what
     // anyone means by ⌘S with a plot open.
     window.addEventListener("keydown", (e) => {
