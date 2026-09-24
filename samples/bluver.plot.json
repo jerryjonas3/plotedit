@@ -6,23 +6,23 @@
   "studio": "Twin Oaks Studios",
   "designer": "Jerry Jonas",
   "date": "2026-09-23",
-  "revision": "0 \u2014 test data, not a design",
+  "revision": "0 — test data, not a design",
   "room": {
     "width": 33,
     "depth": 38,
     "gridHeight": 16.0,
-    "source": "InterAct rentals page, 2016 SpaceFinder listing. NOT MEASURED \u2014 see the venue research file. Nothing here may be cited in a real plot.",
+    "source": "InterAct rentals page, 2016 SpaceFinder listing. NOT MEASURED — see the venue research file. Nothing here may be cited in a real plot.",
     "sightPoint": {
       "y": 2.0,
       "h": 3.5,
-      "source": "EXAMPLE DATA \u2014 no real sight point measured. In a black box the worst seat moves with the risers, so this is a placeholder for one seating configuration. It sits INSIDE the room, like everything else."
+      "source": "EXAMPLE DATA — no real sight point measured. In a black box the worst seat moves with the risers, so this is a placeholder for one seating configuration. It sits INSIDE the room, like everything else."
     },
-    "gridSource": "Jerry's estimate, 2026.09.24: 'the ceiling is probably closer to 16'. NOT MEASURED. The 15' figure in the venue research is from a listing for the Drake's OTHER space (121 seats, 35x26), not the Bluver \u2014 so it was never about this room. MEASURE AT THE SITE VISIT.",
+    "gridSource": "Jerry's estimate, 2026.09.24: 'the ceiling is probably closer to 16'. NOT MEASURED. The 15' figure in the venue research is from a listing for the Drake's OTHER space (121 seats, 35x26), not the Bluver — so it was never about this room. MEASURE AT THE SITE VISIT.",
     "horizontalZero": {
       "at": "center",
       "name": "centre of the room"
     },
-    "configuration": "black box \u2014 no proscenium and no plaster line. The risers move, so where the audience sits is part of the design rather than a property of the room."
+    "configuration": "black box — no proscenium and no plaster line. The risers move, so where the audience sits is part of the design rather than a property of the room."
   },
   "positions": [
     {
@@ -71,7 +71,7 @@
           "x": 28
         }
       ],
-      "circuitSource": "EXAMPLE DATA \u2014 invented for the sample. The Drake's real circuit map has not been asked for."
+      "circuitSource": "EXAMPLE DATA — invented for the sample. The Drake's real circuit map has not been asked for."
     },
     {
       "name": "GRID D",
@@ -86,7 +86,7 @@
         8,
         9
       ],
-      "circuitSource": "EXAMPLE DATA \u2014 no locations, so units cannot be matched automatically."
+      "circuitSource": "EXAMPLE DATA — no locations, so units cannot be matched automatically."
     },
     {
       "name": "House Right Boom #1",
@@ -106,6 +106,15 @@
       "y2": 6.0,
       "mount": "flange",
       "foh": true
+    },
+    {
+      "name": "House Left Pipe",
+      "type": "electric",
+      "x1": 3.0,
+      "y1": 12.0,
+      "x2": 3.0,
+      "y2": 28.0,
+      "trim": 14
     }
   ],
   "instruments": [
@@ -211,7 +220,7 @@
       "lamp": "HPL 750",
       "position": "GRID D",
       "purpose": "BAX",
-      "notes": "750W \u2014 drawn with the blackened rear per RP-2 \u00a76.15's mark"
+      "notes": "750W — drawn with the blackened rear per RP-2 §6.15's mark"
     },
     {
       "unit": 3,
@@ -322,21 +331,67 @@
       "color": "R52+R119",
       "position": "House Left Box Boom 1",
       "purpose": "FOH box boom"
+    },
+    {
+      "unit": 1,
+      "channel": 51,
+      "type": "S4 26",
+      "x": 3.0,
+      "y": 14.0,
+      "trim": 14,
+      "focusX": 16.5,
+      "focusY": 14.0,
+      "focusH": 5.5,
+      "color": "R64",
+      "lamp": "HPL 575",
+      "position": "House Left Pipe",
+      "purpose": "HL cross 1"
+    },
+    {
+      "unit": 2,
+      "channel": 52,
+      "type": "S4 26",
+      "x": 3.0,
+      "y": 20.0,
+      "trim": 14,
+      "focusX": 16.5,
+      "focusY": 20.0,
+      "focusH": 5.5,
+      "color": "R64",
+      "lamp": "HPL 575",
+      "position": "House Left Pipe",
+      "purpose": "HL cross 2"
+    },
+    {
+      "unit": 3,
+      "channel": 53,
+      "type": "S4 26",
+      "x": 3.0,
+      "y": 26.0,
+      "trim": 14,
+      "focusX": 16.5,
+      "focusY": 26.0,
+      "focusH": 5.5,
+      "color": "R64",
+      "lamp": "HPL 575",
+      "position": "House Left Pipe",
+      "purpose": "HL cross 3"
     }
   ],
   "notes": [
     "Test data for the renderer. Room dimensions are from a 2016 rental listing and have not been measured.",
     "BAX carries no color, matching the archive: back light is open-white PARs or ellipsoidals.",
     "The five acting-area units are spaced 5'-6\" on center; field-to-beam at this throw wants 5'-4\".",
-    "Unit 4 on GRID D is a PARNel with its lens turned 45 degrees \u2014 RP-2 6.2 Oval Beam Fresnel.",
+    "Unit 4 on GRID D is a PARNel with its lens turned 45 degrees — RP-2 6.2 Oval Beam Fresnel.",
     "Accessories ride on the instrument record. RP-2 puts gate accessories (gobo, iris, rotator) INSIDE the body and front-of-lens ones (barn doors, hats) at the nose; only the name is given here.",
     "Circuits depend on the house and have NO SET ORDER (Jerry, 2026.09.23). The tool records what the house says and checks the plot against it; it never invents a circuit number. GRID C carries locations so units can be matched to the nearest circuit; GRID D is a bare list, and matching there refuses.",
-    "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number \u2014 RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer.",
-    "Booms are VERTICAL: in plan they are a point, so every unit shares one x and y and is told apart only by its height. RP-2 6.12 hatches them in plan and puts the readable layout beside the plot, NOT to scale. boomLayout is 'option1' for the whole plot \u2014 the standard allows only one per drawing.",
-    "room.sightPoint is where the vertical sightline is struck from \u2014 the eye of the worst seat. RP-2 \u00a73 asks for it on a section; without one the section cannot say what the back row can see.",
-    "One unit carries an HPL 750. RP-2 \u00a76.15 blackens the rear of a symbol for ARC sources; Jerry uses the same mark for a 750W Source Four, which is the only place he has seen a wattage called out on a plot. The instrument key says which meaning is in force.",
-    "room.gridHeight is the ceiling, and trims are checked against it. FOH positions are checked against room.houseCeiling instead, because a catwalk hangs over the audience where the ceiling is usually higher \u2014 neither is measured yet.",
-    "Origin: the CENTRE OF THE ROOM (Jerry, 2026.09.24). In a black box that is the best datum available \u2014 the centre is findable in an empty room, while a downstage wall is arbitrary when the audience can be on any side. It is a DATUM, not the storage origin: coordinates stay corner-based so no plot on disk has to be rewritten; what changes is where dimensions are measured from."
+    "control = dimmer-per-circuit: most houses (Jerry, 2026.09.23). The circuit is hard-wired to its own dimmer, so the two are ONE number — RP-2 6.14.1 draws a single hexagon and the load on a circuit IS the load on a dimmer.",
+    "Booms are VERTICAL: in plan they are a point, so every unit shares one x and y and is told apart only by its height. RP-2 6.12 hatches them in plan and puts the readable layout beside the plot, NOT to scale. boomLayout is 'option1' for the whole plot — the standard allows only one per drawing.",
+    "room.sightPoint is where the vertical sightline is struck from — the eye of the worst seat. RP-2 §3 asks for it on a section; without one the section cannot say what the back row can see.",
+    "One unit carries an HPL 750. RP-2 §6.15 blackens the rear of a symbol for ARC sources; Jerry uses the same mark for a 750W Source Four, which is the only place he has seen a wattage called out on a plot. The instrument key says which meaning is in force.",
+    "room.gridHeight is the ceiling, and trims are checked against it. FOH positions are checked against room.houseCeiling instead, because a catwalk hangs over the audience where the ceiling is usually higher — neither is measured yet.",
+    "Origin: the CENTRE OF THE ROOM (Jerry, 2026.09.24). In a black box that is the best datum available — the centre is findable in an empty room, while a downstage wall is arbitrary when the audience can be on any side. It is a DATUM, not the storage origin: coordinates stay corner-based so no plot on disk has to be rewritten; what changes is where dimensions are measured from.",
+    "House Left Pipe runs UP AND DOWNSTAGE — constant x, varying y. Its units are numbered 1..3 from the DOWNSTAGE end, which is what positions.axis() decides for a longitudinal run. It is in the sample so that rule is exercised by something, rather than only described."
   ],
   "boomLayout": "option1"
 }

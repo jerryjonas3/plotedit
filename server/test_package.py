@@ -564,7 +564,16 @@ check("aiming straight down points straight down", _nose(14, 16, 16), (0.0, -1.0
 
 _s, _drawn = _sec.render("../samples/bluver.plot.json",
                          __import__("tempfile").mkstemp(suffix=".pdf")[1])
-check("every horizontal position with units gets exactly one", len(_drawn), 3)
+# ⚠ Derived from the plot, not hardcoded. This asserted `3`, which was the
+# number of horizontal positions the sample happened to have — so adding a pipe
+# to the sample failed a test about the SECTION. The property is one governing
+# luminaire per horizontal position that carries units; count those.
+_secplot = _json.load(open("../samples/bluver.plot.json"))
+_hasunits = {(i.get("position") or "").strip().lower() for i in _secplot["instruments"]}
+_horiz = [q for q in _secplot["positions"]
+          if not P.is_vertical(q) and (q.get("name") or "").strip().lower() in _hasunits]
+check("every horizontal position with units gets exactly one",
+      len(_drawn), len(_horiz))
 check("...and the section draws without clipping", _s.warnings, [])
 
 
@@ -786,7 +795,15 @@ check("wattage stays available to the data model", _s426["watts"], 575.0)
 # §5.1: colour manufacturer designations — but only the ones actually used. A
 # key explaining L = Lee on a plot with no Lee in it teaches a reader something
 # they do not need.
-check("colours are listed once each", _K.colors_used(_plot), ["R52+R119"])
+# ⚠ Compared against the plot's own colours, not a hardcoded list. This asserted
+# ["R52+R119"], which was every colour the sample happened to use — so adding
+# one instrument in R64 failed a test about the KEY. The property is: each
+# colour once, and only the ones actually hung.
+_used = _K.colors_used(_plot)
+_intheplot = {i["color"] for i in _plot["instruments"] if i.get("color")}
+check("colours are listed once each", sorted(_used), sorted(_intheplot))
+check("...with no repeats", len(_used), len(set(_used)))
+check("...and nothing that is not hung", set(_used) - _intheplot, set())
 check("only the makers used are expanded", _K.makers_used(_plot), ["Rosco"])
 check("no Lee on a plot with no Lee",
       "Lee" in _K.makers_used(_plot), False)
