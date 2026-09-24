@@ -237,16 +237,26 @@ export function render(
     // circle that used to be drawn here understated the far end by half and hid
     // a grazing focus entirely.
     if (opts.showPools && hasFocus && c?.pool) {
+      // ⭐ Jerry, 2026.09.24: "could we highlight the pool of the selected
+      // instrument?" Fifteen ellipses overlap across the middle of this plot
+      // and they are all the same grey dashes — knowing WHICH one a unit throws
+      // is the question the drawing is for, and until now it could only be
+      // answered by counting.
       gPools.appendChild(el("ellipse", {
         cx: c.pool.cx, cy: c.pool.cy, rx: c.pool.a, ry: c.pool.b,
         transform: `rotate(${c.pool.angle} ${c.pool.cx} ${c.pool.cy})`,
+        class: "pool" + (isSelNow(opts, i) ? " selected" : ""),
         fill: "none", stroke: "#bbb", "stroke-width": W.pool, "stroke-dasharray": "0.6 0.4",
       }));
     } else if (opts.showPools && hasFocus && c?.pool_note) {
       // ⚠ Never silently. "No far edge" is a fact about the focus, not an
       // absence of information — mark the aim point so it is visible.
+      // ⚠ The "no pool here, and here is why" marker gets the same treatment.
+      // A selected unit that throws no pool has to be as findable as one that
+      // does, or the highlight quietly means "this unit is fine".
       gPools.appendChild(el("circle", {
         cx: inst.focusX!, cy: inst.focusY!, r: 0.5,
+        class: "pool-note" + (isSelNow(opts, i) ? " selected" : ""),
         fill: "none", stroke: "#e08a2e", "stroke-width": W.pool * 2,
         "stroke-dasharray": "0.3 0.3",
       }));

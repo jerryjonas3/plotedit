@@ -155,6 +155,14 @@
     svg .instrument.uncomputed path,
     svg .instrument.uncomputed line { stroke:#b26a00; }
     svg .instrument.uncomputed circle:not(.hit) { stroke:#b26a00; fill:#b26a00; }
+    /* The selected unit's pool. A fill as well as a stroke, because at this
+       scale a stroke alone is one dashed line among fifteen — it is the AREA
+       that answers "does that light cover the chair". Kept faint, and the pools
+       layer sits under the symbols, so nothing it covers is hidden. */
+    svg .pool.selected { stroke:var(--primary) !important; stroke-width:.1 !important;
+                         stroke-dasharray:none !important;
+                         fill:var(--primary) !important; fill-opacity:.10; }
+    svg .pool-note.selected { stroke:#b26a00 !important; stroke-width:.2 !important; }
     svg .halo { fill:var(--primary); fill-opacity:.16;
                 stroke:var(--primary); stroke-opacity:.9; stroke-width:.08; }
     /* 🔴 :not(.hit). Every symbol carries an INVISIBLE disc a foot across so a
