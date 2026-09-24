@@ -12,6 +12,7 @@
 import type { Plot, Position } from "./plot.js";
 import { isVertical } from "./plot.js";
 import type { Store } from "./store.js";
+import { renumber } from "./api.js";
 
 const TYPES = ["electric", "pipe", "grid", "catwalk", "truss",
                "boom", "box-boom", "ladder", "tormentor"] as const;
@@ -156,11 +157,33 @@ export function renderPositions(
       const nextUnit = on.length ? Math.max(...on.map(i => i.unit)) + 1 : 1;
       const nextCh = plot.instruments.length
         ? Math.max(...plot.instruments.map(i => i.channel ?? 0)) + 1 : 1;
-      // Drop it at the middle of the pipe — visible, and on the position rather
-      // than at the origin where it would be missed.
-      const mid = isVertical(p)
-        ? { x: p.x1, y: p.y1 }
-        : { x: (p.x1 + p.x2) / 2, y: (p.y1 + p.y2) / 2 };
+      // ⭐ Drop it in the BIGGEST GAP on the pipe, not at the midpoint.
+      //
+      // Dropping at the midpoint every time stacks the second unit on top of
+      // the first — which the renumber guard caught immediately: "two units
+      // share a coordinate, so their order is arbitrary". Filling the largest
+      // gap is also what a designer does: the hole in the wash is where the
+      // next unit goes.
+      let mid: { x: number; y: number };
+      if (isVertical(p)) {
+        mid = { x: p.x1, y: p.y1 };
+      } else {
+        const horizontal = Math.abs(p.x2 - p.x1) >= Math.abs(p.y2 - p.y1);
+        const along = (i: { x: number; y: number }) => (horizontal ? i.x : i.y);
+        const a = horizontal ? p.x1 : p.y1;
+        const b = horizontal ? p.x2 : p.y2;
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        // the pipe ends count as edges of the first and last gap
+        const marks = [lo, ...on.map(along).sort((m, n) => m - n), hi];
+        let best = lo + (hi - lo) / 2, widest = -1;
+        for (let k = 0; k < marks.length - 1; k++) {
+          const gap = marks[k + 1]! - marks[k]!;
+          if (gap > widest) { widest = gap; best = marks[k]! + gap / 2; }
+        }
+        mid = horizontal
+          ? { x: best, y: (p.y1 + p.y2) / 2 }
+          : { x: (p.x1 + p.x2) / 2, y: best };
+      }
       store.add({
         unit: nextUnit,
         channel: nextCh,
@@ -199,6 +222,39 @@ export function renderPositions(
       deps.onChange();
     });
     actions.appendChild(del);
+
+    const renumberBtn = document.createElement("button");
+    renumberBtn.textContent = "renumber";
+    renumberBtn.title = "Renumber the units on this position, per RP-2 §2.3.2";
+    renumberBtn.addEventListener("click", async () => {
+      try {
+        const r = await renumber(plot, p);
+        if (r.warning) { alert(r.warning); return; }
+        if (!r.count) { alert(`${p.name} has no units on it.`); return; }
+        if (!r.changed) { alert(`${p.name} is already numbered correctly.\n\n${r.convention}`); return; }
+        // ⚠ SHOW the moves and ask. A renumber on a plot that has been hung
+        // produces a different document from the one taped to the pipe, and a
+        // reader cannot tell 1-to-6 from 6-to-1 by looking at a single number.
+        const lines = r.moves.slice(0, 12)
+          .map(m => `   unit ${m.from} → ${m.to}`).join("\n");
+        const more = r.moves.length > 12 ? `\n   …and ${r.moves.length - 12} more` : "";
+        if (!confirm(`${r.convention}\n\n${r.changed} of ${r.count} units change:\n${lines}${more}\n\nApply?`)) return;
+        store.begin(null);
+        const byPos = new Map(r.instruments.map(i => [`${i.x},${i.y},${i.height ?? ""}`, i.unit]));
+        const name = p.name.trim().toLowerCase();
+        for (const inst of plot.instruments) {
+          if ((inst.position ?? "").trim().toLowerCase() !== name) continue;
+          const k = `${inst.x},${inst.y},${inst.height ?? ""}`;
+          const u = byPos.get(k);
+          if (u !== undefined) inst.unit = u;
+        }
+        store.commit();
+        deps.onChange();
+      } catch (e) {
+        alert(e instanceof Error ? e.message : String(e));
+      }
+    });
+    actions.appendChild(renumberBtn);
     box.appendChild(actions);
 
     host.appendChild(box);

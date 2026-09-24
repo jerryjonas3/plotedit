@@ -1,5 +1,5 @@
 /** Talk to the Python. Vite proxies /api to localhost:8000. */
-import type { Plot } from "./plot.js";
+import type { Plot, Position, Instrument } from "./plot.js";
 import type { Computed } from "./render.js";
 
 export async function compute(plot: Plot, poolPlane?: number): Promise<Computed[]> {
@@ -124,4 +124,29 @@ export async function symbols(
   const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}${rot}`);
   if (!r.ok) throw new Error(`symbols failed: ${r.status}`);
   return (await r.json()).symbols as Record<string, SymbolPrim[]>;
+}
+
+/** Renumber the units on one position, per RP-2 §2.3.2.
+ *
+ * ⚠ Returns what the numbers WOULD be. It does not apply them — on a plot that
+ * has been hung, a renumber produces a different document from the one taped to
+ * the pipe, so the caller has to mean it.
+ */
+export async function renumber(
+  plot: Plot, position: Position,
+): Promise<{
+  instruments: Instrument[]; count: number; changed: number;
+  moves: { from: number; to: number; x?: number; y?: number; height?: number }[];
+  convention: string; warning: string | null;
+}> {
+  const name = position.name.trim().toLowerCase();
+  const on = plot.instruments.filter(
+    i => (i.position ?? "").trim().toLowerCase() === name);
+  const r = await fetch("/api/renumber", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ instruments: on, position }),
+  });
+  if (!r.ok) throw new Error(`renumber failed: ${r.status} ${await r.text()}`);
+  return r.json();
 }

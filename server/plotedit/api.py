@@ -23,6 +23,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from . import photometrics as ph
+from . import positions as P
 from . import exports, dxf_bridge, symbols as sym
 from . import fixture_names
 
@@ -373,6 +374,41 @@ async def _with_temp_dxf(file: UploadFile, fn):
 
 
 # ----------------------------------------------------------------- symbols
+
+class RenumberRequest(BaseModel):
+    instruments: List[Dict[str, Any]]
+    position: Dict[str, Any]
+    start: int = 1
+
+
+@app.post("/renumber")
+def renumber(req: RenumberRequest) -> Dict[str, Any]:
+    """Renumber the units on ONE position, per RP-2 §2.3.2.
+
+    Stage left to stage right on a batten; top to bottom then downstage to
+    upstage on a boom; nearest the plaster line on an FOH position parallel to
+    centreline; nearest centreline on a box boom with real extent. `numberFrom`
+    on the position overrides all of it.
+
+    ⚠ It returns the renumbered instruments — it does NOT decide to apply them.
+    On a plot that has been hung, a renumber produces a different document from
+    the one taped to the pipe, so the caller has to mean it. `describe` says in
+    words which convention was used, because a reader cannot tell 1-to-6 from
+    6-to-1 by looking at a single number.
+    """
+    import copy
+    insts = copy.deepcopy(req.instruments)
+    before = {id(i): i.get("unit") for i in insts}
+    count, warning = P.number(insts, req.position, start=req.start)
+    changed = [
+        {"from": before[id(i)], "to": i.get("unit"),
+         "x": i.get("x"), "y": i.get("y"), "height": i.get("height")}
+        for i in insts if before[id(i)] != i.get("unit")
+    ]
+    return {"instruments": insts, "count": count, "changed": len(changed),
+            "moves": changed, "convention": P.describe(req.position),
+            "warning": warning}
+
 
 @app.get("/symbols")
 def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[str, Any]:
