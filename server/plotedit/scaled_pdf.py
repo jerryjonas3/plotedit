@@ -295,7 +295,8 @@ class Sheet:
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
-             accessories=None, show_pool=True, annotate=False):
+             accessories=None, circuit=None, dimmer=None,
+             show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -334,8 +335,10 @@ class Sheet:
 
         # §6.14 notation. RP-2 allows leaving categories out rather than
         # cluttering the plot, so only what was supplied is drawn.
+        # §6.14.1: hexagon = circuit, rectangle = dimmer, circle = channel. The
+        # SHAPE carries the meaning, so a circuit must never be drawn in a circle.
         _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
-                      above=ft(0, 11))
+                      circuit=circuit, dimmer=dimmer, above=ft(0, 11))
         result = None
         if focus_to:
             fx, fy = focus_to
@@ -345,7 +348,8 @@ class Sheet:
                 from . import photometrics as ph
                 a = ph.aim((x, y, trim), (fx, fy, focus_h))
                 result = dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim, focus=(fx, fy),
-                              focus_h=focus_h, accessories=list(accessories or []), **a)
+                              focus_h=focus_h, accessories=list(accessories or []),
+                              circuit=circuit, dimmer=dimmer, **a)
                 if kind in ph.FIXTURES:
                     pl = ph.pool(kind, a["throw"], a["elevation"]); result.update(pl)
                     # color_gel may be compound ("R52+R119", "R52/R119"), so ask

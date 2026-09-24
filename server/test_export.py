@@ -31,7 +31,14 @@ rows = [r.split(",") for r in sched[5:]]
 check("every instrument present", len(rows), len(plot["instruments"]))
 check("sorted by position then unit", [r[0] for r in rows][:4],
       ["GRID B", "GRID B", "GRID C", "GRID C"])
-check("color survives the CSV", rows[2][7], "R52+R119")
+# Look the column up by NAME. A hard-coded index breaks the moment a column is
+# inserted — which is exactly what adding Circuit did, and the failure read as
+# "color is empty" rather than "the columns moved".
+_col = exports.SCHEDULE_COLUMNS.index
+check("color survives the CSV", rows[2][_col("Color")], "R52+R119")
+check("the circuit column exists", "Circuit" in exports.SCHEDULE_COLUMNS, True)
+check("circuit sits beside channel, not beside address",
+      _col("Circuit") - _col("Channel"), 1)
 
 print("\nhookup — channel order")
 hook = [r.split(",") for r in exports.hookup_csv(plot).splitlines()[5:]]

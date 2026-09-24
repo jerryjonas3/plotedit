@@ -214,6 +214,52 @@ _, _w = P.number(_dup, _lat)
 check("units sharing a coordinate warn", "arbitrary" in (_w or ""), True)
 check("an empty position warns too", P.number([], _lat)[1] is not None, True)
 
+
+print("\ncircuits: recorded from the house, never invented")
+from plotedit import circuits as C
+
+# "Circuits depend on the house — no set order." (Jerry, 2026.09.23.) So the
+# tool records and checks; it never generates a circuit number.
+_p1 = {"name": "Elect 1", "x1": 0, "y1": 16, "x2": 33, "y2": 16,
+       "circuits": [{"id": 3, "x": 4}, {"id": 4, "x": 28}],
+       "circuitSource": "Drake rep plot 2019"}
+_p2 = {"name": "Elect 2", "x1": 0, "y1": 20, "x2": 33, "y2": 20,
+       "circuits": [7, 8], "circuitSource": "ME, by phone"}
+_p3 = {"name": "Elect 3", "x1": 0, "y1": 24, "x2": 33, "y2": 24}
+
+check("a bare list still reads", C.available(_p2), [7, 8])
+check("locations survive", C.available(_p1), [3, 4])
+check("an unsourced list says so", "NOT RECORDED" in C.source(_p3), True)
+
+# A circuit the house does not list is a real error, not a warning.
+_bad = [{"unit": 1, "position": "Elect 1", "circuit": 99, "x": 4, "y": 16}]
+check("a circuit the house has not got is caught",
+      any("does not list" in m for m in C.check(_bad, [_p1])), True)
+
+# A twofer is legal and is a LOAD question, so it is reported, not rejected.
+_two = [{"unit": 1, "position": "Elect 1", "circuit": 3, "x": 4, "y": 16},
+        {"unit": 2, "position": "Elect 1", "circuit": 3, "x": 6, "y": 16}]
+check("a twofer is reported as a load question",
+      any("twofer" in m for m in C.check(_two, [_p1])), True)
+check("a position with no circuits is noted, not failed",
+      any("no circuits recorded" in m for m in C.check([], [_p3])), True)
+
+# ⭐ The refusal. Without locations there is no basis for matching, and pairing
+# a list against units in order would look like a result and be a guess.
+_n, _notes = C.match_to_units(_two, _p2)
+check("matching REFUSES when the house gave no locations", _n, 0)
+check("...and says why", any("no set order" in m for m in _notes), True)
+
+# With locations it matches — and must report every doubling it creates.
+_many = [{"unit": u, "position": "Elect 1", "x": x, "y": 16}
+         for u, x in [(1, 3), (2, 5), (3, 27)]]
+_n, _notes = C.match_to_units(_many, _p1)
+check("with locations it matches", _n, 3)
+check("more units than circuits is flagged",
+      any("MUST double up" in m for m in _notes), True)
+check("...and the twofer it made is named",
+      any("twofer" in m for m in _notes), True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

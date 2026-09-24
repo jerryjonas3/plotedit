@@ -14,6 +14,11 @@ export interface Instrument {
   /** Unit number, unique within a position. */
   unit: number;
   channel?: number;
+  /** The house circuit this unit is plugged into. §6.14.1 draws it in a HEXAGON.
+   *
+   *  ⚠ Never generated. Circuits depend on the house and have no set order
+   *  (Jerry, 2026.09.23) — the only source is the venue's own circuit map. */
+  circuit?: number | string;
   dimmer?: number;
   address?: number;
   universe?: number;
@@ -82,6 +87,13 @@ export interface Position {
    *  toward stage right but y increases upstage — so stage right is the MAXIMUM
    *  x and downstage is the MINIMUM y. Do not "simplify" them into one rule. */
   numberFrom?: "SR" | "SL" | "DS" | "US";
+  /** The circuits the HOUSE has on this position, in its own order. Bare
+   *  numbers, or records with a location along the pipe. With locations, units
+   *  can be matched to the nearest circuit; without them, matching refuses. */
+  circuits?: Array<number | string | { id: number | string; x?: number; y?: number }>;
+  /** Where the circuit list came from. A circuit list without a provenance is
+   *  a rumour — this is what `/venue` asks for the rep plot to fill. */
+  circuitSource?: string;
 }
 
 /** The room. Dimensions carry their source — a rental listing is not a survey. */

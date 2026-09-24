@@ -53,7 +53,7 @@ def _csv(rows: List[List[Any]]) -> str:
 
 # --------------------------------------------------------------- paperwork
 
-SCHEDULE_COLUMNS = ["Position", "Unit", "Channel", "Dimmer", "Address",
+SCHEDULE_COLUMNS = ["Position", "Unit", "Channel", "Circuit", "Dimmer", "Address",
                     "Type", "Wattage", "Color", "Gobo", "Purpose", "Accessory", "Notes"]
 
 
@@ -81,14 +81,15 @@ def schedule_csv(plot: Dict[str, Any]) -> str:
                              [], SCHEDULE_COLUMNS]
     for i in _sorted_for_schedule(plot["instruments"]):
         rows.append([i.get("position", ""), i.get("unit", ""), i.get("channel", ""),
-                     i.get("dimmer", ""), i.get("address", ""), i.get("type", ""),
+                     i.get("circuit", ""), i.get("dimmer", ""), i.get("address", ""),
+                     i.get("type", ""),
                      i.get("wattage", ""), i.get("color", ""), i.get("gobo", ""),
                      i.get("purpose", ""), _accessories(i), i.get("notes", "")])
     return _csv(rows)
 
 
 HOOKUP_COLUMNS = ["Channel", "Position", "Unit", "Type", "Color", "Purpose",
-                  "Dimmer", "Address"]
+                  "Circuit", "Dimmer", "Address"]
 
 
 def hookup_csv(plot: Dict[str, Any]) -> str:
@@ -101,7 +102,7 @@ def hookup_csv(plot: Dict[str, Any]) -> str:
     for i in _sorted_for_hookup(plot["instruments"]):
         rows.append([i.get("channel", ""), i.get("position", ""), i.get("unit", ""),
                      i.get("type", ""), i.get("color", ""), i.get("purpose", ""),
-                     i.get("dimmer", ""), i.get("address", "")])
+                     i.get("circuit", ""), i.get("dimmer", ""), i.get("address", "")])
     return _csv(rows)
 
 

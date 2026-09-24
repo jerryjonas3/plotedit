@@ -299,10 +299,42 @@ Two refusals: **two units at one coordinate warn** rather than being ordered
 arbitrarily, and **nothing renumbers automatically**, because on a hung plot a
 renumber is a different document from the one taped to the pipe.
 
+### ✅ Circuits — 2026.09.23
+
+**Jerry: *"circuits depend on the house — no set order."*** That one sentence is
+the whole design. **`circuits.py` never invents a circuit number.** Unit numbers
+follow a rule and can be generated; circuits do not and cannot. A house wired its
+pipes in whatever order made sense to whoever did it, and the only source of
+truth is that house — its rep plot, its circuit map, or its ME standing under the
+pipe.
+
+So the module **records what the house says and checks the plot against it**:
+
+- `circuits` on a position is an **inventory** in the house's own order. Bare
+  numbers (`[7, 8, 9]`) or records with a location along the pipe.
+- `circuitSource` — **a circuit list without a provenance is a rumour**, and an
+  unsourced list is reported as one. This is what `/venue` asks for the rep plot
+  to fill.
+- `check()` catches a circuit the house has not got, a position not in the plot,
+  and a position with nothing recorded (not an error — but no load table can be
+  built for it).
+- **A twofer is reported, never rejected.** Two units on one circuit is legal and
+  common; it is a LOAD question, and it goes to Art.
+- `match_to_units()` **refuses when the house gave no locations.** Pairing a
+  circuit list against units in order would look like a result and be a guess,
+  and a plot patched to the wrong circuits reads as correct until half the rig
+  does not come on.
+- ⚠ And when it *can* match, it **reports every doubling it creates** — there are
+  routinely more units on a pipe than circuits under it. A matcher that silently
+  doubles up is worse than one that refuses: the refusal gets dealt with, the
+  silent twofer gets discovered by a breaker.
+
+The circuit is drawn in a **hexagon** (§6.14.1 — the shape carries the meaning)
+and has a column on both the instrument schedule and the hookup.
+
 ### Still to do
 
 - Auto-numbering along a position, once the direction is known.
-- Circuits along a position, and which company switch feeds it.
 - **Vertical positions — booms, box booms, ladders.** Explicitly out of scope
   until asked: RP-2 §6.12 makes them a different drawing problem, with their own
   height-designation conventions and two accepted layouts.
