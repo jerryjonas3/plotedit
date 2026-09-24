@@ -58,12 +58,30 @@ def makers_used(plot: Dict[str, Any]) -> List[str]:
     return found
 
 
+def _natural(name: str):
+    """Sort key that reads numbers as numbers: S4 19 before S4 26 before S4 36.
+
+    Plain alphabetical puts "S4 19" after "S4 136", which is the sort order of a
+    filing cabinet rather than of a lens rack.
+    """
+    import re as _re
+    return [int(t) if t.isdigit() else t.lower()
+            for t in _re.split(r"(\d+)", name or "")]
+
+
 def types_used(plot: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """One row per fixture type on the plot: symbol, description, angle, watts, count."""
+    """One row per fixture type on the plot: symbol, description, watts, count.
+
+    Ordered BY FIXTURE, smallest lens first — the order Jerry wrote them in
+    2026.09.23 ("1) S4 19, 3) S4 26, 2) S4 36"). A key is read by someone
+    looking for a shape they can see on the plot, so it should be ordered the
+    way they would look: by instrument, not by how many there happen to be.
+    """
     counts = Counter((i.get("type") or "").strip()
                      for i in plot.get("instruments", []) if i.get("type"))
     rows = []
-    for name, n in counts.most_common():
+    for name in sorted(counts, key=_natural):
+        n = counts[name]
         key, row, note = ph.lookup(name)
         # §5.1 asks for beam spread "if the numeric value is not part of the
         # luminaire's name". It is worth giving even when it looks like it is:
@@ -113,12 +131,15 @@ def draw(sheet, plot, x, y, width=11.0, line=0.85, title="INSTRUMENT KEY"):
         rad = sym.radius(prims)
         cy -= rad                                  # drop to this row's centre
         sym.draw(sheet, prims, x + 0.9, cy, rotate_deg=90, width=1.0)
-        desc = f"{r['count']} × {r['name']}"
+        # Jerry's own notation, 2026.09.23: "1) S4 19, 3) S4 26, 2) S4 36."
+        desc = f"{r['count']}) {r['name']}"
         sheet.text(x + 2.2, cy + line * 0.3, desc, size=6, bold=True)
         bits = []
-        if r["field"]:
-            bits.append(f"field {r['field']:.0f}°" +
-                        (f" / beam {r['beam']:.0f}°" if r.get("beam") else ""))
+        # ⚠ No beam or field here, by Jerry's instruction 2026.09.23 — and §5.1
+        # agrees: it asks for beam spread only "if the numeric value is not part
+        # of the luminaire's name", and "S4 19" carries it. The measured field
+        # (25° on a 26° barrel) stays in the fixture table for anything that
+        # computes; it is not what a key is for.
         if r["watts"]:
             bits.append(f"{r['watts']:.0f} W")
         if r["unknown"]:

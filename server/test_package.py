@@ -675,17 +675,23 @@ import json as _json
 _plot = _json.load(open("../samples/bluver.plot.json"))
 _types = _K.types_used(_plot)
 check("one row per fixture type", len(_types), 5)
-check("counted, most common first", _types[0]["count"] >= _types[-1]["count"], True)
+# Ordered BY FIXTURE, smallest lens first — how a reader looks something up,
+# and how Jerry wrote it: "1) S4 19, 3) S4 26, 2) S4 36".
+_names = [r["name"] for r in _types]
+check("ordered by fixture, not by count",
+      [n for n in _names if n.startswith("S4 ") and n[3:].isdigit()],
+      ["S4 19", "S4 26", "S4 36"])
 check("the counts add up to the rig",
       sum(r["count"] for r in _types), len(_plot["instruments"]))
 
-# §5.1 asks for beam spread. It is worth giving even when the name looks like it
-# carries one: "S4 26" names the NOMINAL barrel; the measured field is 25° and
-# the beam 18°. The name is the product, these are the light.
+# ⚠ Beam and field are NOT on the key — Jerry, 2026.09.23. §5.1 agrees: it asks
+# for beam spread only "if the numeric value is not part of the luminaire's
+# name", and "S4 26" carries it. The measured angles stay in the fixture table
+# for anything that computes; a key is for reading shapes, not for photometrics.
 _s426 = next(r for r in _types if r["name"] == "S4 26")
-check("field and beam are both published", (_s426["field"], _s426["beam"]), (25.0, 18.0))
-check("...and differ from the name's nominal 26", _s426["field"] != 26.0, True)
-check("wattage comes through", _s426["watts"], 575.0)
+check("the angles are still available to the data model",
+      (_s426["field"], _s426["beam"]), (25.0, 18.0))
+check("wattage comes through — §5.1 asks for it", _s426["watts"], 575.0)
 
 # §5.1: colour manufacturer designations — but only the ones actually used. A
 # key explaining L = Lee on a plot with no Lee in it teaches a reader something
