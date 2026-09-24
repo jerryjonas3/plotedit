@@ -214,7 +214,7 @@ export function render(
       gFocus.appendChild(fh);
     }
     const isSel = opts.selected === i;
-    const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)]);
+    const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)], plot.symbolAngle);
     g.setAttribute("data-index", String(i));
     if (isSel) g.classList.add("selected");
     // A generous invisible disc so a 9-inch symbol is still easy to grab.
@@ -223,7 +223,7 @@ export function render(
       class: "hit", "data-index": String(i), "data-handle": "body",
     }));
     gInst.appendChild(g);
-    if (opts.showLabels) gText.appendChild(labels(inst, c));
+    if (opts.showLabels) gText.appendChild(labels(inst, c, plot.symbolAngle));
   });
 }
 
@@ -238,10 +238,20 @@ export function render(
  * c across, origin at the yoke. Rotation puts the front toward the focus.
  */
 function symbol(inst: Instrument, c: Computed | undefined,
-                prims: SymbolPrim[] | undefined): SVGElement {
+                prims: SymbolPrim[] | undefined,
+                symbolAngle?: string): SVGElement {
   const g = el("g", { class: "instrument", "data-unit": inst.unit,
                       "data-channel": inst.channel ?? "" });
-  const pan = c?.pan ?? 0;
+  // ⭐ RP-2 p.2 allows orienting a symbol "to either focus points or 90° axes",
+  // and the plot defaults to the axes. The paper has snapped since 2026.09.23;
+  // the screen was still drawing the true angle, so the same unit pointed two
+  // different ways on the two drawings.
+  //
+  // 🔴 COSMETIC ONLY. `c.pan` remains the real aim and every number is computed
+  // from it — this rotates ink, nothing else.
+  const truePan = c?.pan ?? 0;
+  const pan = (symbolAngle ?? "orthogonal").startsWith("orth")
+    ? Math.round(truePan / 90) * 90 : truePan;
   const body = el("g", { transform: `translate(${inst.x} ${inst.y}) rotate(${-pan})` });
 
   if (!prims) {
@@ -289,9 +299,15 @@ function fieldOf(type: string): number | null {
   return m?.[1] ? Number(m[1]) : null;
 }
 
-/** Unit number above, channel in a bubble below, color and type beside —
- *  the USITT annotation positions. */
-function labels(inst: Instrument, c?: Computed): SVGElement {
+/** §6.14.2: the unit number goes INSIDE the body, the channel in a circle below,
+ *  colour and type beside.
+ *
+ * ⚠ The unit number used to be drawn 1.1 ft ABOVE the symbol — where it lands on
+ * the position's own label. The paper has had it in the body since 2026.09.23;
+ * the screen had not caught up, so the two drawings disagreed about the one
+ * number an electrician reads first.
+ */
+function labels(inst: Instrument, c?: Computed, symbolAngle?: string): SVGElement {
   const g = el("g", { class: "annot" });
   const add = (dx: number, dy: number, s: string, size: number, weight = "400", fill = "#111") => {
     const t = el("text", {
@@ -302,7 +318,16 @@ function labels(inst: Instrument, c?: Computed): SVGElement {
     t.textContent = s;
     g.appendChild(t);
   };
-  add(0, 1.1, String(inst.unit), TEXT * 0.75, "700");
+  // In the body, offset along the instrument's own axis so the batten does not
+  // run through it — the same rule the PDF uses, and it has to follow the
+  // symbol as it turns.
+  const drawn = (symbolAngle ?? "orthogonal").startsWith("orth")
+    ? Math.round((c?.pan ?? 0) / 90) * 90
+    : (c?.pan ?? 0);
+  const rad = (drawn * Math.PI) / 180;
+  const OFF = 0.17;   // ft toward the back of the body, matching scaled_pdf
+  add(-OFF * Math.sin(rad), OFF * Math.cos(rad),
+      String(inst.unit), TEXT * 0.7, "700");
   if (inst.channel !== undefined) {
     g.appendChild(el("circle", { cx: inst.x, cy: inst.y - 1.5, r: 0.55,
       fill: "#fff", stroke: "#111", "stroke-width": 0.07 }));
