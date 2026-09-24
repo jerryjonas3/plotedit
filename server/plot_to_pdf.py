@@ -7,9 +7,10 @@ This is step 3's proof: the screen and the paper must agree. It is also the
 beginning of step 5's export, so it lives in the package rather than in a test.
 """
 import json
+import os
 import sys
 
-from plotedit.scaled_pdf import Sheet, ft, check
+from plotedit.scaled_pdf import Sheet, ft, check, largest_scale, FIT_SCALES
 from plotedit import photometrics as ph
 
 
@@ -18,8 +19,15 @@ from plotedit import photometrics as ph
 from plotedit.booms import BOOM_PITCH
 
 
-def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dxf=None,
+def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
            pool_plane=None):
+    # "fit" means: zoom in as far as the sheet allows. An explicit scale is
+    # still honoured — a plot issued at 1/4" stays at 1/4" when it is reissued.
+    if scale in ("fit", "max", None):
+        scale = largest_scale(
+            lambda k, path: render(plot_path, path, scale=k, page=page,
+                                   landscape=landscape, pool_plane=pool_plane)[0])
+
     plot = json.load(open(plot_path))
     room = plot["room"]
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,

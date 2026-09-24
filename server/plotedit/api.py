@@ -238,9 +238,12 @@ class ExportRequest(BaseModel):
     format's own types live in web/src/plot.ts and the server should not
     reject a plot for carrying a field it does not know about."""
     plot: Dict[str, Any]
-    scale: str = "1/4"
-    page: str = "TABLOID"
-    landscape: bool = False
+    # ⭐ "fit" zooms in to the largest STANDARD scale at which nothing runs off
+    # the sheet. An explicit scale is still honoured — a plot issued at 1/4"
+    # stays at 1/4" when it is reissued.
+    scale: str = "fit"
+    page: str = "ARCH_D"
+    landscape: bool = True
 
 
 def _attach(body: bytes, media: str, filename: str) -> Response:

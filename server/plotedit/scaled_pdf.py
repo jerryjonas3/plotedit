@@ -9,7 +9,7 @@ printed at 100% / "Actual size", never "Fit to page".
 Real-world input is FEET. Convert with ft(feet, inches=0).
 
     from plotedit.scaled_pdf import Sheet, ft
-    s = Sheet("plan.pdf", page="TABLOID", scale="1/4", landscape=True,
+    s = Sheet("plan.pdf", page="ARCH_D", scale="1/4", landscape=True,
               show="Without Consent", venue="Louis Bluver Theatre at the Drake",
               sheet="Light Plot — plan", rev="A")
     s.origin(ft(2), ft(2))                    # where real-world (0,0) sits on the page
@@ -93,7 +93,7 @@ def ft(feet, inches=0):
 
 
 class Sheet:
-    def __init__(self, path, page="TABLOID", scale="1/4", landscape=True,
+    def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
                  show="", venue="", sheet="", rev="A", designer="Design: Jerry Jonas",
                  margin_in=0.5, dxf=None):
         w, h = PAGES[page] if isinstance(page, str) else page
@@ -702,14 +702,26 @@ class Sheet:
             # the smallest one that fits at this scale is a lookup.
             need_w = real_w * self.paper_in_per_ft + 2 * (m / inch)
             need_h = real_h * self.paper_in_per_ft + 2 * (m / inch) + 1.3
+            def _fits(_w, _h):
+                return _w >= need_w and _h >= need_h
+
+            # ⚠ TURN THE PAPER FIRST. Jerry, 2026.09.24: "we can suggest portrait
+            # if needed." Sending someone to a larger sheet when the one already
+            # in the plotter would hold the drawing the other way round is advice
+            # that costs paper for nothing.
             bigger = None
-            for _name, (_pw, _ph) in sorted(PAGES.items(), key=lambda kv: kv[1][0] * kv[1][1]):
-                for _w, _h, _o in ((_pw, _ph, "portrait"), (_ph, _pw, "landscape")):
-                    if _w >= need_w and _h >= need_h:
-                        bigger = f'{_name} {_o} ({_w:g}" x {_h:g}")'
+            _pw, _ph = sorted(self.page_in)
+            _other = (_pw, _ph, "portrait") if self.landscape else (_ph, _pw, "landscape")
+            if _fits(_other[0], _other[1]):
+                bigger = f'{self.page_name} {_other[2]} ({_other[0]:g}" x {_other[1]:g}")'
+            else:
+                for _name, (_aw, _ah) in sorted(PAGES.items(), key=lambda kv: kv[1][0] * kv[1][1]):
+                    for _w, _h, _o in ((_aw, _ah, "portrait"), (_ah, _aw, "landscape")):
+                        if _fits(_w, _h):
+                            bigger = f'{_name} {_o} ({_w:g}" x {_h:g}")'
+                            break
+                    if bigger:
                         break
-                if bigger:
-                    break
             here = (f'{self.page_name} {"landscape" if self.landscape else "portrait"} '
                     f'({self.page_in[0]:g}" x {self.page_in[1]:g}")')
             msg = (f"CLIPPED: {edges}drawing spans {real_w:.1f}' x {real_h:.1f}' but {here} holds "
@@ -844,6 +856,43 @@ def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", l
             s.text(fh, -ft(1, 2), lab, size=5, center=True, color=grey)
     s.finish()
     return s
+
+
+# ⭐ Standard scales only, biggest first. Jerry, 2026.09.24: "we should be able
+# to zoom in as long as all the objects are still on the page."
+#
+# ⚠ STANDARD ones. An electrician measures off a drawing with a scale rule, so
+# one at 0.31" = 1'-0" is a drawing nobody can measure. Filling the sheet by
+# solving for a ratio would break the tool it is read with, which is why this
+# walks a fixed list.
+FIT_SCALES = ["1", "3/4", "1/2", "3/8", "1/4", "1/8"]
+
+
+def largest_scale(render_fn):
+    """The biggest standard scale at which nothing runs off the sheet.
+
+    `render_fn(scale, path)` draws the whole thing and returns its Sheet.
+
+    Rendered and CHECKED rather than predicted: the clipping guard already knows
+    what "fits" means, and a second implementation of that arithmetic would be
+    one more thing to keep in step. Text, the title block and the scale bar are
+    sized in POINTS, so they occupy more FEET as the scale gets smaller — a span
+    measured once and divided does not survive that. A render is about 0.1s.
+    """
+    import contextlib
+    import io
+    import os as _os
+    import tempfile
+    probe = _os.path.join(tempfile.mkdtemp(), "fit.pdf")
+    for k in FIT_SCALES:
+        with contextlib.redirect_stderr(io.StringIO()):
+            sheet = render_fn(k, probe)
+        if not any("CLIPPED" in w for w in sheet.warnings):
+            return k
+    # ⚠ Never silently. Nothing fits, so take the smallest and let the guard say
+    # so on the real render — a drawing quietly made at a scale that clips is
+    # exactly the failure the guard exists to catch.
+    return FIT_SCALES[-1]
 
 
 def check(path):

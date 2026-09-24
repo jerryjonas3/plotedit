@@ -971,6 +971,54 @@ if _s:
 
 check("a drawing that fits is not reported", _render("ARCH_D", True, "1/2"), [])
 
+# ⚠ Turn the paper before buying more of it. ARCH D PORTRAIT cannot hold this
+# drawing at 1/2", but the same sheet landscape can, and that is the cheaper
+# answer — it is already in the plotter.
+_rot = _render("ARCH_D", False, "1/2")
+check("a sheet that only needs turning says so",
+      bool(_rot) and "ARCH_D landscape" in _rot[0], True)
+
+# ---- zoom in as far as the sheet allows
+# Jerry, 2026.09.24: "we should be able to zoom in as long as all the objects
+# are still on the page."
+#
+# 🔴 The real test is the BOUNDARY: the chosen scale must fit AND the next one
+# up must not. A fitter that always returns 1/8" fits every time and is useless.
+_fit_for = lambda page, land: _P.largest_scale(
+    lambda k, path: _P.render(_SAMPLE, path, scale=k, page=page, landscape=land)[0])
+_best = _fit_for("ARCH_D", True)
+check("the fitted scale is a STANDARD one", _best in _P.FIT_SCALES, True)
+check(f"...and {_best}\" fits ARCH_D landscape", _render("ARCH_D", True, _best), [])
+_up = _P.FIT_SCALES[_P.FIT_SCALES.index(_best) - 1] if _P.FIT_SCALES.index(_best) else None
+if _up:
+    check(f"...and the next one up ({_up}\") does NOT — so it zoomed in as far as it goes",
+          bool(_render("ARCH_D", True, _up)), True)
+
+# A smaller sheet has to come out at a smaller scale, or nothing is being fitted.
+_small = _fit_for("TABLOID", False)
+check("a smaller sheet fits at a smaller scale",
+      _P.FIT_SCALES.index(_small) > _P.FIT_SCALES.index(_best), True)
+check(f"...and {_small}\" really fits TABLOID portrait",
+      _render("TABLOID", False, _small), [])
+
+# The defaults Jerry asked for, 2026.09.24: "make ARCH D landscape the default".
+_sheet, _ = _P.render(_SAMPLE, os.path.join(_tmp, "default.pdf"))
+check("the default sheet is ARCH_D", _sheet.page_name, "ARCH_D")
+check("...landscape", _sheet.landscape, True)
+check("...36in x 24in", [round(v) for v in _sheet.page_in], [36, 24])
+check("...and nothing runs off it",
+      [w for w in _sheet.warnings if "CLIPPED" in w], [])
+
+# The SECTION fits itself too — it is the drawing trims are read off, so a
+# bigger scale is a more useful drawing.
+import plot_to_section as _S
+_sec_sheet, _ = _S.render(_SAMPLE, os.path.join(_tmp, "sec.pdf"))
+check("the section fits its sheet",
+      [w for w in _sec_sheet.warnings if "CLIPPED" in w], [])
+_sec_up = _S.render(_SAMPLE, os.path.join(_tmp, "sec-up.pdf"), scale="3/4")[0]
+check("...and is zoomed in as far as it goes (3/4in clips)",
+      any("CLIPPED" in w for w in _sec_up.warnings), True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

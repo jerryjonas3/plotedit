@@ -59,8 +59,17 @@ def _figure(s, x, head_h):
     s.text(x + ft(0, 10), head_h, f"head height {ph.fmt_ft(head_h)}", size=5.5, color=grey)
 
 
-def render(plot_path, pdf_path, cut_at=None, axis="y", scale="1/2",
+def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
            page="ARCH_D", landscape=True, head_h=5.5):
+    # "fit" zooms in as far as the sheet allows, on standard scales only. The
+    # section is the drawing trims are read off, so a bigger scale is a more
+    # useful drawing — as long as nothing falls off the edge.
+    if scale in ("fit", "max", None):
+        from plotedit.scaled_pdf import largest_scale as _largest
+        scale = _largest(lambda k, path: render(plot_path, path, cut_at=cut_at,
+                                                axis=axis, scale=k, page=page,
+                                                landscape=landscape, head_h=head_h)[0])
+
     plot = json.load(open(plot_path))
     room = plot["room"]
     depth, width = room["depth"], room["width"]

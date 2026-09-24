@@ -86,11 +86,15 @@
         <option value="hookup">Channel hookup</option>
         <option value="eos">Eos patch (untested)</option>
       </select>
-      <select id="scale" title="Paper scale">
+      <select id="scale" title="Paper scale for the exported PDF. Fit picks the
+largest standard scale at which nothing runs off the sheet.">
+        <option value="fit" selected>Fit</option>
         <option value="1/8">1/8"</option>
-        <option value="1/4" selected>1/4"</option>
+        <option value="1/4">1/4"</option>
         <option value="3/8">3/8"</option>
         <option value="1/2">1/2"</option>
+        <option value="3/4">3/4"</option>
+        <option value="1">1"</option>
       </select>
       <label title="Import a venue ground plan">
         <input type="file" id="dxf" accept=".dxf" hidden> Ground plan…

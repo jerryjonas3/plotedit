@@ -43,7 +43,14 @@ export async function exportFile(
   const r = await fetch(`/api/export/${kind}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ plot, scale: opts.scale ?? "1/4", landscape: opts.landscape ?? false }),
+    // ⚠ Send only what was CHOSEN. Repeating the defaults here meant the
+    // client silently overrode the server's — the page and orientation moved to
+    // ARCH D landscape and every export still came out tabloid portrait.
+    body: JSON.stringify({
+      plot,
+      ...(opts.scale ? { scale: opts.scale } : {}),
+      ...(opts.landscape === undefined ? {} : { landscape: opts.landscape }),
+    }),
   });
   if (!r.ok) {
     // 422 is the sheet refusing to clip — it names the scale that would fit.

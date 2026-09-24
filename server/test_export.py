@@ -77,13 +77,30 @@ for path, kind, sniff in [("/export/schedule", "text/csv", b"Instrument Schedule
     check(f"{path} content", sniff in r.content, True)
     check(f"{path} is a download", "attachment" in r.headers.get("content-disposition", ""), True)
 
-# ⭐ The sample now carries booms, whose elevations sit beside the plot, and a
-# FOH catwalk over the house. It no longer fits Tabloid at 1/4" — and the right
-# behaviour is to REFUSE, not to clip. That is the guard working, so assert it.
-r = client.post("/export/pdf", json=req)
+# ⭐ The sample carries booms, whose elevations sit beside the plot, and a FOH
+# catwalk over the house. ASKED FOR Tabloid at 1/4" it does not fit — and the
+# right behaviour is to REFUSE, not to clip. That is the guard working.
+r = client.post("/export/pdf", json={**req, "page": "TABLOID",
+                                     "landscape": False, "scale": "1/4"})
 check("a plot with booms will not fit Tabloid at 1/4", r.status_code, 422)
+_detail = r.json()["detail"]
 check("...and the refusal says which EDGE it runs off",
-      any(w in r.json()["detail"] for w in ("LEFT", "RIGHT", "TOP", "BOTTOM")), True)
+      any(w in _detail for w in ("LEFT", "RIGHT", "TOP", "BOTTOM")), True)
+check("...and NAMES the sheet, so nobody has to work it out from two numbers",
+      "TABLOID portrait" in _detail, True)
+
+# ⭐ But the DEFAULTS are ARCH D landscape at the largest standard scale that
+# fits (Jerry, 2026.09.24), so an export asked for nothing in particular just
+# works — and comes out zoomed in as far as the sheet allows, not at some
+# cautious minimum.
+r = client.post("/export/pdf", json=req)
+check("/export/pdf 200 with no page or scale asked for", r.status_code, 200)
+check("/export/pdf is a PDF", r.content[:5], b"%PDF-")
+import fitz as _fitz
+_d = _fitz.open(stream=r.content, filetype="pdf")
+check("...on ARCH D landscape, 36in x 24in",
+      [round(_d[0].rect.width / 72), round(_d[0].rect.height / 72)], [36, 24])
+check("...at 1/2in = 1ft, not the old 1/4in", 'Scale 1/2" = 1\'-0"' in _d[0].get_text(), True)
 
 r = client.post("/export/pdf", json={"plot": plot, "page": "ARCH_D",
                                      "landscape": True})
@@ -95,7 +112,13 @@ check("/export/dxf 200", r.status_code, 200)
 check("/export/dxf is a DXF", b"SECTION" in r.content[:2000], True)
 
 print("\na plot that will not fit must FAIL, not clip")
-r = client.post("/export/pdf", json={"plot": plot, "landscape": True})
+# ⚠ Asked for TABLOID landscape explicitly. This used to rely on the DEFAULTS
+# being tabloid, so when the defaults moved to ARCH D the export succeeded and
+# the test asserted a 422 against a PDF — and then tried to read that PDF as
+# JSON, which is how it announced itself. A test of the guard should name the
+# sheet it is testing.
+r = client.post("/export/pdf", json={"plot": plot, "page": "TABLOID",
+                                     "landscape": True, "scale": "1/4"})
 check("landscape tabloid at 1/4 is refused", r.status_code, 422)
 check("and names which edge it runs off",
       any(w in r.json()["detail"] for w in ("LEFT", "RIGHT", "TOP", "BOTTOM")), True)
