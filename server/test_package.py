@@ -1009,6 +1009,52 @@ check("...36in x 24in", [round(v) for v in _sheet.page_in], [36, 24])
 check("...and nothing runs off it",
       [w for w in _sheet.warnings if "CLIPPED" in w], [])
 
+# ---------------------------------------------------- whose drawing is this
+# 🔴 NOTHING ABOUT WHO MADE IT IS HARDCODED. Jerry, 2026.09.24: "I don't want to
+# print anything that is hardcoded about the venue because it will be used for
+# other venues — if we want print from the json, that's cool."
+#
+# The renderer defaulted the designer to "Design: Jerry Jonas" and printed
+# "Twin Oaks Studios" in the title-block footer from a string literal, so a plot
+# drawn for another designer at another venue came out claiming his authorship.
+import fitz as _fz
+
+def _pdf_text(plot_obj, name):
+    src = os.path.join(_tmp, name + ".json")
+    with open(src, "w") as fh:
+        _json.dump(plot_obj, fh)
+    out = os.path.join(_tmp, name + ".pdf")
+    _P.render(src, out)
+    return _fz.open(out)[0].get_text()
+
+_named = _json.load(open(_SAMPLE))
+_anon = {k: v for k, v in _named.items() if k not in ("designer", "studio")}
+
+_t = _pdf_text(_anon, "anon")
+check("a plot that names nobody prints no designer", "Jerry" in _t, False)
+check("...and no studio", "Twin Oaks" in _t, False)
+check("...and not a bare 'Design:' either", "Design:" in _t, False)
+# The scale bar is only true at actual size, so that instruction always stays.
+check("...but still says to print at 100%", "print at 100%" in _t, True)
+
+_t2 = _pdf_text({**_anon, "designer": "A N Other", "studio": "Some Other Shop"},
+                "other")
+# ⚠ And the LIBRARY's own defaults, not just the path plot_to_pdf takes. That
+# path always passes designer= and studio= explicitly, so putting the names back
+# as Sheet() defaults left every one of the checks above passing — while any
+# other caller (the section, the symbol sheet, anything written later) would
+# quietly print them again.
+_bare = os.path.join(_tmp, "bare-sheet.pdf")
+_sh = Sheet(_bare, show="Anything")
+_sh.rect(0, 0, 4, 4)
+_sh.finish()
+_bt = _fz.open(_bare)[0].get_text()
+check("a Sheet made with no names prints none", "Jerry" in _bt or "Twin Oaks" in _bt, False)
+
+check("a plot that names someone prints THEM", "Design: A N Other" in _t2, True)
+check("...and their shop", "Some Other Shop" in _t2, True)
+check("...and still nobody else", "Jerry" in _t2 or "Twin Oaks" in _t2, False)
+
 # The SECTION fits itself too — it is the drawing trims are read off, so a
 # bigger scale is a more useful drawing.
 import plot_to_section as _S

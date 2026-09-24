@@ -86,7 +86,8 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=f"Section — cut {cut_desc}, looking stage left",
               rev=str(plot.get("revision", "0"))[:3],
-              designer=f"Design: {plot.get('designer', '')}")
+              designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
+              studio=plot.get("studio", ""))
     # ⚠ The left margin has to absorb what is drawn LEFT of the room: the deck
     # runs a foot past it, and the labels run further still. The guard reported
     # 5.4' off the left edge once the sight point moved back inside the room.

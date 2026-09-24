@@ -172,6 +172,14 @@ export interface Plot {
   show: string;
   venue?: string;
   designer?: string;
+  /** Whose drawing this is, for the title-block footer.
+   *
+   * ⚠ From the FILE, never from the code. The renderer used to print
+   * "Twin Oaks Studios" and default the designer to "Design: Jerry Jonas", so a
+   * plot drawn for any other venue or designer came out claiming his
+   * authorship. Jerry, 2026.09.24: "I don't want to print anything that is
+   * hardcoded about the venue because it will be used for other venues." */
+  studio?: string;
   /** ISO date. */
   date?: string;
   revision?: string;

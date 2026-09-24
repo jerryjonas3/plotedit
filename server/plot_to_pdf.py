@@ -33,7 +33,8 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=plot.get("revision", ""), rev=plot.get("revision", "0")[:3],
-              designer=f"Design: {plot.get('designer', '')}", dxf=dxf)
+              designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
+              studio=plot.get("studio", ""), dxf=dxf)
     # ⭐ FOH positions — catwalks — sit over the AUDIENCE, downstage of the
     # plaster line and outside the stage rectangle, at negative y. The origin has
     # to make room for them or they are clipped straight off the bottom of the

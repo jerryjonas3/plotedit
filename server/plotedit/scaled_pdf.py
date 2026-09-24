@@ -94,7 +94,7 @@ def ft(feet, inches=0):
 
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
-                 show="", venue="", sheet="", rev="A", designer="Design: Jerry Jonas",
+                 show="", venue="", sheet="", rev="A", designer="", studio="",
                  margin_in=0.5, dxf=None):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
@@ -114,7 +114,17 @@ class Sheet:
         self.pt_per_ft = self.paper_in_per_ft * inch       # the whole trick
         self.margin = margin_in * inch
         self.ox, self.oy = self.margin, self.margin           # page pt where real (0,0) sits
-        self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev, designer=designer)
+        # 🔴 NOTHING ABOUT WHOSE DRAWING THIS IS IS HARDCODED. Jerry, 2026.09.24:
+        # "I don't want to print anything that is hardcoded about the venue
+        # because it will be used for other venues — if we want print from the
+        # json, that's cool."
+        #
+        # The designer defaulted to "Design: Jerry Jonas" and the footer said
+        # "Twin Oaks Studios" in the source, so a plot drawn for anyone else
+        # came out with his name on it — in the title block, in brown, as a
+        # claim of authorship. Both now come from the plot file or stay blank.
+        self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev,
+                         designer=designer, studio=studio)
         self.c.setLineJoin(1); self.c.setLineCap(1)
         self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
         self.warnings = []
@@ -752,10 +762,17 @@ class Sheet:
         import datetime
         c.drawString(x0 + 6, y0 + tb_h - 51, f"Scale {self.scale_label}   Rev {self.meta['rev']}   "
                                               f"{datetime.date.today().strftime('%Y.%m.%d')}")
-        c.setFillColor(BROWN); c.setFont("Helvetica-Bold", 8)
-        c.drawString(x0 + 6, y0 + 6, self.meta["designer"])
+        if self.meta["designer"]:
+            c.setFillColor(BROWN); c.setFont("Helvetica-Bold", 8)
+            c.drawString(x0 + 6, y0 + 6, self.meta["designer"])
+        # "Print at 100%" is a fact about the SHEET — the scale bar is only true
+        # at actual size — so it is always drawn. The studio name in front of it
+        # is not, and appears only if the plot carries one.
         c.setFillColor(grey); c.setFont("Helvetica", 6)
-        c.drawRightString(x0 + tb_w - 6, y0 + 6, "Twin Oaks Studios — print at 100% / Actual size")
+        foot = "print at 100% / Actual size"
+        if self.meta["studio"]:
+            foot = f"{self.meta['studio']} — {foot}"
+        c.drawRightString(x0 + tb_w - 6, y0 + 6, foot)
         # scale bar: 0 to 10 ft in 1-ft ticks, left of title block
         sx, sy = x0 - 0.4 * inch - 10 * self.pt_per_ft, m + 0.35 * inch
         c.setStrokeColor(black); c.setFillColor(black); c.setLineWidth(1)
