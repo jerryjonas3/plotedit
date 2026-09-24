@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from . import photometrics as ph
 from . import positions as P
-from . import exports, dxf_bridge, symbols as sym
+from . import exports, dxf_bridge, pdf_bridge, symbols as sym
 from . import booms
 from . import store as plotstore
 from . import labels as lbl
@@ -371,19 +371,31 @@ async def import_dxf(
         file, lambda p: dxf_bridge.to_paths(p, layers=chosen, units=units))
 
 
-async def _with_temp_dxf(file: UploadFile, fn):
+async def _with_temp(file: UploadFile, suffix: str, fn):
+    """Write an upload to a temporary file, hand it to `fn`, clean up.
+
+    ⚠ The suffix matters: fitz and ezdxf both sniff the extension, and a PDF
+    written to in.dxf is refused for the wrong reason.
+    """
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="empty file")
+    kind = suffix.lstrip(".").upper()
     with tempfile.TemporaryDirectory() as d:
-        path = os.path.join(d, "in.dxf")
+        path = os.path.join(d, "in" + suffix)
         with open(path, "wb") as fh:
             fh.write(data)
         try:
             return fn(path)
+        except HTTPException:
+            raise                       # already said what was wrong
         except Exception as e:
             raise HTTPException(status_code=400,
-                                detail=f"cannot read that DXF: {e}")
+                                detail=f"cannot read that {kind}: {e}")
+
+
+async def _with_temp_dxf(file: UploadFile, fn):
+    return await _with_temp(file, ".dxf", fn)
 
 
 # ----------------------------------------------------------------- symbols
@@ -392,6 +404,45 @@ class RenumberRequest(BaseModel):
     instruments: List[Dict[str, Any]]
     position: Dict[str, Any]
     start: int = 1
+
+
+@app.post("/import/pdf/pages")
+async def import_pdf_pages(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """What is in a PDF, so the reader can choose a page — and find out whether
+    there is any geometry in it at all.
+
+    ⚠ `items` is a count of VECTOR items. A scanned plan has none, and no scale
+    arithmetic will get walls out of a photograph of a drawing.
+    """
+    return await _with_temp(file, ".pdf",
+                            lambda p: {"pages": pdf_bridge.pages(p),
+                                       "scales": list(pdf_bridge.SCALES)})
+
+
+@app.post("/import/pdf")
+async def import_pdf(
+    file: UploadFile = File(...),
+    page: int = Form(1),
+    scale: str = Form("1/4"),
+) -> Dict[str, Any]:
+    """A venue's ground plan out of a PDF, as polylines in feet.
+
+    ⚠ THE SCALE IS NOT IN THE FILE. A PDF measures paper, not building — its
+    coordinates are points, 72 to the printed inch — so the drawing's scale has
+    to come from whoever read it off the title block. Wrong by a factor of two
+    and the result is a perfectly plausible drawing of a different room, which
+    is why the reply carries the extents it arrived at.
+    """
+    def run(path):
+        try:
+            return pdf_bridge.paths(path, page=page, scale=scale)
+        except KeyError:
+            raise HTTPException(status_code=400, detail=(
+                f"{scale!r} is not a scale I know — one of "
+                f"{', '.join(pdf_bridge.SCALES)}"))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    return await _with_temp(file, ".pdf", run)
 
 
 @app.post("/renumber")

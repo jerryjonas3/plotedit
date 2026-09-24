@@ -3,7 +3,7 @@ import { fitView, fohExtent, type View } from "./geometry.js";
 import { isPlot, symbolKey, plotFileName, newPlot, type Plot } from "./plot.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
-         positionLabels, savePlot, listPlots, loadPlot,
+         positionLabels, savePlot, listPlots, loadPlot, pdfPages, pdfPaths,
          type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim,
          type BoomElevation, type PositionLabel } from "./api.js";
 import { Store } from "./store.js";
@@ -330,6 +330,65 @@ async function refreshOpenList(): Promise<void> {
   }
 }
 
+/** Bring in a ground plan from a PDF.
+ *
+ * ⚠ TWO THINGS A PDF CANNOT TELL US, and both are asked rather than guessed:
+ *
+ *   THE SCALE. A PDF measures paper — points, 72 to the printed inch. The only
+ *   route to feet is the "1/4\" = 1'-0\"" printed in its title block, and
+ *   nothing in the file states it in a form anything can read.
+ *
+ *   WHICH PAGE. A set of drawings is one file; the ground plan is rarely page 1.
+ *
+ * ⚠ And no layers. A DXF import can take WALLS and leave the title block
+ * behind; a PDF is one flat pile of strokes, so the border and every dimension
+ * line arrive with the walls. Said out loud rather than discovered.
+ */
+async function importPdf(file: File): Promise<void> {
+  try {
+    status("reading the PDF…");
+    const { pages, scales } = await pdfPages(file);
+
+    // ⚠ A scanned plan has no vectors at all. Saying so beats importing nothing
+    // and looking broken.
+    const usable = pages.filter(p => p.items > 0);
+    if (!usable.length) {
+      status(`${file.name} has no vector drawing in it — if the plan is a scan `
+             + `there is nothing to import`, true);
+      return;
+    }
+
+    let page = usable[0]!.page;
+    if (usable.length > 1) {
+      const list = usable.map(p =>
+        `  page ${p.page}: ${p.width_in}" x ${p.height_in}", ${p.items} lines`).join("\n");
+      const answer = window.prompt(`${file.name}\n\n${list}\n\nWhich page?`,
+                                   String(page));
+      if (answer === null) { status(""); return; }
+      page = Number(answer);
+    }
+
+    const scale = window.prompt(
+      `What scale is that drawing?\n\nIt is printed in the title block — a PDF `
+      + `does not record it.\n\nOne of: ${scales.join(", ")}`, "1/4");
+    if (scale === null) { status(""); return; }
+
+    const got = await pdfPaths(file, page, scale.trim());
+    basePlan = got;
+    const [x0, y0, x1, y1] = got.extents ?? [0, 0, 0, 0];
+    // ⚠ Say the size out loud. At the wrong scale this is still a believable
+    // drawing, just of a different building — the number is the only way to
+    // catch it.
+    status(`${got.paths.length} paths at ${scale}" = 1'-0" — `
+           + `${(x1 - x0).toFixed(1)}' x ${(y1 - y0).toFixed(1)}' including the sheet border. `
+           + `Check that against something you measured.`);
+    ($("base") as HTMLInputElement).checked = true;
+    draw();
+  } catch (err) {
+    status(err instanceof Error ? err.message : String(err), true);
+  }
+}
+
 /** Ask before throwing away unsaved work. `what` completes "…and lose them?" */
 function mayDiscard(what: string): boolean {
   if (!store.dirty) return true;
@@ -460,6 +519,11 @@ async function boot() {
       const file = input.files?.[0];
       input.value = "";
       if (!file) return;
+      // ⭐ Jerry, 2026.09.24: "could we do the same for PDFs too?" A PDF is what
+      // comes back when you ask a house for its plan — it is what their drawing
+      // office exports for everybody. Same button, because to the reader it is
+      // the same act: here is the room, draw it underneath.
+      if (file.name.toLowerCase().endsWith(".pdf")) { await importPdf(file); return; }
       try {
         status("reading the DXF…");
         const info = await dxfLayers(file);

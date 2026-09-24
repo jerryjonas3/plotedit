@@ -267,3 +267,35 @@ async function detailOf(r: Response): Promise<string> {
   const d = await r.json().then(j => j.detail).catch(() => r.statusText);
   return typeof d === "string" ? d : JSON.stringify(d);
 }
+
+/** What is in a PDF, before importing any of it. */
+export interface PdfPage {
+  page: number; width_in: number; height_in: number; items: number; images: number;
+}
+
+export async function pdfPages(file: File): Promise<{ pages: PdfPage[]; scales: string[] }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await fetch("/api/import/pdf/pages", { method: "POST", body: fd });
+  if (!r.ok) throw new Error(await detailOf(r));
+  return r.json();
+}
+
+/** A ground plan out of a PDF, in feet.
+ *
+ * ⚠ `scale` is not in the file and cannot be. A PDF measures PAPER — points, 72
+ * to the printed inch — so the only route to feet is the drawing's own scale,
+ * read off its title block by a person. Wrong by a factor of two and the result
+ * is a perfectly plausible drawing of a different room.
+ */
+export async function pdfPaths(
+  file: File, page: number, scale: string,
+): Promise<DxfPaths & { note?: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("page", String(page));
+  fd.append("scale", scale);
+  const r = await fetch("/api/import/pdf", { method: "POST", body: fd });
+  if (!r.ok) throw new Error(await detailOf(r));
+  return r.json();
+}

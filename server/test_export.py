@@ -25,6 +25,17 @@ def check(label, got, want):
         FAILS.append(f"{label}: got {got!r}, wanted {want!r}")
 
 
+def _fails_with(fn, exc):
+    """Did this raise the exception it should have?"""
+    try:
+        fn()
+    except exc:
+        return True
+    except Exception:
+        return False
+    return False
+
+
 print("schedule — hanging order")
 sched = exports.schedule_csv(plot).splitlines()
 # ⚠ The report ends with a blank line and a TOTAL LOAD row, so the data stops
@@ -208,6 +219,73 @@ _override = {**plot, "instruments": [
     {"unit": 1, "channel": 1, "type": "S4 26", "position": "P", "wattage": 750}]}
 check("an explicit wattage beats the computed one",
       "TOTAL LOAD,750 W" in exports.schedule_csv(_override), True)
+
+print("\na ground plan out of a PDF")
+# ⭐ Jerry, 2026.09.24: "could we do the same for PDFs too?" A PDF is what comes
+# back when you ask a house for its plan — it is what their drawing office
+# exports for everybody.
+#
+# ⭐ THE TEST IS A ROUND TRIP THROUGH OUR OWN DRAWING. Render the sample plot at
+# a known scale and read it back: a 33' x 38' room has to come out 33' x 38'.
+# Nothing else checks the paper-to-feet arithmetic end to end, and that
+# arithmetic IS the feature — the rest is file handling.
+import tempfile as _tf2
+from plotedit import pdf_bridge as _pdf
+import plot_to_pdf as _P2
+
+_pdfpath = os.path.join(_tf2.mkdtemp(), "plan.pdf")
+_P2.render(SAMPLE, _pdfpath, page="ARCH_D", landscape=True, scale="1/2")
+
+_pages = _pdf.pages(_pdfpath)
+check("the page is found", len(_pages), 1)
+check("...and its vector count is reported", _pages[0]["items"] > 500, True)
+
+_got = _pdf.paths(_pdfpath, page=1, scale="1/2")
+_room = [p for p in _got["paths"]
+         if 32.5 < max(q[0] for q in p["points"]) - min(q[0] for q in p["points"]) < 33.5
+         and 37.5 < max(q[1] for q in p["points"]) - min(q[1] for q in p["points"]) < 38.5]
+check("a 33x38 room comes back 33x38", len(_room) >= 1, True)
+
+# 🔴 THE SCALE IS NOT IN THE FILE, and getting it wrong is not an error — it is a
+# believable drawing of a different building. The same page read at 1/4" is
+# exactly twice the size, silently. That is why the importer reports the extents
+# and tells the reader to check them against something they measured.
+_half = _pdf.paths(_pdfpath, page=1, scale="1/2")["extents"]
+_quarter = _pdf.paths(_pdfpath, page=1, scale="1/4")["extents"]
+check("the wrong scale gives a plausible wrong answer, not an error",
+      round(_quarter[2] / _half[2], 3), 2.0)
+
+# 🔴 y IS FLIPPED on the way in. fitz measures DOWN from the top of the page; a
+# plot measures UP from the bottom. Without the flip a symmetrical ground plan
+# looks entirely reasonable until somebody hangs the front of house over the
+# back wall.
+#
+# ⚠ Tested on the TRANSFORM, not on the imported file. My first version checked
+# that the imported drawing sat above the origin — which it does either way,
+# because the bounding box is moved to the origin afterwards. It passed with the
+# flip deleted. A test that cannot fail is worse than none, because it is
+# counted.
+import fitz as _fz
+_line = ("l", _fz.Point(10, 20), _fz.Point(10, 30))
+check("a line near the TOP of a 100pt page comes out near the top",
+      _pdf._flatten(_line, 100.0), [[(10, 80.0), (10, 70.0)]])
+_rect = ("re", _fz.Rect(0, 0, 10, 10), 1)
+check("...and a rect at the top of the page does too",
+      max(q[1] for q in _pdf._flatten(_rect, 100.0)[0]), 100.0)
+
+# ⚠ And the drawing is moved to the ORIGIN, because a PDF's origin is the corner
+# of the PAPER, not of the building — leaving it alone puts the plan wherever
+# the sheet margin pushed it, which is feet away at any normal scale.
+_page_origin = _pdf.paths(_pdfpath, page=1, scale="1/2", origin="page")["extents"]
+check("bounding-box import starts at 0,0", [_half[0], _half[1]], [0.0, 0.0])
+check("...and page-origin import does not",
+      _page_origin[0] > 0.1 and _page_origin[1] > 0.1, True)
+
+check("a page that is not there is refused",
+      _fails_with(lambda: _pdf.paths(_pdfpath, page=7), ValueError), True)
+check("a scale it does not know is refused",
+      _fails_with(lambda: _pdf.paths(_pdfpath, scale="1/7"), KeyError), True)
+
 
 print()
 if FAILS:
