@@ -5,7 +5,7 @@
  * cloned on every edit and history is just an array of snapshots. No diffing,
  * no proxies, nothing to debug at two in the morning during a tech.
  */
-import type { Plot, Instrument } from "./plot.js";
+import type { Plot, Instrument, Position } from "./plot.js";
 
 export type Listener = () => void;
 
@@ -87,6 +87,40 @@ export class Store {
     this._dirty = true;
     this.emit();
     return this._selected;
+  }
+
+  /** Add a position. Returns its index.
+   *
+   * ⚠ Positions had no add or remove at all — a boom or a catwalk could only be
+   * created by hand-editing the .plot.json, which meant the editor could not
+   * build a plot, only adjust one somebody else had written.
+   */
+  addPosition(pos: Position): number {
+    this.begin(null);
+    this._plot.positions.push(pos);
+    this._dirty = true;
+    this.emit();
+    return this._plot.positions.length - 1;
+  }
+
+  /** Remove a position. Instruments hung on it are NOT deleted — they are
+   *  orphaned and reported, because losing a unit because a pipe was deleted is
+   *  a much worse surprise than a unit with no position. */
+  removePosition(index: number): string[] {
+    const pos = this._plot.positions[index];
+    if (!pos) return [];
+    const name = pos.name.trim().toLowerCase();
+    const orphaned = this._plot.instruments
+      .filter(i => (i.position ?? "").trim().toLowerCase() === name)
+      .map(i => `unit ${i.unit}`);
+    this.begin(null);
+    this._plot.positions.splice(index, 1);
+    for (const inst of this._plot.instruments) {
+      if ((inst.position ?? "").trim().toLowerCase() === name) inst.position = undefined;
+    }
+    this._dirty = true;
+    this.emit();
+    return orphaned;
   }
 
   remove(index: number): void {

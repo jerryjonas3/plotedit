@@ -139,6 +139,84 @@ export function renderPositions(
     note.textContent = bits.join(" · ");
     box.appendChild(note);
 
+    const actions = document.createElement("div");
+    actions.className = "pos-actions";
+
+    const addUnit = document.createElement("button");
+    addUnit.textContent = "+ unit";
+    addUnit.title = "Hang a unit on this position, at its trim";
+    addUnit.addEventListener("click", () => {
+      const name = p.name.trim().toLowerCase();
+      const on = plot.instruments.filter(
+        i => (i.position ?? "").trim().toLowerCase() === name);
+      // ⭐ Copy the LAST unit on this pipe. A designer hanging a wash hangs the
+      // same thing six times; starting from a blank one every time would be six times
+      // the typing for no gain. Falls back to the plot's most recent unit.
+      const model = on[on.length - 1] ?? plot.instruments[plot.instruments.length - 1];
+      const nextUnit = on.length ? Math.max(...on.map(i => i.unit)) + 1 : 1;
+      const nextCh = plot.instruments.length
+        ? Math.max(...plot.instruments.map(i => i.channel ?? 0)) + 1 : 1;
+      // Drop it at the middle of the pipe — visible, and on the position rather
+      // than at the origin where it would be missed.
+      const mid = isVertical(p)
+        ? { x: p.x1, y: p.y1 }
+        : { x: (p.x1 + p.x2) / 2, y: (p.y1 + p.y2) / 2 };
+      store.add({
+        unit: nextUnit,
+        channel: nextCh,
+        type: model?.type ?? "S4 26",
+        x: mid.x, y: mid.y,
+        trim: p.trim,
+        ...(isVertical(p) ? { height: p.trim } : {}),
+        position: p.name,
+        color: model?.color,
+        lamp: model?.lamp,
+        focusX: model?.focusX, focusY: model?.focusY,
+      });
+      deps.onChange();
+    });
+    actions.appendChild(addUnit);
+
+    const del = document.createElement("button");
+    del.textContent = "delete";
+    del.className = "danger";
+    del.addEventListener("click", () => {
+      const idx = plot.positions.indexOf(p);
+      const name = p.name.trim().toLowerCase();
+      const on = plot.instruments.filter(
+        i => (i.position ?? "").trim().toLowerCase() === name).length;
+      // ⚠ Ask when it costs something. Deleting a pipe with a rig on it is not
+      // the same action as deleting an empty one.
+      if (on && !confirm(
+        `${p.name} has ${on} unit${on > 1 ? "s" : ""} on it.\n\n` +
+        `Delete the position? The units are KEPT but lose their position.`)) return;
+      const orphaned = store.removePosition(idx);
+      if (orphaned.length) {
+        alert(`${p.name} deleted. ${orphaned.join(", ")} now ` +
+              `${orphaned.length > 1 ? "have" : "has"} no position — ` +
+              `reassign ${orphaned.length > 1 ? "them" : "it"} in the inspector.`);
+      }
+      deps.onChange();
+    });
+    actions.appendChild(del);
+    box.appendChild(actions);
+
     host.appendChild(box);
   });
+
+  const addPos = document.createElement("button");
+  addPos.textContent = "+ Add position";
+  addPos.addEventListener("click", () => {
+    const n = plot.positions.length + 1;
+    store.addPosition({
+      name: `Electric ${n}`,
+      type: "electric",
+      x1: 0, y1: Math.min(plot.room.depth - 2, 8 + n * 4),
+      x2: plot.room.width, y2: Math.min(plot.room.depth - 2, 8 + n * 4),
+      trim: plot.room.gridHeight !== undefined
+        ? Math.max(0, plot.room.gridHeight - 2) : undefined,
+    });
+    deps.onChange();
+  });
+  host.appendChild(addPos);
 }
