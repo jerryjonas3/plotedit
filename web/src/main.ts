@@ -125,6 +125,13 @@ function paint() {
   fillTable();
   drawInspector();
   paintChrome();
+  // ⚠ Clicking a light has to SHOW the light. Leaving the Instrument panel shut
+  // while its fields quietly change behind the header is worse than the space
+  // it costs — the click would look like it did nothing.
+  if (store.selected !== null) {
+    const inst = document.getElementById("panel-instrument") as HTMLDetailsElement | null;
+    if (inst && !inst.open) inst.open = true;
+  }
   $("dirty").textContent = store.dirty ? "Unsaved changes" : "";
   ($("undo") as HTMLButtonElement).disabled = !store.canUndo;
   ($("redo") as HTMLButtonElement).disabled = !store.canRedo;
@@ -138,6 +145,34 @@ function paint() {
     : "none selected";
   $("pos-count").textContent = String(store.plot.positions.length);
   $("sched-count").textContent = String(store.plot.instruments.length);
+}
+
+/** Remember which panels are open, per browser.
+ *
+ * ⭐ Jerry, 2026.09.24: "can the cards showing positions, schedule, show etc be
+ * accordions so they don't take up real estate when we don't want them."
+ * Collapsing one is only useful if it STAYS collapsed — reopening everything on
+ * every reload would mean doing the tidying again each time.
+ *
+ * ⚠ localStorage throws in a private window and can come back empty, so every
+ * read and write is guarded and the panels simply default to open. A layout
+ * preference is not worth an exception that stops the editor loading.
+ */
+const PANELS = ["details", "instrument", "positions", "schedule"] as const;
+
+function wirePanels(): void {
+  for (const name of PANELS) {
+    const el = document.getElementById(`panel-${name}`) as HTMLDetailsElement | null;
+    if (!el) continue;
+    try {
+      const saved = localStorage.getItem(`plotedit.panel.${name}`);
+      if (saved !== null) el.open = saved === "1";
+    } catch { /* no storage — leave it open */ }
+    el.addEventListener("toggle", () => {
+      try { localStorage.setItem(`plotedit.panel.${name}`, el.open ? "1" : "0"); }
+      catch { /* nothing to do; the panel still works this session */ }
+    });
+  }
 }
 
 /** The header's own copy of the show and venue, so editing them in the panel
@@ -409,6 +444,7 @@ async function boot() {
       sel.value = "";
       if (name) void openPlot(name);
     });
+    wirePanels();
     void refreshOpenList();
     // ⌘S saves, ⇧⌘S saves as. The browser's own Save-page dialog is not what
     // anyone means by ⌘S with a plot open.

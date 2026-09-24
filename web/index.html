@@ -192,26 +192,46 @@
        content, so halfway down a list of positions there was nothing on screen
        saying which section you were in — which is the complaint that started
        this. The coloured header stays at the top of the panel instead. */
-    .panel > header { background:none; box-shadow:none; display:flex; align-items:center;
+    .panel > summary { background:none; box-shadow:none; display:flex; align-items:center;
                       gap:8px; padding:10px 14px; border-bottom:1px solid var(--outline-variant);
                       position:sticky; top:0; z-index:1;
                       border-radius:var(--shape-m) var(--shape-m) 0 0; }
-    .panel > header .material-symbols-outlined { font-size:20px; }
+    .panel > summary { cursor:pointer; user-select:none; list-style:none; }
+    .panel > summary::-webkit-details-marker { display:none; }
+    .panel > summary:hover { filter:brightness(.97); }
+    .panel > summary:focus-visible { outline:2px solid var(--primary); outline-offset:-2px; }
+    .panel > summary .material-symbols-outlined { font-size:20px; }
+    /* ⭐ The chevron says which way the panel will go, and turns when it does —
+       an accordion whose header never changes leaves the reader guessing
+       whether the panel is empty or shut. */
+    .chevron { transition:transform .18s ease; transform:rotate(-90deg); }
+    .panel[open] > summary .chevron { transform:rotate(0deg); }
+    /* A closed panel keeps its rounded corners: there is no body under it. */
+    .panel:not([open]) > summary { border-bottom:none; border-radius:var(--shape-m); }
+    /* ⚠ And it must stop CLAIMING space. The schedule grows to fill the column
+       when it is open; closed, it is a header and nothing more, or collapsing
+       it would free no room at all — which is the whole point. */
+    .panel.schedule:not([open]) { flex:0 0 auto; min-height:0; }
     /* M3 title-small */
     .panel h2 { font-size:14px; line-height:20px; letter-spacing:.1px; font-weight:500;
-                margin:0; text-transform:none; color:var(--on-surface); }
+                margin:0; text-transform:none; color:var(--on-surface); white-space:nowrap; }
+    /* ⚠ The chip gives way, not the title. A venue name is long and a section
+       heading is the thing that says which panel this is — wrapping "Show &
+       Venue" onto two lines to fit the venue in gets it backwards. */
     .panel .count { margin-left:auto; font-size:11px; line-height:16px; letter-spacing:.5px;
-                    font-weight:500; padding:2px 8px; border-radius:var(--shape-full); }
+                    font-weight:500; padding:2px 8px; border-radius:var(--shape-full);
+                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                    max-width:52%; }
     .panel .body { padding:12px 14px; border-radius:0 0 var(--shape-m) var(--shape-m);
                    background:var(--surface-container-lowest); }
     /* the accents that tell the sections apart */
-    .panel.instrument > header { background:var(--primary-container); color:var(--on-primary-container); }
+    .panel.instrument > summary { background:var(--primary-container); color:var(--on-primary-container); }
     .panel.instrument .count { background:var(--primary); color:var(--on-primary); }
-    .panel.positions > header { background:var(--secondary-container); color:var(--on-secondary-container); }
+    .panel.positions > summary { background:var(--secondary-container); color:var(--on-secondary-container); }
     .panel.positions .count { background:var(--secondary); color:var(--on-secondary); }
-    .panel.details > header { background:var(--tertiary-container); color:var(--on-tertiary-container); }
+    .panel.details > summary { background:var(--tertiary-container); color:var(--on-tertiary-container); }
     .panel.details .count { background:var(--tertiary); color:var(--on-tertiary); }
-    .panel.schedule > header { background:var(--surface-container-high); color:var(--on-surface); }
+    .panel.schedule > summary { background:var(--surface-container-high); color:var(--on-surface); }
     .panel.schedule .count { background:var(--outline); color:#fff; }
     .panel.schedule { flex:1 1 auto; display:flex; flex-direction:column; min-height:220px; }
     .panel.schedule .body { overflow:auto; flex:1; }
@@ -324,43 +344,47 @@
   <main>
     <div id="canvas"><svg id="plot"></svg></div>
     <aside>
-      <section class="panel details">
-        <header>
+      <details class="panel details" id="panel-details" open>
+        <summary>
+          <span class="material-symbols-outlined chevron">expand_more</span>
           <span class="material-symbols-outlined">theater_comedy</span>
           <h2>Show &amp; Venue</h2>
           <span class="count" id="det-count"></span>
-        </header>
+        </summary>
         <div class="body" id="details"></div>
-      </section>
-      <section class="panel instrument">
-        <header>
+      </details>
+      <details class="panel instrument" id="panel-instrument" open>
+        <summary>
+          <span class="material-symbols-outlined chevron">expand_more</span>
           <span class="material-symbols-outlined">flashlight_on</span>
           <h2>Instrument</h2>
           <span class="count" id="inst-count"></span>
-        </header>
+        </summary>
         <div class="body" id="inspector"></div>
-      </section>
-      <section class="panel positions">
-        <header>
+      </details>
+      <details class="panel positions" id="panel-positions" open>
+        <summary>
+          <span class="material-symbols-outlined chevron">expand_more</span>
           <span class="material-symbols-outlined">horizontal_rule</span>
           <h2>Positions</h2>
           <span class="count" id="pos-count"></span>
-        </header>
+        </summary>
         <div class="body" id="positions"></div>
-      </section>
-      <section class="panel schedule">
-        <header>
+      </details>
+      <details class="panel schedule" id="panel-schedule" open>
+        <summary>
+          <span class="material-symbols-outlined chevron">expand_more</span>
           <span class="material-symbols-outlined">table_rows</span>
           <h2>Schedule</h2>
           <span class="count" id="sched-count"></span>
-        </header>
+        </summary>
         <div class="body">
           <table id="schedule"><thead><tr>
             <th>Pos</th><th>U</th><th>Ch</th><th>Type</th><th>Color</th>
             <th class="num">Throw</th><th class="num">Pool</th><th class="num">fc</th>
           </tr></thead><tbody></tbody></table>
         </div>
-      </section>
+      </details>
     </aside>
   </main>
   <div id="err" hidden></div>
