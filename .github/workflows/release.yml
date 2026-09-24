@@ -48,15 +48,30 @@ jobs:
 
       - name: Assemble the download
         run: |
-          mkdir -p out/plotedit
-          cp -r server samples docs run.command run.bat README.md out/plotedit/
+          mkdir -p out/plotedit out/plotedit/web
+          cp -r server samples run.command run.bat README.md out/plotedit/
           chmod +x out/plotedit/run.command
-          mkdir -p out/plotedit/web
           cp -r web/dist out/plotedit/web/dist
-          # ⚠ Nothing that only a developer needs: no node_modules, no tests'
-          # fixtures beyond what the app reads, no .git.
+          # 🔴 docs/ is copied WITHOUT docs/reference. That folder holds a copy
+          # of USITT RP-2 (2006) — someone else's copyrighted standard, bought
+          # to work from. It is gitignored, so a checkout does not have it and
+          # this exclusion changes nothing today; it is here because the day it
+          # does get committed, a release would quietly start redistributing it.
+          # An exclusion in the packaging step is a fact; .gitignore is a hope.
+          rsync -a --exclude 'reference/' docs/ out/plotedit/docs/
+          # ⚠ Nothing only a developer needs: no node_modules, no .git.
           find out/plotedit -name '__pycache__' -type d -prune -exec rm -rf {} +
           cd out && zip -qr ../plotedit.zip plotedit
+
+      - name: Refuse to ship anyone else's document
+        run: |
+          # A guard, not a hope. If a PDF or an office document ever reaches the
+          # download, stop — a release cannot be unsent once someone has it.
+          found=$(unzip -Z1 plotedit.zip | grep -iE '\.(pdf|docx?|xlsx?|pptx?)$' || true)
+          if [ -n "$found" ]; then
+            echo "::error::Documents in the release zip:"; echo "$found"; exit 1
+          fi
+          echo "no third-party documents in the download"
 
       - uses: actions/upload-artifact@v4
         with:
