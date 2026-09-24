@@ -57,6 +57,16 @@ ALIASES = {
     # the SPOT end — the conservative choice, since assuming the flood end would
     # over-state the pool. Set it per unit when it matters.
     "s4 parnel": "S4 PARNel @25",
+    # ColorSource Spot. Lightwright writes these as "S4-26° LED-ClrSrc" — an S4
+    # body with a ColorSource engine. ETC publishes 19/26/36/50 as EDLT only, so
+    # that is what these resolve to; a standard tube would read a little lower.
+    "s4 26 led clrsrc": "ColorSource Spot 26 EDLT",
+    "s4 36 led clrsrc": "ColorSource Spot 36 EDLT",
+    "s4 50 led clrsrc": "ColorSource Spot 50 EDLT",
+    "s4 19 led clrsrc": "ColorSource Spot 19 EDLT",
+    "colorsource spot 26": "ColorSource Spot 26 EDLT",
+    "colorsource spot 36": "ColorSource Spot 36 EDLT",
+    "colorsource cyc": "ColorSource CYC",
 }
 
 # Real fixtures with no photometrics on file, and why. The photometric table is
@@ -65,9 +75,6 @@ NO_DATA = {
     "s4 jr zoom": "Source Four Jr — a different fixture; no datasheet fetched",
     "s4 led 26": "Source Four LED, tube unstated — ETC publishes 19/26/36 as EDLT only",
     "s4 led 36": "Source Four LED, tube unstated — ETC publishes 19/26/36 as EDLT only",
-    "s4 26 led clrsrc": "ColorSource Spot — no datasheet fetched",
-    "s4 36 led clrsrc": "ColorSource Spot — no datasheet fetched",
-    "s4 50 led clrsrc": "ColorSource Spot — no datasheet fetched",
     "lekolite 26": "Strand LekoLite — no datasheet fetched",
     "lekolite 40": "Strand LekoLite — no datasheet fetched",
     "6in fres": "Altman 6\" Fresnel — no datasheet fetched",
@@ -77,7 +84,6 @@ NO_DATA = {
     "3 cell sky cyc center": "Altman Sky Cyc — not on file",
     "3 cell sky cyc left": "Altman Sky Cyc — not on file",
     "spectra cyc 50": "Altman Spectra Cyc — not on file",
-    "colorsource cyc": "ETC ColorSource Cyc — not on file",
     "atmosfear tour hz": "a hazer — not a luminaire",
     "color strike m": "a strobe/blinder — not on file",
     "bt strobe 3000": "a strobe — not on file",

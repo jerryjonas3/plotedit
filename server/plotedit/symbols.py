@@ -383,8 +383,12 @@ def for_type(kind, lens_rotation=None):
     n = _re.findall(r"(\d+(?:\.\d+)?)\s*(?:deg|°)?", cleaned)
     deg = float(n[0]) if n else 26.0
 
+    if "cyc" in low:
+        return cyc_unit(3)
     if "lustr" in low or "colorsource" in low or "clrsrc" in low or "led" in low:
-        colors = 7 if "lustr" in low else 4
+        # §6.16: dots = number of colours. A Lustr is the x7 array; ColorSource
+        # is five — red, green, blue, lime, indigo — per ETC's own datasheets.
+        colors = 7 if "lustr" in low else (5 if ("colorsource" in low or "clrsrc" in low) else 4)
         return led(colors)
     if "parnel" in low or "oval" in low:
         # An oval beam needs its axis called out. Default to level — the
@@ -397,8 +401,6 @@ def for_type(kind, lens_rotation=None):
     if "fresnel" in low or "fres" in low:
         size = 8 if "8" in k else 6
         return fresnel(size)
-    if "cyc" in low:
-        return cyc_unit(3)
     if "strip" in low:
         return striplight()
     if "mac" in low or "mover" in low or "moving" in low or "aura" in low:

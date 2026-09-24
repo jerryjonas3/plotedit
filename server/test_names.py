@@ -37,12 +37,27 @@ for raw, want in [
 ]:
     check(f"{raw!r}", fn.resolve(raw, ph.FIXTURES)[0], want)
 
+print("\nColorSource — datasheets fetched 2026.09.23")
+for raw, want in [
+    ("S4-26° LED-ClrSrc", "ColorSource Spot 26 EDLT"),
+    ("S4-36° LED-ClrSrc", "ColorSource Spot 36 EDLT"),
+    ("ETC ColorSource CYC", "ColorSource CYC"),
+]:
+    check(f"{raw!r}", fn.resolve(raw, ph.FIXTURES)[0], want)
+check("a ColorSource Spot computes a level",
+      round(ph.footcandles("S4-26° LED-ClrSrc", 14, mode="At 3200K")[0]), 240)
+# The CYC is asymmetrical: ETC publishes NO beam angle and NO candela, so it must
+# resolve to the fixture and then say why there is no number — not look unknown.
+_key, _row, _ = ph.lookup("ETC ColorSource CYC")
+check("the CYC resolves", _key, "ColorSource CYC")
+check("...but has no beam angle, by design", _row["field"], None)
+check("...and says so", "asymmetrical" in _row["source"], True)
+
 print("\nreal fixtures with no data give a REASON, not silence")
 for raw, fragment in [
     ("Altman 6in Fres", "no datasheet"),
-    ("ETC ColorSource CYC", "not on file"),
     ("Blizzard Lighting AtmosFEAR Tour HZ", "not a luminaire"),
-    ("S4-36° LED-ClrSrc", "ColorSource"),
+    ("ETC Source4 LED 26deg", "EDLT only"),
     ("ETC Source4 Jr Zoom", "different fixture"),
 ]:
     key, note = fn.resolve(raw, ph.FIXTURES)
@@ -69,6 +84,10 @@ check("footcandle note carries the translation", "read as 'S4 26'" in note, True
 
 print("\nand the symbol is the same too")
 from plotedit import symbols as sym
+check("ColorSource draws five dots, per 6.16",
+      sum(1 for p in sym.for_type("S4-26° LED-ClrSrc") if p[0] == "circle"), 5)
+check("a Lustr draws seven",
+      sum(1 for p in sym.for_type("Lustr 26 EDLT") if p[0] == "circle"), 7)
 check("'ETC Source4 19deg' draws what 'S4 19' draws",
       [p[0] for p in sym.for_type("ETC Source4 19deg")],
       [p[0] for p in sym.for_type("S4 19")])

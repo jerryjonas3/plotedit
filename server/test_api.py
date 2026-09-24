@@ -27,7 +27,11 @@ check("service answers", client.get("/health").json()["ok"], True)
 
 print("\nfixtures — sources must survive the trip")
 fx = client.get("/fixtures").json()
-check("28 fixtures", fx["count"], 28)
+# The count grows as datasheets are fetched. Pin the families instead, so the
+# test catches a table that has lost something rather than one that has gained.
+check("the table has fixtures", fx["count"] > 40, True)
+for _k in ("S4 26", "Lustr 26 EDLT", "ColorSource Spot 26 EDLT", "ColorSource CYC"):
+    check(f"{_k} present", _k in fx["fixtures"], True)
 check("Lustr key names its lens tube", "Lustr 26 EDLT" in fx["fixtures"], True)
 check("source passed through", "EDLT" in fx["fixtures"]["Lustr 26 EDLT"]["source"], True)
 check("LED penumbra is tiny", fx["fixtures"]["Lustr 26 EDLT"]["penumbra_deg"], 2.4)

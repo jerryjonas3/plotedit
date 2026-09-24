@@ -199,9 +199,14 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
   says how a name was read: *"at HPL 575 (MF 0.78) ['ETC Source4 26deg' read as
   'S4 36']"*.
 
-  **What is left is missing DATA, not missing aliases:** ColorSource Spot and
-  Cyc, Source Four LED on standard tubes, Altman Spectra Cyc. Fetch those
-  datasheets and they resolve without touching the resolver.
+  **ColorSource datasheets fetched 2026.09.23** — the Spot photometry guide (13
+  pp, all nine lenses plus the zooms, three output modes) and the CYC datasheet.
+  **The archive is now at 91%**, 221 of 242 instruments.
+
+  **Still unresolved, and each for a real reason:** `Altman Spectra CYC 50` (no
+  datasheet fetched) · `ETC Source4 LED 26deg` (which array? which tube? ETC
+  publishes 19/26/36 as EDLT only — resolving it would be a guess) · a hazer and
+  a strobe, which are not luminaires.
 
 - **Symbols.** Still the open question from day one. Jerry's convention is Field
   Template / SoftSymbols for ETC with AutoPlot for cable and truss; those are

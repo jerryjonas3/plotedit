@@ -152,7 +152,7 @@ room.
 | 6.8 | Movers | yoke / head wash / head spot, inside a **dashed swing-radius circle** |
 | 6.9 | Practical | a triangle |
 | 6.10 | Followspot | long body, stepped waist |
-| 6.16 | LED | **dots = number of colors.** A Lustr is 7 |
+| 6.16 | LED | **dots = number of colors.** A Lustr is 7 (the x7 array); a **ColorSource is 5** — red, green, blue, lime, indigo |
 | 6.14 | Notation | **hexagon = circuit · rectangle = dimmer · circle = channel** |
 
 ## Two departures from the plate, both deliberate
