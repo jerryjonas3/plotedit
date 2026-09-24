@@ -521,6 +521,61 @@ _s, _drawn = _sec.render("../samples/bluver.plot.json",
 check("every horizontal position with units gets exactly one", len(_drawn), 3)
 check("...and the section draws without clipping", _s.warnings, [])
 
+
+print("\nthe unit number goes INSIDE the body, and follows the symbol round")
+# RP-2 §6.14.2 draws the instrument number inside the luminaire body, with the
+# wattage below it in the barrel — not in the stack underneath. Jerry asked for
+# the same thing 2026.09.23: "move the unit number onto the center of the unit."
+
+
+class _Recorder:
+    """A stand-in Sheet that just remembers where text was written."""
+    def __init__(self):
+        self.texts = []
+    def text(self, x, y, s, **kw):
+        self.texts.append((round(x, 3), round(y, 3), str(s)))
+    def line(self, *a, **k):
+        pass
+    def circle(self, *a, **k):
+        pass
+    def rect(self, *a, **k):
+        pass
+
+
+def _where(label, **kw):
+    r = _Recorder()
+    sym.notation(r, 0.0, 0.0, **kw)
+    return next(((x, y) for x, y, t in r.texts if t == label), None)
+
+# ⚠ NOT at the origin. The origin is the yoke and the yoke is clamped to the
+# pipe, so a number drawn there has a heavy batten line straight through it.
+_at0 = _where("7", unit=7, rotate_deg=0.0)
+check("the unit number is drawn", _at0 is not None, True)
+check("...and NOT at the yoke", _at0 != (0.0, 0.0), True)
+check("...but toward the BACK of the instrument (+y when it points -y)",
+      _at0[1] > 0, True)
+
+# It must follow the symbol round, or it lands outside the body the moment a
+# unit is rotated to its focus.
+_at90 = _where("7", unit=7, rotate_deg=90.0)
+_at180 = _where("7", unit=7, rotate_deg=180.0)
+check("rotating 90° moves it sideways", abs(_at90[0]) > abs(_at90[1]), True)
+check("rotating 180° flips it", _at180[1] < 0, True)
+# ⚠ Measure the ALONG-AXIS offset only. There is also a small fixed nudge that
+# centres the text on its own baseline, and that one must NOT rotate — the text
+# stays horizontal (RP-2 p.1: "the associated text should be properly oriented
+# with the rest of the text in the drawing"), so its baseline correction lives
+# in page space. Counting it made 0° and 180° look asymmetric when they are not.
+_mid = (_at0[1] + _at180[1]) / 2          # the unrotating baseline nudge
+check("0° and 180° are symmetric about the baseline nudge",
+      round(_at0[1] - _mid, 3), round(-(_at180[1] - _mid), 3))
+check("...and neither strays sideways", (_at0[0], _at180[0]), (0.0, 0.0))
+
+# §6.14.2 puts the wattage below the number, still inside — further back.
+_w0 = _where("575", unit=7, wattage=575, rotate_deg=0.0)
+check("the wattage is drawn too", _w0 is not None, True)
+check("...further back than the number", _w0[1] > _at0[1], True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

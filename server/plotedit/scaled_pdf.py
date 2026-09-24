@@ -366,7 +366,7 @@ class Sheet:
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
-             accessories=None, circuit=None, dimmer=None,
+             accessories=None, circuit=None, dimmer=None, wattage=None,
              control="dimmer-per-circuit", symbol_angle="orthogonal",
              show_pool=True, annotate=False):
         """A lighting instrument: circle body, unit number inside, channel below,
@@ -429,8 +429,8 @@ class Sheet:
         # accessory is hung on the nose.
         _clear = _sym.radius(_prims) + ft(0, 3)
         _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
-                      circuit=circuit, dimmer=dimmer, control=control,
-                      above=_clear)
+                      circuit=circuit, dimmer=dimmer, wattage=wattage,
+                      control=control, rotate_deg=draw_deg, above=_clear)
         result = None
         if focus_to:
             fx, fy = focus_to

@@ -86,6 +86,7 @@ def render(plot_path, pdf_path, scale="1/4", page="TABLOID", landscape=False, dx
                    accessories=inst.get("accessories"),
                    circuit=inst.get("circuit"), dimmer=inst.get("dimmer"),
                    control=plot.get("control", "dimmer-per-circuit"),
+                   wattage=inst.get("wattage"),
                    symbol_angle=plot.get("symbolAngle", "orthogonal"))
         rows.append(r)
 

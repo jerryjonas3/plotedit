@@ -698,7 +698,7 @@ CONTROL_MODELS = ("dimmer-per-circuit", "hard-and-soft-patch", "no-soft-patch")
 
 def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
              color=None, purpose=None, unit=None, wattage=None,
-             control="dimmer-per-circuit",
+             control="dimmer-per-circuit", rotate_deg=0.0,
              size=0.42, gap=0.30, above=1.0):
     """§6.14.1 — the SHAPE of the container carries the meaning.
 
@@ -736,14 +736,38 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
         sheet.text(x, ay, text, size=7, center=True)
         ay += 0.32
 
-    # below: circuit (hex), dimmer (rect), channel (circle)
-    by = y - above
+    # ⭐ §6.14.2 puts the INSTRUMENT NUMBER INSIDE THE BODY, with the wattage
+    # just below it in the barrel — not in the stack underneath. Jerry asked for
+    # the same thing 2026.09.23 ("move the unit number onto the center of the
+    # unit"), which is the plate.
+    #
+    # Drawn at the symbol's ORIGIN — the yoke — because that is the one point
+    # that does not move when the symbol rotates to its focus. The text itself
+    # stays horizontal: RP-2 p.1, "the associated text should be properly
+    # oriented with the rest of the text in the drawing."
+    # ⚠ Not at the origin. The origin is the YOKE, and the yoke is clamped to
+    # the pipe — so a number drawn there has a heavy batten line straight through
+    # it. The plate puts it in the BODY, behind the yoke, which is where there is
+    # white to write on.
+    #
+    # The offset therefore has to follow the symbol as it rotates. In draw()'s
+    # frame a point (pa, 0) lands at (x - pa·sin θ, y + pa·cos θ), so moving
+    # +pa goes toward the back of the instrument whichever way it points.
+    _r = _m.radians(rotate_deg)
+    _sa, _ca = _m.sin(_r), _m.cos(_r)
+
+    def _along(d):
+        return (x - d * _sa, y + d * _ca)
+
     if unit is not None:
-        sheet.text(x, by, str(unit), size=7, center=True, bold=True)
-        by -= gap
+        ux, uy = _along(size * 0.62)
+        sheet.text(ux, uy - size * 0.2, str(unit), size=7, center=True, bold=True)
     if wattage:
-        sheet.text(x, by, str(wattage), size=5.5, center=True)
-        by -= gap * 0.8
+        wx, wy = _along(size * 1.25)
+        sheet.text(wx, wy - size * 0.16, str(wattage), size=5, center=True)
+
+    # below the symbol: circuit (hex), dimmer (rect), channel (circle)
+    by = y - above
 
     # In a dimmer-per-circuit house the circuit and the dimmer are one number,
     # so a dimmer that merely repeats the circuit is not drawn twice.
