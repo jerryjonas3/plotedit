@@ -75,6 +75,13 @@ export interface Position {
   /** How far inboard of the centre the hanging pipe sits. Varies by house —
    *  take it off the venue's section, not from a default. */
   railOffset?: number;
+  /** Which end unit 1 sits at. Defaults to Jerry's habit: stage right on a
+   *  lateral position, farthest downstage on one running upstage-downstage.
+   *
+   *  ⚠ Those defaults run in OPPOSITE directions here, because x increases
+   *  toward stage right but y increases upstage — so stage right is the MAXIMUM
+   *  x and downstage is the MINIMUM y. Do not "simplify" them into one rule. */
+  numberFrom?: "SR" | "SL" | "DS" | "US";
 }
 
 /** The room. Dimensions carry their source — a rental listing is not a survey. */

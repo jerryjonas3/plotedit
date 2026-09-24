@@ -174,6 +174,46 @@ check("a catwalk draws three distinct lines", len(_lines), 3)
 check("the pipe sits inboard of the downstage edge",
       _cat["y1"] - _half * 0.55 > _cat["y1"] - _half, True)
 
+
+print("\nunit 1: stage right on a lateral position, downstage on a longitudinal one")
+from plotedit import positions as P
+
+# ⚠ x increases toward STAGE RIGHT and y increases UPSTAGE (geometry.ts, and the
+# sample puts "Special SR" at x=22 against "Special SL" at x=11 in a 33' room).
+# So Jerry's two rules run in OPPOSITE directions: stage right is the MAXIMUM x,
+# farthest downstage is the MINIMUM y. These tests exist to catch a refactor
+# that makes them look symmetrical and reverses one.
+_lat = {"name": "Elect 1", "x1": 0, "y1": 16, "x2": 33, "y2": 16}
+_lon = {"name": "Pipe SR", "x1": 28, "y1": 2, "x2": 28, "y2": 26}
+check("a wide position is lateral", P.axis(_lat), "lateral")
+check("a deep one is longitudinal", P.axis(_lon), "longitudinal")
+check("lateral defaults to stage right", P.number_from(_lat), "SR")
+check("longitudinal defaults to downstage", P.number_from(_lon), "DS")
+
+_i = [dict(unit=99, position="Elect 1", x=x, y=16) for x in (5, 12, 22, 30)]
+P.number(_i, _lat)
+check("unit 1 is the HIGHEST x — stage right",
+      next(i["x"] for i in _i if i["unit"] == 1), 30)
+check("...and unit 4 the lowest", next(i["x"] for i in _i if i["unit"] == 4), 5)
+
+_j = [dict(unit=99, position="Pipe SR", x=28, y=y) for y in (4, 10, 18, 24)]
+P.number(_j, _lon)
+check("unit 1 is the LOWEST y — farthest downstage",
+      next(i["y"] for i in _j if i["unit"] == 1), 4)
+
+# The override Jerry asked for.
+check("an explicit numberFrom wins", P.number_from(dict(_lat, numberFrom="SL")), "SL")
+_k = [dict(unit=99, position="Elect 1", x=x, y=16) for x in (5, 30)]
+P.number(_k, dict(_lat, numberFrom="SL"))
+check("...and reverses the order", next(i["x"] for i in _k if i["unit"] == 1), 5)
+
+# Two units at one coordinate cannot be ordered. Picking one is how a plot gets
+# hung backwards, so it must warn rather than choose.
+_dup = [dict(unit=99, position="Elect 1", x=12, y=16) for _ in range(2)]
+_, _w = P.number(_dup, _lat)
+check("units sharing a coordinate warn", "arbitrary" in (_w or ""), True)
+check("an empty position warns too", P.number([], _lat)[1] is not None, True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

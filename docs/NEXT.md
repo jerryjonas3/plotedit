@@ -263,15 +263,35 @@ Done:
 - `railOffset` overrides the pipe's inboard distance — **it varies by house, so
   take it off the venue's section rather than from the default.**
 
-### 🔴 The open question: which end is unit 1?
+### ✅ Which end is unit 1 — answered 2026.09.23
 
-**Units number along a position, and nothing in the tool knows from which end.**
-Jerry's paperwork records positions and unit numbers but carries no geometry, so
-the direction cannot be derived from the archive — it has to be asked.
+**Jerry: "unit 1 is stage right. Later we may want to be able to override that.
+On a pipe that runs US -> DS, I tend to have unit 1 be farthest DS."**
 
-**Not guessed.** A plot numbered from the wrong end is hung backwards, and it
-looks entirely correct until someone is up a ladder. The field will be explicit
-(`numberFrom: "SR" | "SL"`) and auto-numbering will REFUSE rather than default.
+**⭐ Those two rules run in OPPOSITE directions in this coordinate system**, and
+that is the thing to remember. `geometry.ts` fixes **x increasing toward stage
+right and y increasing upstage**, with the origin at the downstage-LEFT corner —
+corroborated by the sample, where *Special SR* sits at x=22 and *Special SL* at
+x=11 in a 33-foot room. So:
+
+| Position runs | Unit 1 is at | Which is |
+|---|---|---|
+| Stage left–right (**lateral**) | stage right | the **maximum x** |
+| Upstage–downstage (**longitudinal**) | farthest downstage | the **minimum y** |
+
+They do **not** collapse into "start at one end of the axis." Any refactor that
+makes them look symmetrical will silently reverse one, and a plot numbered
+backwards looks entirely correct until someone is up a ladder. `test_package.py`
+pins both directions for exactly that reason.
+
+`positions.py` has `axis()`, `number_from()`, `order()`, `number()` and
+`describe()`. **`numberFrom` is the override Jerry asked for** — `SR`, `SL`,
+`DS` or `US` — and it always beats the default.
+
+Two things it refuses to do quietly: **two units at the same coordinate warn**
+rather than being ordered arbitrarily, and **nothing renumbers automatically**,
+because on a hung plot a renumber is a different document from the one taped to
+the pipe.
 
 ### Still to do
 
