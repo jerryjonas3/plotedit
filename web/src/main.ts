@@ -114,6 +114,7 @@ function drawInspector() {
     fixtures: Object.keys(fixtureTable).sort(),
     lamps: ["HPL 750", "HPL 575", "HPL 575X"],
     modes: ["Boost Full", "Regulated Full", "Regulated 3200K", "Regulated 5600K"],
+    onStatus: (msg, bad) => status(msg, bad),
     onPhotometricChange: () => { paint(); recompute(); },
     onPaperworkChange: () => paint(),
   });

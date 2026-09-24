@@ -7,6 +7,8 @@
  */
 import { isVertical, type Instrument } from "./plot.js";
 import { confirmDelete, describeUnit } from "./confirm.js";
+import { parseFeet } from "./feet.js";
+import { fmtFt } from "./geometry.js";
 import type { Store } from "./store.js";
 import type { Computed } from "./render.js";
 
@@ -19,6 +21,10 @@ export interface Field {
   options?: string[];
   step?: number;
   hint?: string;
+  /** A LENGTH. Shown as feet and inches, and typed the same way — see feet.ts.
+   *  The rest of the numbers (unit, channel, dimmer, address, lens angle) are
+   *  counts and degrees, and stay plain. */
+  kind2?: "feet";
 }
 
 export const FIELDS: Field[] = [
@@ -31,15 +37,15 @@ export const FIELDS: Field[] = [
   { key: "type", label: "Type", kind: "select", photometric: true },
   { key: "position", label: "Position", kind: "select" },
   { key: "purpose", label: "Purpose", kind: "text" },
-  { key: "x", label: "X (ft)", kind: "number", step: 0.0833, photometric: true },
-  { key: "y", label: "Y (ft)", kind: "number", step: 0.0833, photometric: true },
-  { key: "trim", label: "Trim (ft)", kind: "number", step: 0.5, photometric: true,
+  { kind2: "feet", key: "x", label: "X (ft)", kind: "number", step: 0.0833, photometric: true },
+  { kind2: "feet", key: "y", label: "Y (ft)", kind: "number", step: 0.0833, photometric: true },
+  { kind2: "feet", key: "trim", label: "Trim (ft)", kind: "number", step: 0.5, photometric: true,
     hint: "Hang height above the deck. On a BOOM this is the height on the "
         + "boom, and it is written to both fields — the elevation reads one, "
         + "the photometrics read the other." },
-  { key: "focusX", label: "Focus X", kind: "number", step: 0.5, photometric: true },
-  { key: "focusY", label: "Focus Y", kind: "number", step: 0.5, photometric: true },
-  { key: "focusH", label: "Focus height", kind: "number", step: 0.5, photometric: true,
+  { kind2: "feet", key: "focusX", label: "Focus X", kind: "number", step: 0.5, photometric: true },
+  { kind2: "feet", key: "focusY", label: "Focus Y", kind: "number", step: 0.5, photometric: true },
+  { kind2: "feet", key: "focusH", label: "Focus height", kind: "number", step: 0.5, photometric: true,
     hint: "Head height, 5'-6\" unless the light lands somewhere else" },
   { key: "color", label: "Color", kind: "text", photometric: true,
     hint: "R52+R119 stacks · R52/R119 is a split frame" },
@@ -63,6 +69,8 @@ function onVerticalPosition(store: Store, inst: Instrument): boolean {
 
 export interface InspectorDeps {
   fixtures: string[];
+  /** Say why an entry was refused. Optional so other callers still compile. */
+  onStatus?: (msg: string, bad?: boolean) => void;
   lamps: string[];
   modes: string[];
   onPhotometricChange: () => void;
@@ -129,13 +137,19 @@ export function renderInspector(
       input.value = String(inst[f.key] ?? "");
     } else {
       input = document.createElement("input");
-      input.type = f.kind === "number" ? "number" : "text";
-      if (f.step) input.step = String(f.step);
+      // ⚠ A length is a TEXT box. type="number" silently discards 1'6" — the
+      // field goes empty and the handler reads that as "clear this field", so
+      // typing a perfectly good height unset it. inputmode keeps a phone
+      // keyboard sensible without bringing the strictness back.
+      input.type = f.kind === "number" && !f.kind2 ? "number" : "text";
+      if (f.kind2 === "feet") input.inputMode = "decimal";
+      if (f.step && input.type === "number") input.step = String(f.step);
       const cur = inst[f.key];
       input.value = f.kind === "list"
         // " + " matches the schedule export and the gel notation, where + means
         // "and this as well". A comma would be ambiguous inside a CSV cell.
         ? (Array.isArray(cur) ? cur.join(" + ") : "")
+        : f.kind2 === "feet" && typeof cur === "number" ? fmtFt(cur)
         : cur === undefined || cur === null ? "" : String(cur);
     }
     input.id = id;
@@ -151,6 +165,18 @@ export function renderInspector(
         store.update(i, { [f.key]: parts.length ? parts : undefined } as Partial<Instrument>);
         f.photometric ? deps.onPhotometricChange() : deps.onPaperworkChange();
         return;
+      }
+      else if (f.kind2 === "feet") {
+        const n = parseFeet(raw);
+        if (n === null) {
+          // ⚠ Refuse LOUDLY and put back what was there. Silently keeping the
+          // old value is how "1'6" doesn't work" happens; silently clearing it
+          // is worse.
+          deps.onStatus?.(`"${raw}" is not a length — try 1'6", 18" or 1.5`, true);
+          input.value = typeof inst[f.key] === "number" ? fmtFt(inst[f.key] as number) : "";
+          return;
+        }
+        value = n;
       }
       else if (f.kind === "number") {
         const n = Number(raw);

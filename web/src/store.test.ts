@@ -4,6 +4,7 @@ import { plotFileName, type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
 import { deleteMessage, describeUnit } from "./confirm.js";
+import { parseFeet } from "./feet.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -176,6 +177,31 @@ check("...and says it can be undone",
       deleteMessage("unit 3").includes("undone"), true);
 check("...and carries the consequence when there is one",
       deleteMessage("the position GRID C", "4 units will be KEPT.").includes("4 units"), true);
+
+console.log("\nthe boxes take feet and inches, because the drawing prints them");
+// 🔴 They were <input type="number">, which SILENTLY DISCARDS 1'6" — the field
+// goes empty, the handler reads that as "clear this", and the value reverts to
+// its default. Jerry set a focus height of 1'-6" and got no pool, because the
+// focus height was never set.
+for (const [typed, want] of [
+  ["1'6\"", 1.5], ["1'-6\"", 1.5], ["1' 6\"", 1.5], ["1'6", 1.5],
+  ["1'", 1], ["18\"", 1.5], ["1.5", 1.5], ["12", 12], ["-3", -3],
+  ["5\u20326\u2033", 5.5],          // the prime marks a word processor produces
+] as [string, number][]) {
+  check(`${typed} is ${want}ft`, +(parseFeet(typed) as number).toFixed(4), want);
+}
+// ⚠ The sign belongs to the whole length: -1'6" is a foot and a half BELOW
+// zero, not minus one foot plus six inches.
+check("-1'6\" is -1.5, not -0.5", parseFeet("-1'6\""), -1.5);
+
+// ⚠ Empty and nonsense are DIFFERENT. Empty clears a field; nonsense means the
+// reader meant something and mistyped it, and must not silently wipe the value
+// that was there.
+check("empty means no value", parseFeet(""), undefined);
+check("spaces are empty too", parseFeet("   "), undefined);
+check("nonsense is refused, not treated as empty", parseFeet("about 6"), null);
+check("...so is a stray word", parseFeet("6ft"), null);
+check("...and 5'14\" is a typo, not 6'2\"", parseFeet("5'14\""), null);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

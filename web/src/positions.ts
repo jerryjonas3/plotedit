@@ -14,6 +14,8 @@ import { isVertical } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
 import { confirmDelete } from "./confirm.js";
+import { parseFeet } from "./feet.js";
+import { fmtFt } from "./geometry.js";
 
 const TYPES = ["electric", "pipe", "grid", "catwalk", "truss",
                "boom", "box-boom", "ladder", "tormentor"] as const;
@@ -80,7 +82,8 @@ export function nextBoomHeight(
 
 function field(
   label: string, value: string | number | undefined,
-  apply: (raw: string) => void, opts?: { options?: readonly string[]; step?: number; hint?: string },
+  apply: (raw: string) => void,
+  opts?: { options?: readonly string[]; step?: number; hint?: string; feet?: boolean },
 ): HTMLElement {
   const wrap = document.createElement("label");
   wrap.className = "pos-field";
@@ -99,10 +102,14 @@ function field(
     }
     input.value = String(value ?? "");
   } else {
+    // ⚠ A length is a TEXT box: type="number" silently discards 1'6". See
+    // feet.ts — that is how a focus height typed as 1'-6" ended up unset.
     input = document.createElement("input");
-    input.type = opts?.step ? "number" : "text";
-    if (opts?.step) input.step = String(opts.step);
-    input.value = value === undefined || value === null ? "" : String(value);
+    input.type = opts?.feet ? "text" : opts?.step ? "number" : "text";
+    if (opts?.feet) input.inputMode = "decimal";
+    if (opts?.step && input.type === "number") input.step = String(opts.step);
+    input.value = opts?.feet && typeof value === "number" ? fmtFt(value)
+      : value === undefined || value === null ? "" : String(value);
   }
   // change, not input — a half-typed trim never reaches the server
   input.addEventListener("change", () => apply(input.value.trim()));
@@ -129,7 +136,17 @@ export function renderPositions(
       store.commit();
       deps.onChange();
     };
-    const num = (raw: string) => (raw === "" ? undefined : Number(raw));
+    // ⚠ Feet and inches, and NONSENSE IS REFUSED rather than written. The old
+    // version was `Number(raw)`, which turns "6ft" into NaN and stores it —
+    // a position whose x1 is NaN draws nowhere and reports nothing.
+    const num = (raw: string): number | undefined | null => {
+      const v = parseFeet(raw);
+      if (v === null) {
+        deps.onStatus?.(`"${raw}" is not a length — try 1'6", 18" or 1.5`, true);
+        return null;
+      }
+      return v;
+    };
 
     box.appendChild(field("Name", p.name, v => set({ name: v })));
     box.appendChild(field("Type", p.type ?? "electric",
@@ -140,6 +157,7 @@ export function renderPositions(
     // offset, so a drop-arm stays a drop-arm.
     box.appendChild(field("Trim", p.trim, v => {
       const t = num(v);
+      if (t === null) return;
       const old = p.trim;
       store.begin(null);
       p.trim = t;
@@ -152,7 +170,7 @@ export function renderPositions(
       }
       store.commit();
       deps.onChange();
-    }, { step: 0.5, hint: "Moves every unit on this position with it, keeping any deliberate offset" }));
+    }, { feet: true, hint: "Moves every unit on this position with it, keeping any deliberate offset" }));
 
     if (isVertical(p)) {
       // ⚠ A ladder HANGS and a tormentor is bolted to the building — neither
@@ -163,14 +181,20 @@ export function renderPositions(
           v => set({ mount: (v || undefined) as Position["mount"] }),
           { options: MOUNTS, hint: "A floor plate needs floor space and a sandbag; a flange is already in the building" }));
       }
-      box.appendChild(field("X", p.x1, v => set({ x1: Number(v), x2: Number(v) }), { step: 0.5 }));
-      box.appendChild(field("Y", p.y1, v => set({ y1: Number(v), y2: Number(v) }), { step: 0.5 }));
+      box.appendChild(field("X", p.x1, v => { const n = num(v);
+        if (n === null || n === undefined) return; set({ x1: n, x2: n }); }, { feet: true }));
+      box.appendChild(field("Y", p.y1, v => { const n = num(v);
+        if (n === null || n === undefined) return; set({ y1: n, y2: n }); }, { feet: true }));
     } else {
-      box.appendChild(field("X1", p.x1, v => set({ x1: Number(v) }), { step: 0.5 }));
-      box.appendChild(field("Y1", p.y1, v => set({ y1: Number(v), y2: Number(v) }), { step: 0.5 }));
-      box.appendChild(field("X2", p.x2, v => set({ x2: Number(v) }), { step: 0.5 }));
+      box.appendChild(field("X1", p.x1, v => { const n = num(v);
+        if (n === null || n === undefined) return; set({ x1: n }); }, { feet: true }));
+      box.appendChild(field("Y1", p.y1, v => { const n = num(v);
+        if (n === null || n === undefined) return; set({ y1: n, y2: n }); }, { feet: true }));
+      box.appendChild(field("X2", p.x2, v => { const n = num(v);
+        if (n === null || n === undefined) return; set({ x2: n }); }, { feet: true }));
       if ((p.type ?? "") === "catwalk" || (p.type ?? "") === "truss")
-        box.appendChild(field("Width", p.width, v => set({ width: num(v) }), { step: 0.5 }));
+        box.appendChild(field("Width", p.width, v => { const n = num(v);
+          if (n === null) return; set({ width: n }); }, { feet: true }));
     }
 
     const note = document.createElement("p");

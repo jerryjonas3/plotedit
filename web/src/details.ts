@@ -20,6 +20,8 @@
  */
 import type { Store } from "./store.js";
 import type { ControlModel } from "./plot.js";
+import { parseFeet } from "./feet.js";
+import { fmtFt } from "./geometry.js";
 
 export interface DetailDeps {
   /** Something that only prints has changed — redraw. */
@@ -57,10 +59,12 @@ function field(
     }
     input.value = String(value ?? "");
   } else {
+    // ⚠ A length is a TEXT box. type="number" silently discards 1'6".
     input = document.createElement("input");
-    input.type = opts.step ? "number" : "text";
-    if (opts.step) input.step = String(opts.step);
-    input.value = value === undefined || value === null ? "" : String(value);
+    input.type = opts.step ? "text" : "text";
+    if (opts.step) input.inputMode = "decimal";
+    input.value = opts.step && typeof value === "number" ? fmtFt(value)
+      : value === undefined || value === null ? "" : String(value);
   }
   // change, not input — a half-typed room width never reaches the server.
   input.addEventListener("change", () => apply(input.value.trim()));
@@ -73,9 +77,9 @@ function field(
  *  the ceiling is on the floor; a grid height of undefined is "not known yet",
  *  and the checks already say so out loud. */
 export function feet(raw: string): number | undefined {
-  if (raw === "") return undefined;
-  const v = Number(raw);
-  return Number.isFinite(v) ? v : undefined;
+  const v = parseFeet(raw);
+  // ⚠ null means nonsense; treated as "leave it alone", and the caller says so.
+  return v === null ? undefined : v;
 }
 
 export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps): void {
