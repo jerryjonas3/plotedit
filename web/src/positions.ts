@@ -20,6 +20,61 @@ const MOUNTS = ["", "boom-base", "floor-plate", "flange"] as const;
 
 export interface PositionDeps {
   onChange: () => void;
+  /** Say something the user needs to read — a refusal, or a nudge to renumber.
+   *  Optional so a caller that does not have a status line still compiles. */
+  onStatus?: (msg: string, bad?: boolean) => void;
+}
+
+/** Where the next unit on a BOOM goes, in feet above the deck.
+ *
+ * 🔴 Jerry, 2026.09.24: "adding an instrument to a boom doesn't seem to work."
+ * It added one with `height: p.trim`, and a boom position record carries no
+ * trim — so the height was undefined, which puts a unit in the elevation's
+ * NO HEIGHT RECORDED list and skips it in plan. The unit was in the file and on
+ * neither drawing.
+ *
+ * ⭐ BELOW the lowest, stepping by the spacing already in use. On a boom the
+ * numbers run top down — 1 at 12'-0", 2 at 8'-0", 3 at 4'-6" in the sample — so
+ * going downwards keeps max(unit)+1 the right number and needs no renumber.
+ *
+ * ⚠ Returns undefined when there is nowhere left. Stacking two units at one
+ * height is worse than refusing: on a boom they are a single point in plan and
+ * a single mark on the elevation, so the drawing would show one and the
+ * paperwork two.
+ */
+export const MIN_BOOM_GAP = 1;
+
+export function nextBoomHeight(
+  existing: (number | undefined)[], positionTrim?: number,
+): number | undefined {
+  const heights = existing.filter((h): h is number => h !== undefined)
+    .sort((a, b) => b - a);
+  if (!heights.length) return positionTrim ?? 12;      // a first unit goes high side
+
+  const snap = (v: number) => Math.round(v * 2) / 2;   // to the nearest half foot
+  const gaps = heights.slice(1).map((h, k) => heights[k]! - h);
+  const step = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 4;
+
+  const lowest = heights[heights.length - 1]!;
+  const below = snap(lowest - step);
+  if (below >= MIN_BOOM_GAP) return below;
+
+  // No room underneath. Fall back to the widest gap BETWEEN units — the same
+  // rule a pipe uses. The new unit will be numbered last and out of order, so
+  // the caller says to press renumber.
+  let best: number | undefined;
+  let widest = MIN_BOOM_GAP;
+  for (let k = 0; k < heights.length - 1; k++) {
+    const gap = heights[k]! - heights[k + 1]!;
+    if (gap > widest) { widest = gap; best = snap(heights[k + 1]! + gap / 2); }
+  }
+  if (best !== undefined && !heights.includes(best)) return best;
+
+  // Last resort: halfway between the lowest unit and the deck, if that is a
+  // real gap. Otherwise the boom is full and the caller must say so.
+  const half = snap(lowest / 2);
+  if (lowest >= MIN_BOOM_GAP * 2 && half >= MIN_BOOM_GAP && !heights.includes(half)) return half;
+  return undefined;
 }
 
 function field(
@@ -165,9 +220,35 @@ export function renderPositions(
       // gap is also what a designer does: the hole in the wash is where the
       // next unit goes.
       let mid: { x: number; y: number };
+      // 🔴 A BOOM UNIT NEEDS A HEIGHT, and a boom has no trim to borrow.
+      //
+      // Jerry, 2026.09.24: "adding an instrument to a boom doesn't seem to
+      // work." It did add one — with `height: p.trim`, and a boom position
+      // record carries no trim, so the height was undefined. An undefined
+      // height puts a unit in the elevation's NO HEIGHT RECORDED list and skips
+      // it in plan, so the unit existed in the file and appeared on neither
+      // drawing: exactly "doesn't work".
+      //
+      // ⚠ Added BELOW the lowest, not in the biggest gap like a pipe. On a boom
+      // the numbers run top down — the sample is 1 at 12'-0", 2 at 8'-0", 3 at
+      // 4'-6" — so going downwards keeps max(unit)+1 the RIGHT number and needs
+      // no renumber. Dropping one into a middle gap would number it last and
+      // read wrong on the elevation.
+      let height: number | undefined;
       if (isVertical(p)) {
         mid = { x: p.x1, y: p.y1 };
-      } else {
+        height = nextBoomHeight(on.map(i => i.height), p.trim);
+        if (height === undefined) {
+          // ⚠ Refuse rather than stack. Two units at one height on a boom are
+          // indistinguishable on the elevation AND in plan, where a boom is a
+          // point — so the drawing would show one unit and the paperwork two,
+          // and nothing would say which was which.
+          deps.onStatus?.(
+            `${p.name} has no room for another unit — every gap is under a foot. `
+            + `Move one, or raise the top of the boom.`, true);
+          return;
+        }
+            } else {
         const horizontal = Math.abs(p.x2 - p.x1) >= Math.abs(p.y2 - p.y1);
         const along = (i: { x: number; y: number }) => (horizontal ? i.x : i.y);
         const a = horizontal ? p.x1 : p.y1;
@@ -184,18 +265,31 @@ export function renderPositions(
           ? { x: best, y: (p.y1 + p.y2) / 2 }
           : { x: (p.x1 + p.x2) / 2, y: best };
       }
+      const outOfOrder = isVertical(p) && height !== undefined
+        && on.some(i => i.height !== undefined && i.height < height!);
       store.add({
         unit: nextUnit,
         channel: nextCh,
         type: model?.type ?? "S4 26",
         x: mid.x, y: mid.y,
-        trim: p.trim,
-        ...(isVertical(p) ? { height: p.trim } : {}),
+        // On a vertical position the hang height IS the trim — one number,
+        // written to both, because booms.py reads `height` and the photometrics
+        // read `trim`.
+        trim: isVertical(p) ? height : p.trim,
+        ...(isVertical(p) ? { height } : {}),
         position: p.name,
         color: model?.color,
         lamp: model?.lamp,
         focusX: model?.focusX, focusY: model?.focusY,
       });
+      if (outOfOrder) {
+        // ⚠ Say it. A unit numbered 5 sitting between 2 and 3 on the elevation
+        // is a paperwork error waiting to happen, and the fix is one button
+        // away — but only if the reader knows to press it.
+        deps.onStatus?.(
+          `Unit ${nextUnit} went in above a lower one, so the numbers are out of `
+          + `order — press renumber on ${p.name}.`);
+      }
       deps.onChange();
     });
     actions.appendChild(addUnit);

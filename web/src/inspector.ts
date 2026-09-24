@@ -5,7 +5,7 @@
  * a recompute. Fields that are only paperwork — purpose, notes — do not, because
  * a round trip per keystroke while typing a purpose is noise.
  */
-import type { Instrument } from "./plot.js";
+import { isVertical, type Instrument } from "./plot.js";
 import type { Store } from "./store.js";
 import type { Computed } from "./render.js";
 
@@ -32,7 +32,10 @@ export const FIELDS: Field[] = [
   { key: "purpose", label: "Purpose", kind: "text" },
   { key: "x", label: "X (ft)", kind: "number", step: 0.0833, photometric: true },
   { key: "y", label: "Y (ft)", kind: "number", step: 0.0833, photometric: true },
-  { key: "trim", label: "Trim (ft)", kind: "number", step: 0.5, photometric: true },
+  { key: "trim", label: "Trim (ft)", kind: "number", step: 0.5, photometric: true,
+    hint: "Hang height above the deck. On a BOOM this is the height on the "
+        + "boom, and it is written to both fields — the elevation reads one, "
+        + "the photometrics read the other." },
   { key: "focusX", label: "Focus X", kind: "number", step: 0.5, photometric: true },
   { key: "focusY", label: "Focus Y", kind: "number", step: 0.5, photometric: true },
   { key: "focusH", label: "Focus height", kind: "number", step: 0.5, photometric: true,
@@ -48,6 +51,14 @@ export const FIELDS: Field[] = [
     hint: "Separate with + — \"top hat + gobo\". Barn doors, hats, gobo, iris, rotator" },
   { key: "notes", label: "Notes", kind: "text" },
 ];
+
+/** Is this unit hung on a boom, box boom, ladder or tormentor? */
+function onVerticalPosition(store: Store, inst: Instrument): boolean {
+  const name = (inst.position ?? "").trim().toLowerCase();
+  if (!name) return false;
+  const pos = store.plot.positions.find(p => p.name.trim().toLowerCase() === name);
+  return pos ? isVertical(pos) : false;
+}
 
 export interface InspectorDeps {
   fixtures: string[];
@@ -146,7 +157,15 @@ export function renderInspector(
         value = n;
       } else value = raw;
       store.begin(null);
-      store.update(i, { [f.key]: value } as Partial<Instrument>);
+      // 🔴 On a VERTICAL position the trim and the height are the same fact, and
+      // they were two fields with only one of them reachable: the inspector had
+      // no Height box at all, so a boom unit's height could be set by hand
+      // editing the .plot.json and nowhere else. Typing a trim now writes both,
+      // rather than leaving a unit whose elevation says one thing and whose
+      // throw is computed from another.
+      const patch: Record<string, unknown> = { [f.key]: value };
+      if (f.key === "trim" && onVerticalPosition(store, inst)) patch.height = value;
+      store.update(i, patch as Partial<Instrument>);
       f.photometric ? deps.onPhotometricChange() : deps.onPaperworkChange();
     };
     // change, not input — committing on blur or Enter, so half-typed values

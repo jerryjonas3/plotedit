@@ -2,6 +2,7 @@
 import { Store, snapToPosition } from "./store.js";
 import { plotFileName, type Plot } from "./plot.js";
 import { feet } from "./details.js";
+import { nextBoomHeight } from "./positions.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -119,6 +120,42 @@ check("blank is unknown", feet(""), undefined);
 check("nonsense is unknown too", feet("abc"), undefined);
 check("zero is zero", feet("0"), 0);
 check("a real number survives", feet("16.5"), 16.5);
+
+console.log("\nadding a unit to a boom gives it a HEIGHT");
+// 🔴 The bug: a boom position carries no trim, so `height: p.trim` was
+// undefined — and an undefined height puts a unit in the elevation's NO HEIGHT
+// RECORDED list and skips it in plan. The unit was in the file and on neither
+// drawing. Jerry: "adding an instrument to a boom doesn't seem to work."
+check("an empty boom starts at high side", nextBoomHeight([]), 12);
+check("...or at the position's own trim if it has one", nextBoomHeight([], 16), 16);
+check("the sample boom's next unit goes below the lowest",
+      nextBoomHeight([12, 8, 4.5]), 1);   // gaps 4 and 3.5, mean 3.75 -> 0.75, snapped
+check("a boom hung at 4ft intervals carries on at 4ft",
+      nextBoomHeight([16, 12, 8]), 4);
+check("one unit alone uses a sensible default step", nextBoomHeight([12]), 8);
+
+// ⚠ NEVER the same height twice. Two units at one height on a boom are one
+// point in plan and one mark on the elevation — the drawing would show one and
+// the paperwork two, with nothing saying which was which.
+{
+  // Fill a boom until it refuses, and check the whole run: every height
+  // distinct, every one on the boom, and it STOPS — a rule that keeps finding
+  // room forever is one that is about to return a duplicate.
+  const hs = [12, 8, 4.5];
+  let adds = 0;
+  for (;;) {
+    const h = nextBoomHeight(hs);
+    if (h === undefined) break;
+    if (hs.includes(h)) { fails++; console.log(`  FAIL add ${adds + 1} repeated ${h}`); break; }
+    if (h < 1) { fails++; console.log(`  FAIL add ${adds + 1} went below the deck: ${h}`); break; }
+    hs.push(h);
+    if (++adds > 40) { fails++; console.log("  FAIL it never refuses"); break; }
+  }
+  check("a 12ft boom takes several more units, all at distinct heights", adds > 3, true);
+  check("...and then refuses instead of stacking", nextBoomHeight(hs), undefined);
+  check("...having never repeated a height", new Set(hs).size, hs.length);
+}
+check("a boom with no room at all refuses", nextBoomHeight([2, 1]), undefined);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

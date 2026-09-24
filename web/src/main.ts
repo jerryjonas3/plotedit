@@ -106,7 +106,10 @@ function drawInspector() {
     onChange: () => { paintChrome(); draw(); },
     onGeometry: () => { paintChrome(); draw(); recompute(); },
   });
-  renderPositions($("positions"), store, { onChange: () => { draw(); recompute(); } });
+  renderPositions($("positions"), store, {
+    onChange: () => { draw(); recompute(); },
+    onStatus: (msg, bad) => status(msg, bad),
+  });
   renderInspector($("inspector"), store, computed, {
     fixtures: Object.keys(fixtureTable).sort(),
     lamps: ["HPL 750", "HPL 575", "HPL 575X"],
