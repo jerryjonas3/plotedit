@@ -585,18 +585,28 @@ is numbered from centerline. `is_vertical()` was trusting the type NAME and got
 the second one wrong — it measures the extent now. The plot would have looked
 entirely right.
 
-### 🔴 Where this tool knowingly disagrees with RP-2
+### ✅ No divergence after all — corrected 2026.09.23
 
-| | |
-|---|---|
-| **RP-2 §2.3.2** | *"Luminaires on hanging positions perpendicular to centerline (e.g., battens) are numbered from **stage left to stage right**."* |
-| **Jerry, 2026.09.23** | *"Unit 1 is **stage right**... the numbers actually go house left to house right — easier to read, and visualize from the house."* |
+I had recorded a conflict between Jerry's numbering and RP-2 §2.3.2. **There is
+not one.** Jerry: *"oops, I was thinking how I do channels — the spec is right."*
 
-**These are opposite** — stage right is house left. **The tool follows Jerry**: it
-is his plot and he gave a reason. But a stranger may expect the standard, so
-`RP2_DIVERGENCE` records both sides and `rp2_divergence_note()` gives a line for
-the legend. **A convention that disagrees with the published standard is not a
-problem until it is unstated — and then it is somebody hanging a rig backwards.**
+**Unit numbers follow the standard: stage LEFT to stage right across a batten.**
+The default is `SL`, and the divergence table is deleted.
 
-**➡ Worth Jerry's decision:** keep his direction (and print the note), or follow
-RP-2 on plots going to unfamiliar houses.
+**Channels are a different field, and RP-2 does not cover them.** The standard
+requires a channel to be *shown* on the plot and says outright that channel
+hookups are *"not addressed in this document."* So Jerry's convention — **house
+left to house right, channel 1 at stage right** — conflicts with nothing.
+`channel_order()` and `channel_note()` record it as a house convention rather
+than a departure.
+
+**⚠ Unit numbers and channels therefore run in OPPOSITE directions across the
+same batten, and that is correct.** A unit number is read by someone standing
+under the pipe with a wrench; a channel by someone sitting in the house reading
+the plot. Different readers, and they are allowed to run different ways.
+
+**➡ The lesson is about the question, not the answer.** *"Unit 1 is stage right"*
+was a true statement about the wrong field, and a whole apparatus got built on
+it — a divergence table, a legend line, advice about plots going to unfamiliar
+houses. **When a stated convention contradicts a published standard, the first
+move is to ask which field it applies to, not to record a conflict.**
