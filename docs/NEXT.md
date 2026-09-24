@@ -610,3 +610,45 @@ was a true statement about the wrong field, and a whole apparatus got built on
 it — a divergence table, a legend line, advice about plots going to unfamiliar
 houses. **When a stated convention contradicts a published standard, the first
 move is to ask which field it applies to, not to record a conflict.**
+
+---
+
+## The section — 2026.09.23
+
+**`plot_to_section.py`**, built to RP-2 §3's own checklist rather than to what
+looked reasonable. The old `section()` in `scaled_pdf.py` had **no callers at
+all** — written, never wired up, never checked against the standard.
+
+**⭐ A section answers two questions the plan cannot: how low can this pipe go,
+and does the light reach the actor's face.** Which is why §3 asks for two things
+the old one had neither of:
+
+> *"Scaled representation of the luminaire that determines batten height mounted
+> in each position."* · *"Human figure (or 'head height') in scale."*
+
+A unit drawn as a dot cannot show whether it clears the masking. A head-height
+*line* cannot show whether a 30° front light hits a face or a forehead.
+
+**⚠ And it is ONE luminaire per position, not every unit** — §3 says the one that
+*determines* batten height. Drawing all sixty turns the section into a smear and
+hides the only thing it is for. The default is the unit nearest the cut;
+`governing` on a unit overrides it, because which unit constrains a trim is a
+judgment the designer makes rather than arithmetic.
+
+**Also to the checklist:** where the cut is taken, the stage floor named as
+**vertical zero**, the plaster line as **horizontal zero**, DS edge and US limit,
+booms and ladders in **side elevation** (the one view where a boom is not a
+point), trim on every position, and a vertical sightline from a stated audience
+eye point.
+
+**What it refuses to fake:** with no `sightPoint` recorded it draws no sightline
+and says to ask the venue for the worst seat; with no masking or scenery it says
+in orange that **obstructions are NOT proven clear**. A section that silently
+omits the masking is the one that gets a pipe hung into a border.
+
+**🔴 The bug worth remembering.** The first version derived each symbol's
+rotation from its *elevation angle* — but elevation is **unsigned**. 40° describes
+both "down and upstage" and "down and downstage", so half the rig was drawn
+aiming backwards while every number on the sheet stayed correct. It now comes
+from the real direction vector, and the tests check the nose direction in all
+three cases.

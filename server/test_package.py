@@ -480,6 +480,47 @@ check("...which is the opposite of the unit order", P.CHANNEL_FROM, "SR")
 check("...and the legend says the standard is silent on it",
       "does not address channels" in P.channel_note(), True)
 
+
+print("\nthe section: ONE governing luminaire per position, aimed the real way")
+import plot_to_section as _sec
+
+# ⭐ RP-2 §3: "Scaled representation of the luminaire that DETERMINES batten
+# height mounted in each position." One per position, not every unit — drawing
+# all sixty turns the section into a smear and hides the only thing it is for.
+_on = [{"unit": 1, "x": 5.0, "y": 20.0}, {"unit": 2, "x": 16.5, "y": 20.0},
+       {"unit": 3, "x": 28.0, "y": 20.0}]
+check("the unit nearest the cut governs",
+      _sec.governing_unit(_on, 16.5)["unit"], 2)
+check("a cut at stage left picks the stage-left unit",
+      _sec.governing_unit(_on, 1.0)["unit"], 1)
+# Which unit constrains a trim is a judgment, so the designer can name it.
+check("an explicit `governing` flag wins",
+      _sec.governing_unit([dict(_on[0], governing=True)] + _on[1:], 16.5)["unit"], 1)
+check("no units, no luminaire", _sec.governing_unit([], 16.5), None)
+
+# 🔴 The rotation must come from the real direction vector, not from the
+# elevation. Elevation is UNSIGNED — 40° describes both "down and upstage" and
+# "down and downstage" — so deriving a rotation from it aims half the rig
+# backwards, and a section whose instruments point somewhere they do not is
+# worse than no section.
+import math as _m
+
+def _nose(trim, here, target, head_h=5.5):
+    rot = _m.degrees(_m.atan2(head_h - trim, target - here)) + 90
+    a = _m.radians(rot)
+    return round(_m.sin(a), 2), round(-_m.cos(a), 2)
+
+_dx, _dy = _nose(14, 16, 10)
+check("aiming downstage points the nose downstage", _dx < 0 and _dy < 0, True)
+_dx, _dy = _nose(14, 16, 24)
+check("aiming upstage points it upstage", _dx > 0 and _dy < 0, True)
+check("aiming straight down points straight down", _nose(14, 16, 16), (0.0, -1.0))
+
+_s, _drawn = _sec.render("../samples/bluver.plot.json",
+                         __import__("tempfile").mkstemp(suffix=".pdf")[1])
+check("every horizontal position with units gets exactly one", len(_drawn), 3)
+check("...and the section draws without clipping", _s.warnings, [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
