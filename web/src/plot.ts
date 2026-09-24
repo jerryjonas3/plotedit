@@ -76,9 +76,13 @@ export interface Position {
    *  Vertical positions (boom, box boom, ladder) are NOT handled yet. */
   type?: "electric" | "pipe" | "grid" | "catwalk" | "truss"
         | "boom" | "box-boom" | "ladder" | "tormentor";
-  /** How a vertical position meets the floor. Not decoration: a floor plate
-   *  needs floor space and a sandbag, a flange is already in the building, and
-   *  an electrician reading one as the other brings the wrong hardware. */
+  /** How a FLOOR-STANDING vertical position meets the floor. Not decoration: a
+   *  floor plate needs floor space and a sandbag, a flange is already in the
+   *  building, and an electrician reading one as the other brings the wrong
+   *  hardware.
+   *
+   *  ⚠ A ladder does not take one — it HANGS, so it carries a `trim` instead.
+   *  A tormentor takes neither: it is bolted to the building. */
   mount?: "floor-plate" | "boom-base" | "flange";
   /** RP-2 §6.12 layout for this boom. The standard allows only ONE per plot. */
   layout?: "option1" | "option2";
@@ -97,7 +101,7 @@ export interface Position {
    *  ⚠ Those defaults run in OPPOSITE directions here, because x increases
    *  toward stage right but y increases upstage — so stage right is the MAXIMUM
    *  x and downstage is the MINIMUM y. Do not "simplify" them into one rule. */
-  numberFrom?: "SR" | "SL" | "DS" | "US";
+  numberFrom?: "SR" | "SL" | "DS" | "US" | "TOP" | "BOTTOM" | "PLASTER" | "CENTER";
   /** The circuits the HOUSE has on this position, in its own order. Bare
    *  numbers, or records with a location along the pipe. With locations, units
    *  can be matched to the nearest circuit; without them, matching refuses. */

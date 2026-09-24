@@ -419,6 +419,59 @@ check("floor plate, boom base and flange all draw",
       len({len(sym.boom_mount(m)) for m in ("floor-plate", "boom-base", "flange")}), 3)
 check("hatching produces lines", len(sym.hatch(sym.for_type("S4 26"))) > 5, True)
 
+
+print("\nladders hang, tormentors are bolted on, and RP-2 §2.3.2 gives the tiebreak")
+_lad = {"name": "SL Ladder 1", "type": "ladder", "x1": 4, "y1": 14, "x2": 4,
+        "y2": 14, "trim": 16}
+_torm = {"name": "SR Torm", "type": "tormentor", "x1": 30, "y1": 2, "x2": 30, "y2": 2}
+check("a ladder is vertical", P.is_vertical(_lad), True)
+check("so is a tormentor", P.is_vertical(_torm), True)
+
+# ⭐ §2.3.2: "on onstage booms or other vertical hanging positions... from top to
+# bottom, DOWNSTAGE TO UPSTAGE." The second clause is the tiebreak, and it is
+# what a ladder needs — units hang on both sides of the frame at the same height,
+# which without a tiebreak is an arbitrary order.
+_lu = [{"unit": 99, "position": "SL Ladder 1", "height": h, "y": y}
+       for h, y in [(10, 13), (10, 15), (6, 13), (14, 14)]]
+P.number(_lu, _lad)
+_by = {i["unit"]: (i["height"], i["y"]) for i in _lu}
+check("unit 1 is the highest", _by[1], (14, 14))
+check("same height: DOWNSTAGE first", _by[2], (10, 13))
+check("...then upstage", _by[3], (10, 15))
+check("then the next height down", _by[4], (6, 13))
+
+# A ladder hangs: asking it for a boom base is asking for hardware that does not
+# exist. What it needs is a trim.
+check("a ladder with no trim is caught",
+      any("needs a TRIM" in m for m in
+          P.check_booms({"positions": [dict(_lad, trim=None)], "instruments": []})), True)
+check("a ladder WITH a floor mount is questioned",
+      any("does not stand on the floor" in m for m in
+          P.check_booms({"positions": [dict(_lad, mount="boom-base")],
+                         "instruments": []})), True)
+check("a tormentor is asked for nothing — it is bolted to the building",
+      P.check_booms({"positions": [_torm], "instruments": []}), [])
+
+# §2.3.2 FOH rules.
+check("a box boom WITH extent numbers from centerline",
+      P.number_from({"name": "BB", "type": "box-boom", "x1": 2, "y1": -9,
+                     "x2": 9, "y2": -9}), "CENTER")
+check("...but a box boom hung as a plain pipe falls back to top-down",
+      P.number_from({"name": "BB", "type": "box-boom", "x1": 2, "y1": -9,
+                     "x2": 2, "y2": -9}), "TOP")
+check("an FOH position parallel to centerline numbers from the plaster line",
+      P.number_from({"name": "FOH R", "x1": 28, "y1": -4, "x2": 28, "y2": -20,
+                     "type": "pipe", "foh": True}), "PLASTER")
+
+# 🔴 The one place this tool knowingly disagrees with the standard.
+check("the divergence from RP-2 is recorded, not silently taken",
+      len(P.RP2_DIVERGENCE), 1)
+check("...and names both sides",
+      "stage left to stage right" in P.RP2_DIVERGENCE[0][1]
+      and "house left to house right" in P.RP2_DIVERGENCE[0][2], True)
+check("...and there is a line for the legend",
+      "RP-2" in P.rp2_divergence_note(), True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

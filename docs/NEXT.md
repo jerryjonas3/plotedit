@@ -556,3 +556,47 @@ one place their absence would have silently understated a total.
 **➡ "Forget it" is worth reading twice.** The output was the part to drop. The
 wattage was sitting in a business file the whole time and was the part that
 mattered for safety.
+
+---
+
+## Ladders and tormentors — 2026.09.23
+
+Reading §2.3 properly for these turned up rules that apply to everything, and one
+place where **Jerry's practice and the standard are opposite.**
+
+**A ladder hangs; a tormentor is bolted on.** Neither takes a floor mount. A
+ladder needs a **trim** instead (§3: *"trim height for all hanging positions that
+can change height"*), and asking it for a boom base is asking for hardware that
+does not exist. A tormentor is asked for nothing at all.
+
+**⭐ §2.3.2 supplies the tiebreak a ladder needs:** *"on onstage booms or other
+vertical hanging positions... from top to bottom, **downstage to upstage**."*
+Units hang on both sides of a ladder frame at the same height, which without that
+second clause is an arbitrary order — the exact thing that had been flagged as
+*"legal on a sidearm, but say which side."* The standard already said which.
+
+**§2.3.2's FOH rules, now implemented:** a position parallel to centerline numbers
+from **nearest the plaster line**; a **box boom** numbers from **the units
+closest to centerline**.
+
+**⚠ And "box boom" turned out to mean two different things.** A plain vertical
+pipe in a box is a point, numbered top down. A rail with real horizontal extent
+is numbered from centerline. `is_vertical()` was trusting the type NAME and got
+the second one wrong — it measures the extent now. The plot would have looked
+entirely right.
+
+### 🔴 Where this tool knowingly disagrees with RP-2
+
+| | |
+|---|---|
+| **RP-2 §2.3.2** | *"Luminaires on hanging positions perpendicular to centerline (e.g., battens) are numbered from **stage left to stage right**."* |
+| **Jerry, 2026.09.23** | *"Unit 1 is **stage right**... the numbers actually go house left to house right — easier to read, and visualize from the house."* |
+
+**These are opposite** — stage right is house left. **The tool follows Jerry**: it
+is his plot and he gave a reason. But a stranger may expect the standard, so
+`RP2_DIVERGENCE` records both sides and `rp2_divergence_note()` gives a line for
+the legend. **A convention that disagrees with the published standard is not a
+problem until it is unstated — and then it is somebody hanging a rig backwards.**
+
+**➡ Worth Jerry's decision:** keep his direction (and print the note), or follow
+RP-2 on plots going to unfamiliar houses.
