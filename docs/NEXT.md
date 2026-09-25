@@ -740,3 +740,58 @@ the reader is not sent to change the scale when a stray coordinate was the fault
 *about* the plot, not a reason to withhold the plot — refusing over it would mean
 a rig with one flat side light could never be exported. Only CLIPPED is fatal
 now; the rest come back in an `X-Plot-Notes` header.
+
+---
+
+## Metric — what is left, from the 2026.09.25 survey
+
+`plotedit/units.py` and `test_units.py` are in on the `metric` branch. Nothing is
+wired up: they are the foundation and the guard rails.
+
+**⭐ Two findings that make this smaller than it looks.**
+
+**The physics is already metric and needs no new data.** Illuminance is candela ÷
+distance², so the same published candela gives FOOTCANDLES with the distance in
+feet and LUX with it in metres. An S4 26 at 13'-4" reading 773 fc is the same
+measurement as 4.06 m reading 8321 lx. Same table, same gel percentages, same
+angles.
+
+**And the two scale systems meet exactly.** 1/4" = 1'-0" **is 1:48** — a foot is
+twelve inches and a quarter inch goes into twelve exactly forty-eight times. So
+both reduce to points-per-foot and `scaled_pdf` can keep one number:
+`points_per_foot("1/4")` returns 18.0, which is precisely what it already
+computes as `0.25 * 72`. **The generalisation is drop-in**, and `test_units.py`
+pins that for every existing scale.
+
+**The four remaining pieces, in the order to do them:**
+
+1. **Thread the setting through the display layer.** `plot.units`, then make
+   `fmt_ft` (33 call sites), `fmtFt` (15) and `parseFeet` unit-aware. Mechanical
+   and shallow. ⚠ **Feet stay the stored unit** — every saved plot, every test
+   fixture and all the RP-2 symbol geometry are in feet, and a Source Four is 22
+   inches long in Birmingham too. Convert at the edges, which is what the DXF
+   importer already does.
+2. **Lux.** A ×10.7639 at the display edge. 🔴 **The label is the risk**, not the
+   arithmetic: `footcandles` appears in the API response, the schedule column and
+   the inspector, and "179 fc" printed over a lux number is a false statement
+   that looks authoritative.
+3. **The drawing scale.** The only part that is not a conversion. `scaled_pdf` is
+   built on `paper_in_per_ft` and its own comment calls that "the whole trick".
+   Generalise to points-per-foot, add a metric list to the fit-to-sheet chooser,
+   and a scale bar that reads 0–10 m. **Give this its own pass** — it is where
+   the risk is.
+4. **Paper.** A3 and A4 exist; metric drafting wants **A2, A1, A0**.
+
+**🔴 The one judgement call, and it is Jerry's: defaults must be IDIOMATIC, not
+converted.** Head height is 5'-6" imperial; a metric designer says **1.7 m**, not
+1.676 m. Converted defaults produce numbers no European would type, and they then
+travel into drawings as evidence of a measurement nobody took. The current list
+is head 1.7, face 1.6, seated 1.1, deck — it wants reviewing before it is used.
+
+**⚠ And the danger throughout is DOUBLE CONVERSION**, which is silent: a length
+converted twice is out by 10.76 and still describes a plausible room. The
+round-trip tests exist for that, including one asserting that converting twice is
+**not** the identity.
+
+**What stays imperial regardless:** RP-2 is a US standard, so symbol geometry
+does not change. Lamp names (HPL 575) and gel numbers are product codes.
