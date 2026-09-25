@@ -175,3 +175,18 @@ than returning nothing.
 ```bash
 cd server && python3 test_names.py
 ```
+
+---
+
+## Licence
+
+**GNU General Public License v3 or later.** The full text is in [LICENSE](LICENSE).
+
+In short: **use it, change it, pass it on** — and anything you build on it stays
+free in the same way. That is the point rather than a formality. This exists
+because the tools for small rigs went subscription-only, and the licence is what
+stops this one going the same way in somebody else's hands.
+
+⚠ **No warranty.** It computes beam angles and levels from published photometric
+data and states its sources; it does not know your room. Check the numbers
+against something you measured.

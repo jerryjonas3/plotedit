@@ -15,6 +15,12 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# 🔴 Without this the release step fails. GITHUB_TOKEN is read-only by default in
+# repositories created since 2023, and softprops/action-gh-release needs to
+# WRITE — the failure is a 403 at the very last step, after a green build.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
