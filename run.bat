@@ -65,8 +65,24 @@ echo   Starting plotedit - your browser will open in a moment.
 echo   Leave this window open while you work. Close it, or press Ctrl-C, to stop.
 echo.
 python server\serve.py
+set "RC=!errorlevel!"
 popd
-exit /b 0
+rem A server that falls over must not take its message with it. Every failure
+rem above this line pauses; without this one, a crash at STARTUP - port 8000 already
+rem in use is the common cause - closed the window on an empty screen and left the
+rem person with nothing to report. A Mac keeps the traceback in the Terminal; here
+rem the window is the only place it ever existed.
+if not "!RC!"=="0" (
+  echo.
+  echo   plotedit stopped with an error. The message above says why.
+  echo.
+  echo   If it mentions the address already being in use, plotedit is already
+  echo   running in another window. Use that one, or start this on another port:
+  echo       set PLOTEDIT_PORT=8010 ^&^& run.bat
+  echo.
+  pause
+)
+exit /b !RC!
 
 :failed
 echo.

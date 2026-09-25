@@ -25,13 +25,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - run: pip install -r server/requirements.txt
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: "20" }
       - run: npm install
         working-directory: web
@@ -55,7 +55,7 @@ jobs:
       - name: Assemble the download
         run: |
           mkdir -p out/plotedit out/plotedit/web
-          cp -r server samples run.command run.bat README.md out/plotedit/
+          cp -r server samples run.command run.bat README.md LICENSE out/plotedit/
           chmod +x out/plotedit/run.command
           cp -r web/dist out/plotedit/web/dist
           # 🔴 docs/ is copied WITHOUT docs/reference. That folder holds a copy
@@ -69,6 +69,19 @@ jobs:
           find out/plotedit -name '__pycache__' -type d -prune -exec rm -rf {} +
           cd out && zip -qr ../plotedit.zip plotedit
 
+      - name: Refuse to ship the program without its licence
+        run: |
+          # 🔴 GPL section 4: "give all recipients a copy of this License along
+          # with the Program." v0.1.1 shipped without it — LICENSE was added to
+          # the repository and to the README, and the packaging step was never
+          # updated, so the download pointed at a file it did not contain.
+          # Nothing caught it because nothing looked.
+          if ! unzip -Z1 plotedit.zip | grep -qx 'plotedit/LICENSE'; then
+            echo "::error::plotedit.zip has no LICENSE — the GPL requires it to travel with the program"
+            exit 1
+          fi
+          echo "LICENSE is in the download"
+
       - name: Refuse to ship anyone else's document
         run: |
           # A guard, not a hope. If a PDF or an office document ever reaches the
@@ -79,13 +92,18 @@ jobs:
           fi
           echo "no third-party documents in the download"
 
-      - uses: actions/upload-artifact@v4
+      # ⚠ These two run ONLY on a tag, so a push to a branch never exercises
+      # them — the first time they run for real is a release nobody can take
+      # back. Their inputs were checked against the new majors' own action.yml
+      # rather than assumed: upload-artifact still takes name/path, and
+      # action-gh-release v3 still takes files.
+      - uses: actions/upload-artifact@v7
         with:
           name: plotedit
           path: plotedit.zip
 
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: plotedit.zip

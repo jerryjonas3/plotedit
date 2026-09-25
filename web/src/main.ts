@@ -524,7 +524,19 @@ async function boot() {
       sel.value = "";
       if (!kind) return;
       try {
-        await exportFile(kind, store.plot, { scale: $<HTMLSelectElement>("scale").value });
+        // ⭐ The PDF is a drawing and honours what the checkboxes are showing:
+        // a designer who hides the pools to read the plan expects the print to
+        // match. The CSV and patch exports have no drawing in them, so they are
+        // sent the plot alone and cannot be changed by a checkbox.
+        await exportFile(kind, store.plot, {
+          scale: $<HTMLSelectElement>("scale").value,
+          ...(kind === "pdf" ? {
+            showPools: $<HTMLInputElement>("pools").checked,
+            showFocus: $<HTMLInputElement>("focus").checked,
+            showLabels: $<HTMLInputElement>("labels").checked,
+            ...(poolPlane() === undefined ? {} : { poolPlane: poolPlane() }),
+          } : {}),
+        });
         status("");
       } catch (err) {
         // The commonest failure is the sheet refusing to clip, and it says
