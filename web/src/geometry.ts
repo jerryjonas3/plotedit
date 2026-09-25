@@ -112,14 +112,49 @@ export function fohExtent(
 }
 
 /** Feet as feet-and-inches: 13.75 → 13'-9" */
-export function fmtFt(feet: number | null | undefined): string {
+export const M_PER_FOOT = 0.3048;
+export type UnitSystem = "imperial" | "metric";
+
+/** ⚠ AMBIENT, and deliberately so. The editor holds exactly ONE plot, every
+ *  render is driven from it, and `draw()` sets this before anything is
+ *  formatted — so threading a system argument through every render function
+ *  would be ceremony around a value that cannot differ between two of them.
+ *
+ *  ⚠ FEET REMAIN THE INTERNAL UNIT. Nothing stored, measured or computed
+ *  changes; this decides only how a number is WRITTEN. The moment a conversion
+ *  happens anywhere but at the point of display, there are two sets of
+ *  arithmetic to keep in step and the wrong one is the one nobody watches. */
+let _system: UnitSystem = "imperial";
+
+export function setUnitSystem(u: string | undefined): void {
+  _system = String(u ?? "").toLowerCase().startsWith("met") ? "metric" : "imperial";
+}
+
+export function unitSystem(): UnitSystem { return _system; }
+
+/** A length, as the plot's reader writes it. ALWAYS takes feet. */
+export function fmtFt(feet: number | null | undefined,
+                      system: UnitSystem = _system): string {
   if (feet === null || feet === undefined || !isFinite(feet)) return "—";
+  if (system === "metric") return `${(feet * M_PER_FOOT).toFixed(2)} m`;
   const neg = feet < 0;
   const a = Math.abs(feet);
   let whole = Math.floor(a);
   let inches = Math.round((a - whole) * 12);
   if (inches === 12) { whole += 1; inches = 0; }
   return `${neg ? "-" : ""}${whole}'-${inches}"`;
+}
+
+/** An illuminance. ALWAYS takes footcandles.
+ *
+ *  🔴 The label travels with the number. A lux figure written "179 fc" is a
+ *  false statement that looks authoritative. */
+export function fmtFc(fc: number | null | undefined,
+                      system: UnitSystem = _system): string {
+  if (fc === null || fc === undefined || !isFinite(fc)) return "—";
+  return system === "metric"
+    ? `${Math.round(fc / (M_PER_FOOT * M_PER_FOOT))} lx`
+    : `${Math.round(fc)} fc`;
 }
 
 /** Where a piece of notation sits relative to an instrument, in FEET.

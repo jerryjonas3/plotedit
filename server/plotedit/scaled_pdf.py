@@ -161,7 +161,7 @@ def ft(feet, inches=0):
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
                  show="", venue="", sheet="", rev="A", designer="", studio="",
-                 margin_in=0.5, dxf=None, weights=None):
+                 margin_in=0.5, dxf=None, weights=None, units=None):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
         self.page_pt = (w * inch, h * inch)
@@ -199,6 +199,13 @@ class Sheet:
         # places somebody remembered to thread it through.
         self._weights = dict(weights or {})
         self.styles = resolve_styles(weights)
+        # ⭐ Which system this sheet PRINTS in. The drawing is still built in
+        # FEET — every coordinate, throw and trim below is feet — and this is
+        # consulted only where a number becomes text a person reads. Converting
+        # any earlier would mean two sets of arithmetic to keep in step, and
+        # the one that drifted would be the one nobody was looking at.
+        from . import units as _units
+        self.unit_system = units or _units.IMPERIAL
         self.base_note = None
         self.dxf_path = dxf
         self.dxf = None
@@ -235,6 +242,19 @@ class Sheet:
         return feet * self.pt_per_ft
 
     # ---- primitives (all args in real feet) --------------------------
+    def fmt_len(self, value_ft):
+        """A length, in the system this sheet prints in. Takes FEET always."""
+        from . import units as _units
+        return _units.fmt_length(value_ft, self.unit_system)
+
+    def fmt_lux(self, fc):
+        """An illuminance, labelled fc or lx to match. Takes FOOTCANDLES always.
+
+        🔴 The label travels with the number. A lux figure printed as "179 fc"
+        is a false statement that looks authoritative."""
+        from . import units as _units
+        return _units.fmt_illuminance(fc, self.unit_system)
+
     def style(self, name):
         """(width, dash) for an RP-2 category, with this plot's overrides applied.
 
@@ -592,7 +612,7 @@ class Sheet:
             _sym.draw(self, _sym.for_type(u.get("type", "")), x + unit_gap, uy,
                       rotate_deg=90)
             # Ends 5" clear of the pipe, growing leftwards away from it.
-            self.text(x - ft(0, 5), uy - ft(0, 2), _ph.fmt_ft(u["height"]),
+            self.text(x - ft(0, 5), uy - ft(0, 2), self.fmt_len(u["height"]),
                       size=6, align="right")
             self.text(x + unit_gap, uy - ft(0, 3), str(u.get("unit")),
                       size=6, center=True, bold=True)
@@ -763,9 +783,9 @@ class Sheet:
                                      sh["angle"], color=grey, style="pool")
                         self.layer("UNITS")
                 if annotate:
-                    t = f"{ph.fmt_ft(a['throw'])} @ {a['elevation']:.0f}°"
-                    if result.get("field"): t += f" · {ph.fmt_ft(result['field'])} pool"
-                    if result.get("fc"): t += f" · {result['fc']:.0f} fc"
+                    t = f"{self.fmt_len(a['throw'])} @ {a['elevation']:.0f}°"
+                    if result.get("field"): t += f" · {self.fmt_len(result['field'])} pool"
+                    if result.get("fc"): t += f" · {self.fmt_lux(result['fc'])}"
                     self.text(fx + ft(0, 6), fy - ft(1), t, size=5, color=grey)
         if not hasattr(self, "units"): self.units = []
         self.units.append(result or dict(num=num, ch=ch, kind=kind, x=x, y=y, trim=trim,
@@ -773,15 +793,17 @@ class Sheet:
         return result
 
     def dim(self, x1, y1, x2, y2, text=None, offset_ft=0.0):
-        """Dimension line with ticks and a distance label (feet-inches)."""
+        """Dimension line with ticks and a distance label, in the sheet's system.
+
+        ⚠ A room dimension is the most-read number on a plot. It formatted
+        feet-and-inches unconditionally, so a metric sheet announced its room
+        as 33'-0" beside pools measured in metres."""
         import math
         self.layer("DIMS")
         dx, dy = x2 - x1, y2 - y1
         length = math.hypot(dx, dy)
         if text is None:
-            whole = int(length); inches = round((length - whole) * 12)
-            if inches == 12: whole, inches = whole + 1, 0
-            text = f"{whole}'-{inches}\""
+            text = self.fmt_len(length)
         self.line(x1, y1, x2, y2, style="dimension")
         nx, ny = (-dy / length, dx / length) if length else (0, 1)
         t = ft(0, 4)
@@ -837,6 +859,15 @@ class Sheet:
         self.P(x + widest / self.pt_per_ft, y - (len(lines) - 1) * line_ft)
         return len(lines)
 
+    def _tick(self, v):
+        """A ruler tick. Imperial gets feet-and-inches; metric gets plain metres
+        — a metric rule is not divided into twelfths, and printing it as though
+        it were would be imperial wearing a metric label."""
+        from . import units as _units
+        if self.unit_system == _units.METRIC:
+            return f"{v * _units.M_PER_FOOT:.1f}"
+        return _feet_label(v)
+
     def rulers(self, x0, x1, y0, y1, step=None, bottom=True, side="left",
                size=5.5):
         """Dimension scales along the edges of the plan: X across the bottom,
@@ -866,8 +897,17 @@ class Sheet:
             # Roughly half an inch of paper between labels, rounded to a
             # surveyor-friendly interval rather than to whatever the division
             # happened to produce.
+            from . import units as _units
             want = 0.5 * inch / self.pt_per_ft
-            step = next((c for c in (1, 2, 5, 10, 20, 25, 50, 100) if c >= want), 100)
+            if self.unit_system == _units.METRIC:
+                # ⚠ Choose the interval in METRES and convert back, or a metric
+                # ruler ends up ticked every 0.6 m because 2 feet was a round
+                # number in the other system.
+                want_m = want * _units.M_PER_FOOT
+                m = next((c for c in (0.5, 1, 2, 5, 10, 20, 50) if c >= want_m), 50)
+                step = m * _units.FOOT_PER_M
+            else:
+                step = next((c for c in (1, 2, 5, 10, 20, 25, 50, 100) if c >= want), 100)
         self.layer("DIMS")
         pad = 1.2                       # feet of clear air between plan and rule
         tick = 0.45
@@ -887,7 +927,7 @@ class Sheet:
             self.line(x0, base, x1, base, style="dimension")
             for v in _marks(x0, x1):
                 self.line(v, base, v, base - tick, style="dimension")
-                self.text(v, base - tick - 0.55, _feet_label(v), size=size,
+                self.text(v, base - tick - 0.55, self._tick(v), size=size,
                           center=True, color=grey)
             self.text((x0 + x1) / 2.0, base - tick - 1.5, "X — ACROSS",
                       size=size, center=True, color=grey)
@@ -898,7 +938,7 @@ class Sheet:
             self.line(at, y0, at, y1, style="dimension")
             for v in _marks(y0, y1):
                 self.line(at, v, at + out * tick, v, style="dimension")
-                self.text(at + out * (tick + 0.25), v, _feet_label(v), size=size,
+                self.text(at + out * (tick + 0.25), v, self._tick(v), size=size,
                           align="right" if side == "left" else "left", color=grey)
             # ⚠ BOTH rulers get named. The bottom one alone was what made the
             # axes ambiguous in the first place — a reader who has to work out
@@ -1078,16 +1118,16 @@ def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", l
     s.layer("BASE")
     s.rect(0, -ft(0, 4), deck_length, ft(0, 4), width=1.2, fill=grey)          # the deck, 4" thick
     s.line(0, grid_height, deck_length, grid_height, width=0.5, dash=(4, 4), color=grey)
-    s.text(deck_length + ft(0, 6), grid_height, f"grid {ph.fmt_ft(grid_height)}", size=6, color=grey)
+    s.text(deck_length + ft(0, 6), grid_height, f"grid {s.fmt_len(grid_height)}", size=6, color=grey)
     s.line(0, head_h, deck_length, head_h, width=0.3, dash=(1, 3), color=grey)
-    s.text(deck_length + ft(0, 6), head_h, f"head height {ph.fmt_ft(head_h)}", size=6, color=grey)
+    s.text(deck_length + ft(0, 6), head_h, f"head height {s.fmt_len(head_h)}", size=6, color=grey)
     for u in units:
         if u.get("trim") is None or not u.get("focus"): continue
         h = u["y"] if axis == "y" else u["x"]
         fh = u["focus"][1] if axis == "y" else u["focus"][0]
         s.layer("POSITIONS"); s.circle(h, u["trim"], ft(0, 5), width=1.0, fill=white)
         s.text(h, u["trim"], str(u["num"]), size=6, center=True, bold=True)
-        s.text(h, u["trim"] + ft(0, 10), f"trim {ph.fmt_ft(u['trim'])}", size=5, center=True, color=grey)
+        s.text(h, u["trim"] + ft(0, 10), f"trim {s.fmt_len(u['trim'])}", size=5, center=True, color=grey)
         s.layer("NOTES"); s.line(h, u["trim"], fh, head_h, width=0.6, dash=(3, 2))
         s.circle(fh, head_h, ft(0, 3), width=0.5)
         f = ph.FIXTURES.get(u.get("kind"))
@@ -1104,8 +1144,8 @@ def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", l
                     edge = deck_length if direction > 0 else 0
                     frac = (edge - h) / (end - h) if end != h else 1
                     s.line(h, u["trim"], edge, u["trim"] * (1 - frac), width=0.4, color=grey, dash=(1, 2))
-            lab = f"{u['kind']} · {ph.fmt_ft(u['throw'])} @ {u['elevation']:.0f}°"
-            if u.get("fc"): lab += f" · {u['fc']:.0f} fc"
+            lab = f"{u['kind']} · {s.fmt_len(u['throw'])} @ {u['elevation']:.0f}°"
+            if u.get("fc"): lab += f" · {s.fmt_lux(u['fc'])}"
             s.text(fh, -ft(1, 2), lab, size=5, center=True, color=grey)
     s.finish()
     return s

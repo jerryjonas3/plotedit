@@ -30,6 +30,11 @@ export interface DetailDeps {
   onGeometry: () => void;
 }
 
+const UNITS = [
+  { value: "imperial", label: "Imperial — feet and inches" },
+  { value: "metric", label: "Metric — metres" },
+];
+
 const CONTROL: { value: ControlModel; label: string }[] = [
   { value: "dimmer-per-circuit", label: "Dimmer per circuit (most houses)" },
   { value: "hard-and-soft-patch", label: "Hard and soft patch" },
@@ -98,6 +103,13 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
   };
 
   group("The drawing", [
+    field("Units", p.units ?? "imperial",
+          v => { store.setMeta({ units: v as "imperial" | "metric" }); deps.onGeometry(); },
+          { wide: true, options: UNITS,
+            hint: "What the plot READS in. Everything is stored in feet either way, "
+                + "so switching re-labels the drawing rather than changing it — no "
+                + "number moves. Typed values follow: on a metric plot a bare number "
+                + "is metres, and 5'6\" is still 5'6\"." }),
     field("Show", p.show, v => { store.setMeta({ show: v }); deps.onChange(); }, { wide: true }),
     field("Venue", p.venue, v => { store.setMeta({ venue: v }); deps.onChange(); }, { wide: true }),
     field("Designer", p.designer, v => { store.setMeta({ designer: v }); deps.onChange(); },

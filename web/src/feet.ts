@@ -19,13 +19,19 @@
  * field; nonsense means the reader meant something and mistyped it, and must be
  * told rather than have their old value quietly wiped.
  */
+import { M_PER_FOOT, unitSystem, type UnitSystem } from "./geometry.js";
 
 /** Feet as a decimal, or null for nonsense, or undefined for empty.
  *
  * Accepts 1'6", 1'-6", 1' 6", 1'6, 1', 18", 1.5, -3, and the prime marks ′ ″
- * that a word processor produces.
+ * that a word processor produces. On a METRIC plot a bare number is metres and
+ * "4.2m" is accepted too — but anything written with ' or " is read as written,
+ * because someone typing 5'6" means 5'6".
+ *
+ * ⚠ ALWAYS RETURNS FEET, whatever was typed. Feet are the internal unit.
  */
-export function parseFeet(raw: string): number | null | undefined {
+export function parseFeet(raw: string,
+                          system: UnitSystem = unitSystem()): number | null | undefined {
   const s = (raw ?? "").trim().replace(/[′ʹ]/g, "'").replace(/[″ʺ]/g, '"');
   if (s === "") return undefined;
 
@@ -44,8 +50,25 @@ export function parseFeet(raw: string): number | null | undefined {
   const inches = /^(-?\d+(?:\.\d+)?)\s*"$/.exec(s);
   if (inches) return Number(inches[1]) / 12;
 
-  // plain decimal feet
-  if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+  // A bare number. WHICH UNIT depends on the plot, and this is the one place
+  // it can: everything above carries an explicit ' or " and is imperial by
+  // its own notation whatever the plot says — somebody typing 5'6" means
+  // 5'6", and silently reading it as metres would be the worst possible
+  // answer.
+  //
+  // 🔴 THE DOUBLE-CONVERSION TRAP. This returns FEET, always. A metric plot
+  // types metres and gets feet back, which every caller then stores, computes
+  // and finally formats back to metres for display. Convert anywhere else as
+  // well and the number is multiplied twice — and 3.28 is close enough to a
+  // plausible trim that nobody would catch it by eye.
+  if (/^-?\d+(\.\d+)?$/.test(s)) {
+    const n = Number(s);
+    return system === "metric" ? n / M_PER_FOOT : n;
+  }
+
+  // metres, said explicitly: 4.2m, 4.2 m
+  const metres = /^(-?\d+(?:\.\d+)?)\s*m$/i.exec(s);
+  if (metres) return Number(metres[1]) / M_PER_FOOT;
 
   return null;
 }

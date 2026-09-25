@@ -36,6 +36,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
                                    show_pools=show_pools, show_focus=show_focus,
                                    show_labels=show_labels, rulers=rulers)[0])
 
+    from plotedit import units as _units
     plot = json.load(open(plot_path))
     room = plot["room"]
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,
@@ -46,7 +47,8 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
               # ⭐ Line weights come off the PLOT, not off an export option.
               # "the pipes are too thick" is a property of the drawing, so it
               # belongs with the drawing and travels with the file.
-              weights=plot.get("lineWeights"))
+              weights=plot.get("lineWeights"),
+              units=_units.system_of(plot))
     # ⭐ FOH positions — catwalks — sit over the AUDIENCE, downstage of the
     # plaster line and outside the stage rectangle, at negative y. The origin has
     # to make room for them or they are clipped straight off the bottom of the
@@ -196,4 +198,4 @@ if __name__ == "__main__":
             continue
         fc = f"{round(r['fc'])}" if r.get("fc") else "—"
         print(f"{r['num']:<5} {str(r.get('ch') or ''):<4} {r['kind']:<15} "
-              f"{ph.fmt_ft(r['throw']):<9} {ph.fmt_ft(r.get('field')):<9} {fc:>6}")
+              f"{s.fmt_len(r['throw']):<9} {s.fmt_len(r.get('field')):<9} {fc:>6}")

@@ -14,7 +14,10 @@ export async function compute(plot: Plot, poolPlane?: number): Promise<Computed[
     headers: { "content-type": "application/json" },
     // pool_plane is the height to cut the pools at — the deck, a face, the top
     // of a head. Separate from where each unit is AIMED.
-    body: JSON.stringify({ instruments, pool_plane: poolPlane }),
+    // ⚠ `units` decides how the server FORMATS its answers — throw_ft, field_ft
+    // and the rest come back as text. The arithmetic is feet either way; leave
+    // this out and a metric plot gets metric pools beside imperial throws.
+    body: JSON.stringify({ instruments, pool_plane: poolPlane, units: plot.units }),
   });
   if (!r.ok) throw new Error(`compute failed: ${r.status} ${await r.text()}`);
   return (await r.json()).instruments as Computed[];
