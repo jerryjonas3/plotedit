@@ -55,7 +55,7 @@ jobs:
       - name: Assemble the download
         run: |
           mkdir -p out/plotedit out/plotedit/web
-          cp -r server samples run.command run.bat README.md out/plotedit/
+          cp -r server samples run.command run.bat README.md LICENSE out/plotedit/
           chmod +x out/plotedit/run.command
           cp -r web/dist out/plotedit/web/dist
           # 🔴 docs/ is copied WITHOUT docs/reference. That folder holds a copy
@@ -68,6 +68,19 @@ jobs:
           # ⚠ Nothing only a developer needs: no node_modules, no .git.
           find out/plotedit -name '__pycache__' -type d -prune -exec rm -rf {} +
           cd out && zip -qr ../plotedit.zip plotedit
+
+      - name: Refuse to ship the program without its licence
+        run: |
+          # 🔴 GPL section 4: "give all recipients a copy of this License along
+          # with the Program." v0.1.1 shipped without it — LICENSE was added to
+          # the repository and to the README, and the packaging step was never
+          # updated, so the download pointed at a file it did not contain.
+          # Nothing caught it because nothing looked.
+          if ! unzip -Z1 plotedit.zip | grep -qx 'plotedit/LICENSE'; then
+            echo "::error::plotedit.zip has no LICENSE — the GPL requires it to travel with the program"
+            exit 1
+          fi
+          echo "LICENSE is in the download"
 
       - name: Refuse to ship anyone else's document
         run: |
