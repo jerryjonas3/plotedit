@@ -174,6 +174,12 @@ export interface Plot {
   control?: ControlModel;
   /** Overrides for the drawn line widths. Absent means RP-2 throughout. */
   lineWeights?: LineWeights;
+  /** What the plot READS in. Absent means imperial, so every plot drawn before
+   *  this existed keeps reading the way it was drawn.
+   *
+   *  ⚠ Storage is FEET in both. This changes labels and what typed numbers
+   *  mean, never a stored value. */
+  units?: "imperial" | "metric";
   /** RP-2 §6.12: "choose only one type of layout per plot." */
   boomLayout?: "option1" | "option2";
   /** How instruments are ANGLED on the drawing. RP-2 p.2: "It is acceptable to

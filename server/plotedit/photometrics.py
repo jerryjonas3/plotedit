@@ -584,12 +584,19 @@ def wash_row(kind, throw, width, rule="field-to-beam"):
                 penumbra=w["penumbra"], rule=rule)
 
 
-def fmt_ft(x):
-    """12.5 -> 12'-6\" """
-    if x is None: return "—"
-    whole = int(x); inches = round((x - whole) * 12)
-    if inches == 12: whole, inches = whole + 1, 0
-    return f"{whole}'-{inches}\""
+def fmt_ft(x, system=None):
+    """A length as the plot's reader writes it. 12.5 -> 12'-6" or 3.81 m.
+
+    ⚠ THE VALUE IS ALWAYS IN FEET. Feet are the internal unit throughout —
+    every geometry, photometric and layout calculation works in them — and this
+    is the boundary where that becomes a reader's number. Converting earlier
+    would mean two sets of arithmetic to keep in step, and the one that is
+    wrong would be the one nobody is looking at.
+
+    `system` of None means imperial, so every existing caller is unchanged.
+    """
+    from . import units as _u
+    return _u.fmt_length(x, system or _u.IMPERIAL)
 
 
 def report(kind, unit, target, lamp=None, mode=None, gel=None):

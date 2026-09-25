@@ -1,6 +1,8 @@
 /** Run: cd web && npm test */
 import { toScreen, toPlot, len, fitView, fohExtent, fmtFt, svgTransform, notationAnchor, symbolRadius,
-         symbolTransform, lensDirection, type View } from "./geometry.js";
+         symbolTransform, lensDirection, fmtFc, setUnitSystem, unitSystem,
+         M_PER_FOOT, type View } from "./geometry.js";
+import { parseFeet } from "./feet.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -144,6 +146,40 @@ check("off-axis too", round(lensDirection(45)), { x: 0.7071, y: -0.7071 });
   check("...and rotates it the way the lens test assumes",
         round(lensDirection(deg)), { x: 1, y: 0 });
 }
+
+console.log("\nunits: the label changes, the stored value never does");
+check("imperial is the default", unitSystem(), "imperial");
+check("a plot that says nothing is imperial", (setUnitSystem(undefined), unitSystem()), "imperial");
+check("'metric' switches it", (setUnitSystem("metric"), unitSystem()), "metric");
+check("anything else does not", (setUnitSystem("Imperial"), unitSystem()), "imperial");
+
+setUnitSystem("imperial");
+check("feet print as feet", fmtFt(13.75), "13'-9\"");
+check("footcandles print as fc", fmtFc(179), "179 fc");
+setUnitSystem("metric");
+check("the same value prints as metres", fmtFt(13.75), "4.19 m");
+check("...from the SAME number of feet", fmtFt(13.75, "imperial"), "13'-9\"");
+check("footcandles become lux", fmtFc(179), "1927 lx");
+
+// 🔴 THE DOUBLE-CONVERSION TRAP. parseFeet returns FEET whatever was typed,
+// and fmtFt takes FEET. Convert in either one as well and the number is
+// multiplied twice — 3.28 is close enough to a plausible trim that nobody
+// catches it by eye. This is the assertion that would fail.
+console.log("\nwhat is typed comes back unchanged");
+setUnitSystem("metric");
+check("4.2 metres in, 4.20 m out", fmtFt(parseFeet("4.2") as number), "4.20 m");
+check("...and it is really 13.78 feet inside",
+      +(parseFeet("4.2") as number).toFixed(2), +(4.2 / M_PER_FOOT).toFixed(2));
+check("'4.2m' is accepted too", fmtFt(parseFeet("4.2m") as number), "4.20 m");
+// ⚠ Explicit imperial notation wins over the plot's system: somebody typing
+// 5'6" means 5'6", and reading it as metres would be the worst answer available.
+check("5'6\" is still five foot six on a metric plot",
+      +(parseFeet("5'6\"") as number).toFixed(4), 5.5);
+check("...which prints as its metric self", fmtFt(parseFeet("5'6\"") as number), "1.68 m");
+setUnitSystem("imperial");
+check("a bare number on an imperial plot is still feet", parseFeet("4.2"), 4.2);
+check("nonsense is still nonsense", parseFeet("banana"), null);
+check("empty is still empty", parseFeet(""), undefined);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

@@ -94,6 +94,68 @@ check("an empty plot too", U.system_of(None), U.IMPERIAL)
 check("metric when it says so", U.system_of({"units": "metric"}), U.METRIC)
 
 print()
+print("a metric plot DRAWS metric")
+import json as _json, os as _os, re as _re, tempfile as _tf
+import fitz as _fitz
+from plot_to_pdf import render as _render
+
+_SAMPLE = _os.path.join(_os.path.dirname(__file__), "..", "samples", "bluver.plot.json")
+_src = _json.load(open(_SAMPLE))
+_FEET = _re.compile(r"-?\d+'-\d+\"|-?\d+'(?!\w)")
+_METRES = _re.compile(r"-?\d+\.\d+\s?m\b")
+
+
+def _drawn(**over):
+    body = dict(_src); body.update(over); body["rulers"] = True
+    d = _tf.mkdtemp()
+    jp = _os.path.join(d, "p.json"); _json.dump(body, open(jp, "w"))
+    out = _os.path.join(d, "p.pdf")
+    sheet, _ = _render(jp, out, scale="1/4")
+    return sheet, _fitz.open(out)[0].get_text()
+
+
+_imp_sheet, _imp = _drawn()
+_met_sheet, _met = _drawn(units="metric")
+
+check("an imperial plot is full of feet", len(_FEET.findall(_imp)) > 30, True)
+check("...and carries no metre lengths", _METRES.findall(_imp), [])
+check("a metric plot carries metre lengths", len(_METRES.findall(_met)) > 0, True)
+
+# ⚠ THE SCALE BAR AND THE SCALE LABEL ARE STILL IMPERIAL, on purpose. The
+# drawing SCALE is its own piece of work (1:50 rather than 1/4" = 1'-0"), and
+# relabelling the bar in metres while the ratio stayed imperial would be a
+# worse lie than leaving it alone. Asserted as a KNOWN state so that finishing
+# the scale work has to come back and change this line deliberately.
+_left = sorted(set(_FEET.findall(_met)))
+check("the only feet left on a metric sheet are the scale bar and label",
+      _left, ["0'", "1'-0\"", "10'", "5'"])
+
+check("the room DIMENSION converts", "10.06 m" in _met or "11.58 m" in _met, True)
+check("the sheet knows its own system",
+      (_imp_sheet.unit_system, _met_sheet.unit_system), ("imperial", "metric"))
+
+print()
+print("illuminance is labelled to match, or it is a false statement")
+check("imperial says fc", _imp_sheet.fmt_lux(179.0), "179 fc")
+check("metric says lx", _met_sheet.fmt_lux(179.0), "1927 lx")
+check("and it is a real conversion, not a relabel",
+      _met_sheet.fmt_lux(179.0) != "179 lx", True)
+
+print()
+print("the endpoint formats in the system it is asked for")
+from fastapi.testclient import TestClient as _TC
+from plotedit.api import app as _app
+_client = _TC(_app)
+_inst = [{"unit": 1, "channel": 1, "type": "S4 26", "x": 0, "y": 20, "trim": 14,
+          "focus_x": 0, "focus_y": 8, "focus_h": 5.5}]
+_a = _client.post("/compute", json={"instruments": _inst}).json()["instruments"][0]
+_b = _client.post("/compute", json={"instruments": _inst, "units": "metric"}).json()["instruments"][0]
+check("asking for nothing gets feet", _a["throw_ft"].endswith('"'), True)
+check("asking for metric gets metres", _b["throw_ft"].endswith(" m"), True)
+check("the underlying number is the SAME — only the label moved",
+      _a["throw"], _b["throw"])
+
+print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
     for f in FAILS:

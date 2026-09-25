@@ -16,7 +16,7 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 /** Load a plot, draw it, let it be edited. */
-import { fitView, fohExtent, type View } from "./geometry.js";
+import { fitView, fohExtent, setUnitSystem, type View } from "./geometry.js";
 import { isPlot, symbolKey, plotFileName, newPlot, type Plot } from "./plot.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
@@ -84,7 +84,12 @@ function opts(): RenderOptions {
   };
 }
 
-function draw() { render(svg, store.plot, view(), computed, opts()); }
+function draw() {
+  // ⚠ Before ANYTHING is formatted. The system is ambient (see geometry.ts) and
+  // this is the single place it is refreshed — a draw that ran with a stale one
+  // would label a metric plot in feet and look like a conversion bug rather
+  // than a missing assignment.
+  setUnitSystem(store.plot.units); render(svg, store.plot, view(), computed, opts()); }
 
 function fillTable() {
   const tb = $<HTMLTableElement>("schedule").querySelector("tbody")!;

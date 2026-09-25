@@ -75,6 +75,10 @@ class ComputeRequest(BaseModel):
     # The height to cut the pools at — 0 for the deck, ~5'-2" for a face,
     # 5'-6" for the top of a head. Separate from where a unit is AIMED.
     pool_plane: Optional[float] = None
+    # ⭐ Which system to FORMAT the answers in. The arithmetic is unchanged —
+    # it is all feet either way — so this only decides how a number is written
+    # back. Absent means imperial, which is every request sent before today.
+    units: Optional[str] = None
 
 class WashRequest(BaseModel):
     type: str
@@ -82,6 +86,9 @@ class WashRequest(BaseModel):
     width: Optional[float] = Field(None, description="Feet of acting area to cover")
     rule: str = Field("field-to-beam",
                       description="field-to-beam | beam-to-beam | field-to-field")
+    # Same as ComputeRequest: formatting only, arithmetic unchanged. Without it
+    # the wash calculator answers a metric plot in feet.
+    units: Optional[str] = None
 
 
 # ----------------------------------------------------------------- endpoints
@@ -139,6 +146,8 @@ def compute(req: ComputeRequest) -> Dict[str, Any]:
     An instrument with no trim or no focus point gets `computed: false` and an
     explanation rather than a guessed number.
     """
+    from . import units as _u
+    sysm = _u.system_of({"units": req.units})
     results = []
     for i, inst in enumerate(req.instruments):
         row: Dict[str, Any] = {"index": i, "unit": inst.unit, "channel": inst.channel,
@@ -159,18 +168,18 @@ def compute(req: ComputeRequest) -> Dict[str, Any]:
         a = ph.aim((inst.x, inst.y, inst.trim),
                    (inst.focus_x, inst.focus_y, inst.focus_h))
         row.update(computed=True,
-                   throw=round(a["throw"], 2), throw_ft=ph.fmt_ft(a["throw"]),
+                   throw=round(a["throw"], 2), throw_ft=ph.fmt_ft(a["throw"], sysm),
                    elevation=round(a["elevation"], 1), pan=round(a["pan"], 1))
 
         pool = ph.pool(inst.type, a["throw"], a["elevation"])
         if pool.get("field"):
             row["field"] = round(pool["field"], 2)
-            row["field_ft"] = ph.fmt_ft(pool["field"])
+            row["field_ft"] = ph.fmt_ft(pool["field"], sysm)
         if pool.get("beam"):
             row["beam"] = round(pool["beam"], 2)
-            row["beam_ft"] = ph.fmt_ft(pool["beam"])
+            row["beam_ft"] = ph.fmt_ft(pool["beam"], sysm)
         if pool.get("on_deck_length"):
-            row["on_deck_ft"] = ph.fmt_ft(pool["on_deck_length"])
+            row["on_deck_ft"] = ph.fmt_ft(pool["on_deck_length"], sysm)
 
         # ⭐ The REAL pool: an ellipse, not a circle. A cone only cuts a circle
         # when it points straight down. `pool_plane` chooses the height to cut
@@ -215,15 +224,17 @@ def wash(req: WashRequest) -> Dict[str, Any]:
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    from . import units as _u
+    _ws = _u.system_of({"units": req.units})
     out = {"type": req.type, "throw": req.throw, "rule": req.rule,
-           "spacing": round(w["spacing"], 2), "spacing_ft": ph.fmt_ft(w["spacing"]),
-           "field_radius_ft": ph.fmt_ft(w["field_r"]),
-           "beam_radius_ft": ph.fmt_ft(w["beam_r"]),
-           "penumbra_ft": ph.fmt_ft(w["penumbra"])}
+           "spacing": round(w["spacing"], 2), "spacing_ft": ph.fmt_ft(w["spacing"], _ws),
+           "field_radius_ft": ph.fmt_ft(w["field_r"], _ws),
+           "beam_radius_ft": ph.fmt_ft(w["beam_r"], _ws),
+           "penumbra_ft": ph.fmt_ft(w["penumbra"], _ws)}
     if req.width:
         r = ph.wash_row(req.type, req.throw, req.width, req.rule)
-        out["row"] = {"count": r["count"], "spacing_ft": ph.fmt_ft(r["spacing"]),
-                      "ideal_ft": ph.fmt_ft(r["ideal"]),
+        out["row"] = {"count": r["count"], "spacing_ft": ph.fmt_ft(r["spacing"], _ws),
+                      "ideal_ft": ph.fmt_ft(r["ideal"], _ws),
                       "positions": [round(p, 2) for p in r["positions"]]}
     return out
 
