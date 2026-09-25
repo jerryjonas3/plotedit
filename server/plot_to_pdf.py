@@ -20,13 +20,20 @@ from plotedit.booms import BOOM_PITCH
 
 
 def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
-           pool_plane=None):
+           pool_plane=None, show_pools=True, show_focus=True, show_labels=True):
     # "fit" means: zoom in as far as the sheet allows. An explicit scale is
     # still honoured — a plot issued at 1/4" stays at 1/4" when it is reissued.
     if scale in ("fit", "max", None):
+        # ⚠ The fit search has to draw the SAME picture that will be issued.
+        # Pools are the widest thing on a plot by a distance, so measuring with
+        # them on and then issuing with them off picks a scale far smaller than
+        # the sheet can hold — a drawing correct in every dimension and half the
+        # size it should be.
         scale = largest_scale(
             lambda k, path: render(plot_path, path, scale=k, page=page,
-                                   landscape=landscape, pool_plane=pool_plane)[0])
+                                   landscape=landscape, pool_plane=pool_plane,
+                                   show_pools=show_pools, show_focus=show_focus,
+                                   show_labels=show_labels)[0])
 
     plot = json.load(open(plot_path))
     room = plot["room"]
@@ -133,6 +140,8 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
                    symbol_angle=plot.get("symbolAngle", "orthogonal"),
                    pool_plane=pool_plane if pool_plane is not None
                               else plot.get("poolPlane"),
+                   show_pool=show_pools, show_focus=show_focus,
+                   show_labels=show_labels,
                    in_plan=(inst.get("position") or "").strip().lower()
                            not in _boom_names)
         rows.append(r)

@@ -37,8 +37,21 @@ export async function fixtures(): Promise<Record<string, FixtureRow>> {
 export type ExportKind = "pdf" | "dxf" | "schedule" | "hookup" | "eos";
 
 /** Ask the server for a file and hand it to the browser as a download. */
+export interface ExportOptions {
+  scale?: string;
+  landscape?: boolean;
+  /** What the plan/pools/focus/labels checkboxes are showing. Sent so the
+   *  print matches the screen; omitted entirely for the CSV and patch exports,
+   *  which have no drawing to hide. */
+  showPools?: boolean;
+  showFocus?: boolean;
+  showLabels?: boolean;
+  /** The height the pools are cut at, in feet. */
+  poolPlane?: number;
+}
+
 export async function exportFile(
-  kind: ExportKind, plot: Plot, opts: { scale?: string; landscape?: boolean } = {},
+  kind: ExportKind, plot: Plot, opts: ExportOptions = {},
 ): Promise<void> {
   const r = await fetch(`/api/export/${kind}`, {
     method: "POST",
@@ -50,6 +63,10 @@ export async function exportFile(
       plot,
       ...(opts.scale ? { scale: opts.scale } : {}),
       ...(opts.landscape === undefined ? {} : { landscape: opts.landscape }),
+      ...(opts.showPools === undefined ? {} : { showPools: opts.showPools }),
+      ...(opts.showFocus === undefined ? {} : { showFocus: opts.showFocus }),
+      ...(opts.showLabels === undefined ? {} : { showLabels: opts.showLabels }),
+      ...(opts.poolPlane === undefined ? {} : { poolPlane: opts.poolPlane }),
     }),
   });
   if (!r.ok) {

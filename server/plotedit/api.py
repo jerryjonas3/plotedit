@@ -252,6 +252,18 @@ class ExportRequest(BaseModel):
     scale: str = "fit"
     page: str = "ARCH_D"
     landscape: bool = True
+    # ⭐ What the editor's own checkboxes mean, carried onto paper. A designer
+    # who turns the pools off to read the plot expects the print to match the
+    # screen; before these, Export gave back everything regardless and the only
+    # way to issue a clean plan was to delete the focus points.
+    # Defaulting to True keeps every existing caller — and every saved plot —
+    # drawing exactly what it drew before.
+    showPools: bool = True
+    showFocus: bool = True
+    showLabels: bool = True
+    # The height the pools are cut at, in feet. None means the editor did not
+    # choose one, and each unit falls back to its own focus height.
+    poolPlane: Optional[float] = None
 
 
 def _attach(body: bytes, media: str, filename: str) -> Response:
@@ -313,7 +325,11 @@ def export_pdf(req: ExportRequest) -> Response:
     with tempfile.TemporaryDirectory() as d:
         pdf = os.path.join(d, "plot.pdf")
         sheet, _ = exports.plot_pdf(req.plot, pdf, scale=req.scale,
-                                    page=req.page, landscape=req.landscape)
+                                    page=req.page, landscape=req.landscape,
+                                    show_pools=req.showPools,
+                                    show_focus=req.showFocus,
+                                    show_labels=req.showLabels,
+                                    pool_plane=req.poolPlane)
         # ⚠ Refuse only what makes the drawing WRONG. A clipped sheet is
         # unusable, so it is a 422. Everything else — a grazing pool, an
         # unrecognised accessory — is a true note ABOUT the plot, and refusing

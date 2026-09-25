@@ -498,7 +498,8 @@ class Sheet:
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
              accessories=None, circuit=None, dimmer=None, wattage=None,
              control="dimmer-per-circuit", symbol_angle="orthogonal",
-             pool_plane=None, show_pool=True, annotate=False, in_plan=True):
+             pool_plane=None, show_pool=True, show_focus=True, show_labels=True,
+             annotate=False, in_plan=True):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -519,6 +520,13 @@ class Sheet:
         show_pool draws the field pool at the focus point; annotate prints the
         numbers beside it. Returns the dict (or None if no trim/focus given).
         Everything is recorded in self.units for the schedule and the section.
+
+        ⭐ show_pool, show_focus and show_labels are what the editor's own
+        checkboxes mean, carried onto paper. They hide DRAWING only: the
+        photometrics are still worked out, the row is still returned and every
+        warning is still raised, so turning the pools off cannot turn off the
+        check that says a pool never lands. A drawing that hid its own warnings
+        would be worse than a cluttered one.
 
         ⭐ in_plan=False draws NO SYMBOL and NO NOTATION — for a unit on a boom,
         which RP-2 §6.12 draws in an elevation beside the plot instead. In plan a
@@ -578,7 +586,7 @@ class Sheet:
         # attached to. Drawn after, the leader runs across the body and through
         # the unit number — which is exactly the mess that putting the number
         # inside the body was meant to avoid.
-        if focus_to:
+        if focus_to and show_focus:
             self.layer("NOTES")
             self.line(x, y, focus_to[0], focus_to[1], color=grey, style="leader")
             self.circle(focus_to[0], focus_to[1], ft(0, 3), color=grey, style="leader")
@@ -596,7 +604,7 @@ class Sheet:
         # reaches nearly a foot past its yoke — and further still once an
         # accessory is hung on the nose.
         _clear = _sym.radius(_prims) + ft(0, 3)
-        if in_plan:
+        if in_plan and show_labels:
             _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
                           circuit=circuit, dimmer=dimmer, wattage=wattage,
                           control=control, rotate_deg=draw_deg,
@@ -623,21 +631,29 @@ class Sheet:
                     if gel_warn:
                         note += f" — {gel_warn}; level is for open white"
                     result["fc"], result["fc_note"] = fc, note
-                    if show_pool:
-                        # ⭐ The REAL shape, not a circle. A cone only cuts a
-                        # circle when it points straight down; at 30° elevation a
-                        # 26° field lands more than twice as long as it is wide,
-                        # and the long end is the one that reaches the scenery.
-                        sh = ph.pool_shape(kind, (x, y, trim), (fx, fy),
-                                           plane_h=pool_plane if pool_plane is not None else focus_h,
-                                           focus_h=focus_h)
+                    # ⭐ The REAL shape, not a circle. A cone only cuts a
+                    # circle when it points straight down; at 30° elevation a
+                    # 26° field lands more than twice as long as it is wide,
+                    # and the long end is the one that reaches the scenery.
+                    #
+                    # ⚠ WORKED OUT WHETHER OR NOT IT IS DRAWN. The note this
+                    # raises — the pool grazes the plane and its far edge never
+                    # lands — is a fact about the RIG, not about the picture.
+                    # Until 2026.09.25 the shape was computed inside the drawing
+                    # branch, so unticking `pools` took the warning away with the
+                    # ellipse and the plot came out clean by showing less. A
+                    # switch that hides a drawing must never hide a finding.
+                    sh = ph.pool_shape(kind, (x, y, trim), (fx, fy),
+                                       plane_h=pool_plane if pool_plane is not None else focus_h,
+                                       focus_h=focus_h)
+                    if sh.get("a"):
+                        result["pool_shape"] = sh
+                    elif sh.get("note"):
+                        self.warnings.append(f"unit {num}: {sh['note']}")
+                    if show_pool and sh.get("a"):
                         self.layer("NOTES")
-                        if sh.get("a"):
-                            self.ellipse(sh["cx"], sh["cy"], sh["a"], sh["b"],
-                                         sh["angle"], color=grey, style="pool")
-                            result["pool_shape"] = sh
-                        elif sh.get("note"):
-                            self.warnings.append(f"unit {num}: {sh['note']}")
+                        self.ellipse(sh["cx"], sh["cy"], sh["a"], sh["b"],
+                                     sh["angle"], color=grey, style="pool")
                         self.layer("UNITS")
                 if annotate:
                     t = f"{ph.fmt_ft(a['throw'])} @ {a['elevation']:.0f}°"
