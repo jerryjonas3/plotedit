@@ -7,6 +7,9 @@
 screen and nothing else: Export gave back everything regardless, so the only way
 to issue a clean plan was to delete the focus points and put them back after.
 
+It also covers the rest of what the sheet SAYS: a note that reaches the paper
+whole, and a number where a number belongs.
+
 ⚠ AND THE RULE THAT MATTERS MORE. A switch that hides a DRAWING must never hide
 a FINDING. Turning the pools off used to take the "this pool never lands"
 warning away with the ellipse, because the shape was only worked out inside the
@@ -24,7 +27,9 @@ import fitz
 from fastapi.testclient import TestClient
 
 from plotedit.api import app
+from plotedit import photometrics as ph
 from plot_to_pdf import render
+from plotedit.scaled_pdf import Sheet
 
 SAMPLE = os.path.join(os.path.dirname(__file__), "..", "samples", "bluver.plot.json")
 plot = json.load(open(SAMPLE))
@@ -141,6 +146,91 @@ check("showLabels:false reaches the paper", _nolabels, (nl_c, nl_l, nl_t))
 check("an unknown field is still not a reason to refuse a plot",
       client.post("/export/pdf",
                   json={"plot": plot, "scale": "1/4", "somethingNew": 1}).status_code, 200)
+
+
+print()
+print("the room note reaches the paper whole")
+# It used to be cut to 110 characters. On the Drake plot that ended it at
+# "— InterAct renta", losing the half that named the source and said the
+# dimension may not be quoted. A note cut mid-word does not LOOK truncated.
+_src = plot["room"]["source"]
+_p = os.path.join(tempfile.mkdtemp(), "note.pdf")
+render(SAMPLE, _p, scale="1/4")
+_text = fitz.open(_p)[0].get_text()
+check("the sample's note is longer than the old 110-char cut", len(_src) > 110, True)
+check("every word of it is on the sheet",
+      [w for w in _src.split() if w not in _text], [])
+
+
+def _with_source(source, width=30, depth=30):
+    """A minimal plot carrying `source`, rendered; returns its Sheet."""
+    body = {
+        "show": "note probe", "venue": "", "revision": "0", "designer": "", "studio": "",
+        "control": "dimmer-per-circuit",
+        "room": {"width": width, "depth": depth, "source": source},
+        "positions": [{"name": "E1", "type": "electric",
+                       "x1": 0, "y1": 20, "x2": width, "y2": 20, "trim": 14}],
+        "instruments": [{"unit": 1, "channel": 1, "type": "S4 26", "x": width / 2, "y": 20,
+                         "trim": 14, "focusX": width / 2, "focusY": 10, "focusH": 5.5,
+                         "position": "E1"}],
+    }
+    d = tempfile.mkdtemp()
+    jp = os.path.join(d, "p.json")
+    json.dump(body, open(jp, "w"))
+    buf = _io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        sheet, _ = render(jp, os.path.join(d, "p.pdf"), scale="1/4")
+    return sheet, fitz.open(os.path.join(d, "p.pdf"))[0].get_text()
+
+_long = " ".join(["measurement"] * 120)
+_sheet, _t = _with_source(_long)
+check("a note far too long for one line still arrives in full",
+      [w for w in set(_long.split()) if w not in _t], [])
+check("...on more than one line", _t.count("measurement") > 1, True)
+
+# ⚠ P() records the point it is GIVEN. Each wrapped line is drawn at its own
+# anchor, so the block's HEIGHT was always counted — but every anchor sits at
+# the left edge, so its WIDTH was not, and a note could run off the side of the
+# sheet with the clipping guard silent. Asserted against the bounds directly:
+# going through the clipping message instead passes on the height alone and
+# proves nothing about the width.
+_s = Sheet(os.path.join(tempfile.mkdtemp(), "b.pdf"), page="ARCH_D", scale="1/4",
+           landscape=True, show="bounds probe")
+_s.origin(72, 72)
+_s.P(1.0, 20.0)                      # the anchor alone, as text() records it
+_left = _s._bounds[2]
+_s.note(1.0, 20.0, "M" * 300, width_ft=200.0)   # one word, far wider than any line
+check("note() claims its WIDTH, not just its anchor", _s._bounds[2] > _left + 100, True)
+
+
+print()
+print("a PAR prints a level instead of a blank")
+# Every ETC PAR row carried cd=None, so every PAR on every plot came out with
+# no footcandle figure at all. ⚠ And filling the candela alone was not enough:
+# the candela is published at HPL 750 and Jerry's Source Fours are HPL 575, so
+# without a 575 multiplier they went on printing nothing.
+#
+# Each figure below is the datasheet's OWN fc at its OWN distance — ETC
+# Source Four PAR EA datasheet Rev J 2020-12, page 2. If a candela is ever
+# retyped wrongly, it stops agreeing with the sheet it came from.
+PUBLISHED = {"S4 EA PAR VNSP": (425, 30.0), "S4 EA PAR NSP": (539, 25.0),
+             "S4 EA PAR MFL": (601, 15.0), "S4 EA PAR WFL": (739, 8.0)}
+for _kind, (_fc, _dist) in PUBLISHED.items():
+    _row = ph.FIXTURES[_kind]
+    check(f"{_kind} has a candela", _row["cd"] is not None, True)
+    _got, _ = ph.footcandles(_kind, _dist, "HPL 750", None, None)
+    check(f"...and agrees with {_fc}fc @ {_dist:.0f}' as published",
+          _got is not None and abs(_got - _fc) / _fc < 0.01, True)
+    # ⚠ "not None" is too weak. With no HPL 575 multiplier on file the lookup
+    # falls back to the reference lamp and reports the HPL 750 output on a 575
+    # fixture — a wrong number, which is worse than the blank this was fixing.
+    # Every published 575 factor is below 1, so the real test is that the
+    # figure DROPPED.
+    _def, _note = ph.footcandles(_kind, _dist, None, None, None)
+    check("...and computes at the lamp actually in it", _def is not None, True)
+    check("...at 575, below its 750 figure, not silently at 750",
+          _def is not None and _def < _got * 0.999, True)
+    check("...naming the multiplier it used", "MF" in (_note or ""), True)
 
 
 print()

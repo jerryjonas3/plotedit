@@ -154,7 +154,12 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     _key.draw(s, plot, room["width"] + 4.0, room["depth"])
 
     if room.get("source"):
-        s.note(1, room["depth"] - 1.5, f"Room: {room['source'][:110]}")
+        # ⚠ This note is the one that says the room was never measured and may
+        # not be quoted. It used to be cut to 110 characters, which ended it
+        # mid-word — losing the half that named the source. Wrapped to the room
+        # now, so all of it is there and none of it is off the paper.
+        s.note(1, room["depth"] - 1.5, f"Room: {room['source']}",
+               width_ft=max(room["width"] - 2.0, 8.0))
     s.finish()
     return s, rows
 

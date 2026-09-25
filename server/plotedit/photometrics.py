@@ -61,14 +61,14 @@ FIXTURES = {
                    source="ETC Europe Beam Spread Table 2000-11-13 (oval beam; wide axis)"),
     "S4 PARNel @45": dict(field=47.0, beam=29.0, cd=None, ref_lamp="HPL 750", family="S4 PAR",
                    source="ETC Europe Beam Spread Table 2000-11-13 (oval beam; wide axis)"),
-    "S4 EA PAR VNSP": dict(field=18.0, beam=11.0, cd=None, ref_lamp="HPL 750", family="S4 PAR",
-                   source="ETC Europe Beam Spread Table 2000-11-13"),
-    "S4 EA PAR NSP": dict(field=19.0, beam=11.0, cd=None, ref_lamp="HPL 750", family="S4 PAR",
-                   source="ETC Europe Beam Spread Table 2000-11-13"),
-    "S4 EA PAR MFL": dict(field=32.0, beam=19.0, cd=None, ref_lamp="HPL 750", family="S4 PAR",
-                   source="ETC Europe Beam Spread Table 2000-11-13 (oval; narrow axis 23/13)"),
-    "S4 EA PAR WFL": dict(field=48.0, beam=27.0, cd=None, ref_lamp="HPL 750", family="S4 PAR",
-                   source="ETC Europe Beam Spread Table 2000-11-13 (oval; narrow axis 31/17)"),
+    "S4 EA PAR VNSP": dict(field=18.0, beam=11.0, cd=382145, ref_lamp="HPL 750", family="S4 PAR",
+                   source="ETC Europe Beam Spread Table 2000-11-13. ETC Source Four PAR EA datasheet Rev J 2020-12, HPL 750/115 (cd corroborated by its own fc table: 425fc@30'). ⚠ ANGLES here are still the 2000 Europe table; the 2020 sheet gives 9° beam / 17° field. ETC changed the PAR lenses in 2020, so the two describe different lens generations — the candela is the current product's, the angles are not. Jerry's call which to follow; changing the angles resizes pools on plots already drawn."),
+    "S4 EA PAR NSP": dict(field=19.0, beam=11.0, cd=336740, ref_lamp="HPL 750", family="S4 PAR",
+                   source="ETC Europe Beam Spread Table 2000-11-13. ETC Source Four PAR EA datasheet Rev J 2020-12, HPL 750/115 (cd corroborated by its own fc table: 539fc@25'). ⚠ ANGLES here are still the 2000 Europe table; the 2020 sheet gives 9° beam / 16° field. ETC changed the PAR lenses in 2020, so the two describe different lens generations — the candela is the current product's, the angles are not. Jerry's call which to follow; changing the angles resizes pools on plots already drawn."),
+    "S4 EA PAR MFL": dict(field=32.0, beam=19.0, cd=135225, ref_lamp="HPL 750", family="S4 PAR",
+                   source="ETC Europe Beam Spread Table 2000-11-13 (oval; narrow axis 23/13). ETC Source Four PAR EA datasheet Rev J 2020-12, HPL 750/115 (cd corroborated by its own fc table: 601fc@15'). ⚠ ANGLES here are still the 2000 Europe table; the 2020 sheet gives 18°/13° beam and 31°/23° field (H/V). ETC changed the PAR lenses in 2020, so the two describe different lens generations — the candela is the current product's, the angles are not. Jerry's call which to follow; changing the angles resizes pools on plots already drawn."),
+    "S4 EA PAR WFL": dict(field=48.0, beam=27.0, cd=47270, ref_lamp="HPL 750", family="S4 PAR",
+                   source="ETC Europe Beam Spread Table 2000-11-13 (oval; narrow axis 31/17). ETC Source Four PAR EA datasheet Rev J 2020-12, HPL 750/115 (cd corroborated by its own fc table: 739fc@8'). ⚠ ANGLES here are still the 2000 Europe table; the 2020 sheet gives 31°/20° beam and 51°/37° field (H/V). ETC changed the PAR lenses in 2020, so the two describe different lens generations — the candela is the current product's, the angles are not. Jerry's call which to follow; changing the angles resizes pools on plots already drawn."),
 
     "S4 26 EDLT": dict(field=25.0, beam=17.0, cd=182301, ref_lamp="HPL 750", family="S4 EDLT",
                    source="ETC EDLT datasheet: 182,301 cd, field mult .45"),
@@ -226,10 +226,28 @@ FIXTURES = {
 }
 
 # Candela multiplying factors from the ETC lamp tables (per barrel, 300-hr lamps).
+# ⚠ A candela with no multiplier for the lamp actually in the fixture is a
+# candela nobody can use. Jerry's Source Fours are HPL 575 unless noted
+# (DEFAULT_LAMP below), so a fixture listed only under HPL 750 computes NOTHING
+# on his plots — which is exactly how every PAR came out blank even after the
+# candela was filled in. Add a fixture to HPL 575 as well, or it is not done.
 LAMP_MF = {
-    "HPL 750": {"S4 19": 1.00, "S4 26": 1.00, "S4 36": 1.00, "S4 50": 1.00},
-    "HPL 575": {"S4 19": 0.85, "S4 26": 0.78, "S4 36": 0.67, "S4 50": 0.79},
-    "HPL 575X": {"S4 36": 0.56},          # long-life; others not extracted
+    "HPL 750": {"S4 19": 1.00, "S4 26": 1.00, "S4 36": 1.00, "S4 50": 1.00,
+                # ETC Source Four PAR EA datasheet Rev J 2020-12, page 4
+                # ("Lamps" table, Cd MF columns). HPL 750/115 is the reference
+                # the candela was measured at, so every factor there is 1.00.
+                "S4 EA PAR VNSP": 1.00, "S4 EA PAR NSP": 1.00,
+                "S4 EA PAR MFL": 1.00, "S4 EA PAR WFL": 1.00},
+    "HPL 575": {"S4 19": 0.85, "S4 26": 0.78, "S4 36": 0.67, "S4 50": 0.79,
+                # Same table, HPL 575/115 row. The factor differs per LENS —
+                # .92 to .75 — so one number for the family would be wrong for
+                # three of the four.
+                "S4 EA PAR VNSP": 0.92, "S4 EA PAR NSP": 0.88,
+                "S4 EA PAR MFL": 0.80, "S4 EA PAR WFL": 0.75},
+    "HPL 575X": {"S4 36": 0.56,          # long-life; other S4 tubes not extracted
+                 # Same table, HPL 575/115X row: .56 across all four lenses.
+                 "S4 EA PAR VNSP": 0.56, "S4 EA PAR NSP": 0.56,
+                 "S4 EA PAR MFL": 0.56, "S4 EA PAR WFL": 0.56},
 }
 
 # ---------------------------------------------------------------- wattage

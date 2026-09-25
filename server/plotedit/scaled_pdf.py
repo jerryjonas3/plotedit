@@ -684,8 +684,51 @@ class Sheet:
         self.text(x1 + dx / 2 + nx * ft(0, 6), y1 + dy / 2 + ny * ft(0, 6), text,
                   size=7, center=True, rotate=ang)
 
-    def note(self, x, y, s, size=7):
-        self.layer("NOTES"); self.text(x, y, s, size=size, color=BROWN)
+    def wrap(self, s, width_ft, size=7, bold=False):
+        """Break `s` into lines no wider than width_ft, measured in the font it
+        will actually be drawn in. A word longer than the line goes on one of
+        its own and overruns — shortening it would be inventing a word."""
+        font = "Helvetica-Bold" if bold else "Helvetica"
+        limit = width_ft * self.pt_per_ft
+        lines, cur = [], ""
+        for word in s.split():
+            trial = f"{cur} {word}".strip()
+            if cur and self.c.stringWidth(trial, font, size) > limit:
+                lines.append(cur)
+                cur = word
+            else:
+                cur = trial
+        if cur:
+            lines.append(cur)
+        return lines or [""]
+
+    def note(self, x, y, s, size=7, width_ft=None):
+        """A note in the drawing, in brown.
+
+        ⭐ width_ft WRAPS it. Without a width the string is drawn as one line
+        and runs as far as it likes.
+
+        ⚠ The caller used to cut the string to a fixed character count instead.
+        On the Drake plot that ended the room note at "— InterAct renta", and
+        the words it dropped were the ones naming where the dimension came from
+        and saying it may not be quoted. A note cut mid-word does not look
+        truncated; it looks like the sentence ended, so nobody goes looking for
+        the rest. Wrapping keeps all of it and measuring keeps it on the paper.
+        """
+        self.layer("NOTES")
+        if width_ft is None:
+            self.text(x, y, s, size=size, color=BROWN)
+            return 1
+        lines = self.wrap(s, width_ft, size=size)
+        line_ft = size * 1.25 / self.pt_per_ft
+        for i, line in enumerate(lines):
+            self.text(x, y - i * line_ft, line, size=size, color=BROWN)
+        # ⚠ P() records only the point it is given, so a block of text counted
+        # as its top-left corner alone — which is how a note could run off the
+        # sheet with the clipping guard silent. Claim the real footprint.
+        widest = max(self.c.stringWidth(ln, "Helvetica", size) for ln in lines)
+        self.P(x + widest / self.pt_per_ft, y - (len(lines) - 1) * line_ft)
+        return len(lines)
 
     # ---- §6.18 reference lines
 
