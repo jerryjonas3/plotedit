@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Feet or metres, and the one place that knows the difference.
 
-⭐ Jerry, 2026.09.25, after Eddie Simmins asked from the UK whether it would
-"cross the pond": work out what metric needs.
+⭐ Jerry, 2026.09.25, after a designer in the UK asked whether it would "cross
+the pond": work out what metric needs.
 
 ⭐ THE PHYSICS IS ALREADY METRIC. Illuminance is candela ÷ distance², so the
 same published candela gives FOOTCANDLES when the distance is in feet and LUX
