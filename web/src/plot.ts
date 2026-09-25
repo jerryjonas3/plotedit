@@ -152,9 +152,28 @@ export interface Room {
  *  to make, and there is not. */
 export type ControlModel = "dimmer-per-circuit" | "hard-and-soft-patch" | "no-soft-patch";
 
+/** Line weights, in POINTS ON PAPER — the same on the sheet whatever the
+ *  drawing scale. Everything is optional; what is left out keeps RP-2's value.
+ *
+ *  ⚠ Only widths. The dash patterns are not overridable: a chain-dash IS the
+ *  centre line, and a plot that redefined it would be readable only by whoever
+ *  drew it. */
+export interface LineWeights {
+  /** The three RP-2 weights. Setting `heavy` moves every heavy line at once. */
+  light?: number;
+  medium?: number;
+  heavy?: number;
+  /** One named RP-2 category — "batten", "architecture", "pool"… */
+  styles?: Record<string, number>;
+  /** One position type — "electric", "boom", "catwalk"… */
+  positions?: Record<string, number>;
+}
+
 export interface Plot {
   /** The house's control model. Defaults to dimmer-per-circuit. */
   control?: ControlModel;
+  /** Overrides for the drawn line widths. Absent means RP-2 throughout. */
+  lineWeights?: LineWeights;
   /** RP-2 §6.12: "choose only one type of layout per plot." */
   boomLayout?: "option1" | "option2";
   /** How instruments are ANGLED on the drawing. RP-2 p.2: "It is acceptable to

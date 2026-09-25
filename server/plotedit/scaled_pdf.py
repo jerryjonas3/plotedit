@@ -79,13 +79,79 @@ LINE_STYLES = {
 }
 
 
+# ⭐ Which line a POSITION is drawn with. Everything physical is heavy under
+# RP-2, so an electric and a boom come out identically — which is right by the
+# standard and is exactly what makes a plot of thin pipes look heavy. Naming
+# them separately is what lets one be made finer than another without moving
+# either off the heavy weight.
+POSITION_STYLES = {
+    "electric": "batten", "pipe": "batten", "grid": "batten",
+    "boom": "batten", "box-boom": "batten", "ladder": "batten",
+    "catwalk": "architecture", "truss": "batten",
+}
+
+
+def resolve_styles(weights=None):
+    """LINE_STYLES with a plot's overrides applied. Returns a NEW dict — the
+    module table is the standard and is never mutated.
+
+    `weights` comes straight off the plot file and may carry:
+
+        {"light": 0.4, "medium": 0.8, "heavy": 1.2,   # the three RP-2 weights
+         "styles":    {"batten": 1.0},                # one named category
+         "positions": {"boom": 0.8}}                  # one position type
+
+    ⚠ Only the WIDTH is overridable. The dash patterns carry meaning — a
+    chain-dash IS the centre line — and a plot that redefined them would no
+    longer be readable by anyone but its author.
+    """
+    table = dict(LINE_STYLES)
+    if not weights:
+        return table
+    named = {"light": LIGHT, "medium": MEDIUM, "heavy": HEAVY}
+    scale = {k: float(weights[k]) for k in named if weights.get(k) is not None}
+    if scale:
+        for key, (w, dash) in list(table.items()):
+            for name, default in named.items():
+                # Float equality is safe here: these widths are the module
+                # constants themselves, not arithmetic on them.
+                if w == default and name in scale:
+                    table[key] = (scale[name], dash)
+    for key, w in (weights.get("styles") or {}).items():
+        if key not in table:
+            raise KeyError(f"{key!r} is not an RP-2 line category; "
+                           f"have {sorted(LINE_STYLES)}")
+        table[key] = (float(w), table[key][1])
+    return table
+
+
 def style(name):
-    """(width, dash) for an RP-2 line category. Raises rather than guessing."""
+    """(width, dash) for an RP-2 line category. Raises rather than guessing.
+
+    ⚠ Module-level, so it knows nothing about a plot's overrides. Drawing code
+    wants Sheet.style() instead; this stays for callers reading the standard.
+    """
     try:
         return LINE_STYLES[name]
     except KeyError:
         raise KeyError(f"{name!r} is not an RP-2 line category; "
                        f"have {sorted(LINE_STYLES)}") from None
+
+def _feet_label(v):
+    """A ruler tick, in feet and inches, short enough to sit under a tick.
+
+    Whole feet print as 12'; anything else carries the inches. Negative values
+    keep their sign — stage left of a centre-of-room datum IS negative, and
+    printing it unsigned would put two different places at the same number.
+    """
+    sign = "-" if v < 0 else ""
+    a = abs(v)
+    whole = int(a)
+    inches = round((a - whole) * 12)
+    if inches == 12:
+        whole, inches = whole + 1, 0
+    return f"{sign}{whole}'" if inches == 0 else f"{sign}{whole}'-{inches}\""
+
 
 def ft(feet, inches=0):
     """Real-world length in feet (decimal). ft(12, 6) == 12.5"""
@@ -95,7 +161,7 @@ def ft(feet, inches=0):
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
                  show="", venue="", sheet="", rev="A", designer="", studio="",
-                 margin_in=0.5, dxf=None):
+                 margin_in=0.5, dxf=None, weights=None):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
         self.page_pt = (w * inch, h * inch)
@@ -128,6 +194,11 @@ class Sheet:
         self.c.setLineJoin(1); self.c.setLineCap(1)
         self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
         self.warnings = []
+        # ⭐ Resolved ONCE, per sheet. Every drawing call reads self.styles, so
+        # an override reaches the whole drawing rather than the handful of
+        # places somebody remembered to thread it through.
+        self._weights = dict(weights or {})
+        self.styles = resolve_styles(weights)
         self.base_note = None
         self.dxf_path = dxf
         self.dxf = None
@@ -164,12 +235,43 @@ class Sheet:
         return feet * self.pt_per_ft
 
     # ---- primitives (all args in real feet) --------------------------
-    def line(self, x1, y1, x2, y2, width=0.75, dash=None, color=black, style=None):
+    def style(self, name):
+        """(width, dash) for an RP-2 category, with this plot's overrides applied.
+
+        ⚠ Not the module-level style(). That one reports the STANDARD; this one
+        reports what will actually be drawn on this sheet."""
+        try:
+            return self.styles[name]
+        except KeyError:
+            raise KeyError(f"{name!r} is not an RP-2 line category; "
+                           f"have {sorted(self.styles)}") from None
+
+    def position_line(self, kind):
+        """(style_name, width_override_or_None) for a hanging position.
+
+        ⭐ A position type may be given its own width — "the pipes are too
+        thick" is about electrics, not about the walls, and under RP-2 both are
+        heavy. The override changes the WIDTH only; the category stays, so the
+        line keeps meaning what it meant and the DXF layer does not move.
+        """
+        kind = (kind or "electric").strip().lower()
+        name = POSITION_STYLES.get(kind, "batten")
+        per_type = (self._weights.get("positions") or {})
+        w = per_type.get(kind)
+        return name, (None if w is None else float(w))
+
+    def line(self, x1, y1, x2, y2, width=0.75, dash=None, color=black, style=None,
+             width_override=None):
         """style is an RP-2 line category (see LINE_STYLES) and wins over
         width/dash when given. Prefer it — a named category says WHY the line
         is that weight."""
         if style:
-            width, dash = LINE_STYLES[style]
+            sw, dash = self.style(style)
+            # ⚠ An explicitly passed width WINS over the category's. That is
+            # what lets one position type be drawn finer than another while
+            # staying in the same RP-2 category — and the default is None, so
+            # nothing that does not ask for it is affected.
+            width = sw if width_override is None else width_override
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
         if dash: c.setDash(list(dash))   # (array, phase) — pass the pattern as ONE list
         c.line(*self.P(x1, y1), *self.P(x2, y2)); c.restoreState()
@@ -177,10 +279,10 @@ class Sheet:
 
     def rect(self, x, y, w, h, width=1.0, label=None, fill=None, color=black, style=None):
         if style:
-            width, dash = LINE_STYLES[style]
+            width, dash = self.style(style)
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
-        if style and LINE_STYLES[style][1]:
-            c.setDash(list(LINE_STYLES[style][1]))
+        if style and self.style(style)[1]:
+            c.setDash(list(self.style(style)[1]))
         if fill: c.setFillColor(fill)
         px, py = self.P(x, y); self.P(x + w, y + h)   # second call records the far corner
         c.rect(px, py, self.L(w), self.L(h), stroke=1, fill=1 if fill else 0)
@@ -190,7 +292,7 @@ class Sheet:
 
     def circle(self, x, y, r, width=0.75, fill=None, color=black, dash=None, style=None):
         if style:
-            width, dash = LINE_STYLES[style]
+            width, dash = self.style(style)
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
         if dash: c.setDash(list(dash))   # (array, phase) — pass the pattern as ONE list
         if fill: c.setFillColor(fill)
@@ -204,7 +306,7 @@ class Sheet:
         geometry rather than a curve nobody downstream can read."""
         import math as _m
         if style:
-            width, dash = LINE_STYLES[style]
+            width, dash = self.style(style)
         t = _m.radians(angle_deg)
         ct, st = _m.cos(t), _m.sin(t)
         pts = []
@@ -338,9 +440,10 @@ class Sheet:
         if kind in ("catwalk", "truss"):
             half = (pos.get("width") or (3.0 if kind == "catwalk" else 1.5)) / 2.0
             # Horizontal only for now, so the offset is in y.
+            _edge, _w = self.position_line(kind)
             for side in (1, -1):
                 self.line(x1, y1 + side * half, x2, y2 + side * half,
-                          style="architecture" if kind == "catwalk" else "batten")
+                          style=_edge, width_override=_w)
             if kind == "truss":
                 import math
                 n = max(2, int(abs(x2 - x1) / max(half * 2, 0.5)))
@@ -360,10 +463,12 @@ class Sheet:
                 off = pos.get("railOffset")
                 if off is None:
                     off = half * 0.55
-                self.line(x1, y1 - off, x2, y2 - off, style="batten")
+                self.line(x1, y1 - off, x2, y2 - off, style="batten",
+                          width_override=self.position_line(kind)[1])
             top = max(y1, y2) + half
         else:
-            self.line(x1, y1, x2, y2, style="batten")
+            _pstyle, _pw = self.position_line(kind)
+            self.line(x1, y1, x2, y2, style=_pstyle, width_override=_pw)
             top = max(y1, y2)
 
         if label:
@@ -464,10 +569,12 @@ class Sheet:
         # sitting on top of an unbroken line.
         cuts = sorted(breaks)
         seg_from = 0.0
+        _bstyle, _bw = self.position_line(pos.get("type") or "boom")
         for b in cuts:
-            self.line(x, y + seg_from, x, y + b - 0.18, style="batten")
+            self.line(x, y + seg_from, x, y + b - 0.18, style=_bstyle,
+                      width_override=_bw)
             seg_from = b + 0.18
-        self.line(x, y + seg_from, x, y + top, style="batten")
+        self.line(x, y + seg_from, x, y + top, style=_bstyle, width_override=_bw)
         for b in cuts:
             self.break_mark(x, y + b)
 
@@ -729,6 +836,76 @@ class Sheet:
         widest = max(self.c.stringWidth(ln, "Helvetica", size) for ln in lines)
         self.P(x + widest / self.pt_per_ft, y - (len(lines) - 1) * line_ft)
         return len(lines)
+
+    def rulers(self, x0, x1, y0, y1, step=None, bottom=True, side="left",
+               size=5.5):
+        """Dimension scales along the edges of the plan: X across the bottom,
+        Y up one side.
+
+        ⭐ WHAT THIS IS FOR. A scale bar says how long a foot is; it does not
+        say where anything IS. With a ruler on two edges you read a position
+        straight off the sheet — eleven feet stage right, nineteen upstage —
+        without walking a scale rule across the paper and losing your place.
+
+        X runs across the stage and is drawn along the BOTTOM. Y runs upstage
+        and is drawn up the SIDE. Said explicitly because the two are easy to
+        swap, and a ruler labelled with the wrong axis is worse than none: it
+        is confidently wrong and nothing on the sheet contradicts it.
+
+        ⚠ Ticks are labelled in REAL FEET from the plot's own origin, which in
+        a black box is the centre of the room — so the numbers go negative
+        stage left, and that is correct rather than a bug to hide. A ruler
+        renumbered from a corner would disagree with every coordinate in the
+        plot file.
+
+        `step` defaults to whatever keeps the labels from colliding at this
+        scale: the tick interval is chosen from the SCALE, not from the room,
+        so a big room does not silently get a ruler nobody can read.
+        """
+        if step is None:
+            # Roughly half an inch of paper between labels, rounded to a
+            # surveyor-friendly interval rather than to whatever the division
+            # happened to produce.
+            want = 0.5 * inch / self.pt_per_ft
+            step = next((c for c in (1, 2, 5, 10, 20, 25, 50, 100) if c >= want), 100)
+        self.layer("DIMS")
+        pad = 1.2                       # feet of clear air between plan and rule
+        tick = 0.45
+
+        def _marks(lo, hi):
+            """Tick positions on a whole multiple of step, spanning lo..hi."""
+            import math
+            first = math.ceil(lo / step) * step
+            out, v = [], first
+            while v <= hi + 1e-9:
+                out.append(round(v, 6))
+                v += step
+            return out
+
+        if bottom:
+            base = y0 - pad
+            self.line(x0, base, x1, base, style="dimension")
+            for v in _marks(x0, x1):
+                self.line(v, base, v, base - tick, style="dimension")
+                self.text(v, base - tick - 0.55, _feet_label(v), size=size,
+                          center=True, color=grey)
+            self.text((x0 + x1) / 2.0, base - tick - 1.5, "X — ACROSS",
+                      size=size, center=True, color=grey)
+
+        if side:
+            at = (x0 - pad) if side == "left" else (x1 + pad)
+            out = -1 if side == "left" else 1
+            self.line(at, y0, at, y1, style="dimension")
+            for v in _marks(y0, y1):
+                self.line(at, v, at + out * tick, v, style="dimension")
+                self.text(at + out * (tick + 0.25), v, _feet_label(v), size=size,
+                          align="right" if side == "left" else "left", color=grey)
+            # ⚠ BOTH rulers get named. The bottom one alone was what made the
+            # axes ambiguous in the first place — a reader who has to work out
+            # which scale is which will sooner or later work it out wrongly,
+            # and nothing else on the sheet would contradict them.
+            self.text(at + out * (tick + 1.9), (y0 + y1) / 2.0, "Y — UPSTAGE",
+                      size=size, center=True, color=grey, rotate=90)
 
     # ---- §6.18 reference lines
 

@@ -334,6 +334,12 @@
           <option value="3/4">3/4"</option>
           <option value="1">1"</option>
         </select>
+        <!-- Print-only, and sits with the print controls rather than with the
+             display checkboxes for that reason: the browser does not draw
+             rulers, so a toggle among the others would promise something the
+             screen never shows. -->
+        <label title="Print a dimension scale along the edges of the plan — X across the bottom, Y up the left side. Read off where something is without walking a scale rule across the sheet.">
+          <input type="checkbox" id="rulers"> rulers</label>
       </div>
     </div>
     <div class="bar">

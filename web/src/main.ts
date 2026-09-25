@@ -513,6 +513,10 @@ async function boot() {
     // ⚠ poolplane is NOT in this list — it changes the NUMBERS, not just what is
     // shown, so it has to recompute rather than redraw. Wired separately below;
     // adding it here would have moved the picker and left the pools unchanged.
+    //
+    // ⚠ `rulers` is not here either, for the opposite reason: it changes the
+    // PRINT and nothing on screen. Wiring it to draw would redraw the canvas
+    // to no visible effect and suggest the toggle had failed.
     for (const id of ["pools", "focus", "labels", "base", "zoom"])
       $(id).addEventListener("input", draw);
     $("poolplane").addEventListener("change", () => { void recompute(); });
@@ -535,6 +539,7 @@ async function boot() {
             showFocus: $<HTMLInputElement>("focus").checked,
             showLabels: $<HTMLInputElement>("labels").checked,
             ...(poolPlane() === undefined ? {} : { poolPlane: poolPlane() }),
+            rulers: $<HTMLInputElement>("rulers").checked,
           } : {}),
         });
         status("");

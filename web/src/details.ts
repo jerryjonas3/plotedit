@@ -138,6 +138,46 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
                 + "one hexagon, because there is no patch to make." }),
   ]);
 
+  // ⭐ Jerry, 2026.09.25, relaying a tester: "the lines are too thick for pipes."
+  // RP-2 fixes three weights and the module picked the points for them — heavy
+  // was 1.7pt, correct by the standard and heavy on the page. These are POINTS
+  // ON PAPER, so a value means the same at every drawing scale.
+  //
+  // ⚠ The three named weights come first deliberately. Moving `heavy` fixes the
+  // complaint everywhere at once and keeps RP-2's grouping intact — heavy is
+  // what physically exists, light is notation about it. The per-type boxes
+  // below break that grouping, which is sometimes what you want and is never
+  // the place to start.
+  const w = p.lineWeights ?? {};
+  const pts = (label: string, value: number | undefined,
+               path: Parameters<typeof store.setWeight>[0], hint: string) =>
+    field(label, value, raw => {
+      const t = raw.trim();
+      if (t === "") { store.setWeight(path, undefined); deps.onChange(); return; }
+      const n = Number(t);
+      // ⚠ Nonsense leaves the value alone rather than storing NaN, and a zero
+      // is refused: a zero-width line is not thin, it is absent.
+      if (Number.isFinite(n) && n > 0) { store.setWeight(path, n); deps.onChange(); }
+    }, { step: 0.1, hint });
+
+  group("Line weights (points on paper)", [
+    pts("Light", w.light, "light",
+        "RP-2's lightest weight — notation, leaders, dimensions, beam pools. Default 0.5."),
+    pts("Medium", w.medium, "medium",
+        "Soft goods and reference lines — masking, drops, the centre and plaster lines. Default 0.9."),
+    pts("Heavy", w.heavy, "heavy",
+        "Everything that physically exists — pipes, instruments, walls, the border. "
+      + "Default 1.7, which is what makes a plot read heavy. Lower this first."),
+    pts("Electrics", w.positions?.electric, "positions.electric",
+        "Overrides the heavy weight for electrics, pipes and grids only. Leave blank "
+      + "to follow Heavy."),
+    pts("Booms", w.positions?.boom, "positions.boom",
+        "Booms, box booms and ladders. Leave blank to follow Heavy."),
+    pts("Catwalks", w.positions?.catwalk, "positions.catwalk",
+        "A catwalk is drawn as architecture, not as a pipe — this is its edges. "
+      + "Leave blank to follow Heavy."),
+  ]);
+
   group("Where the figures came from", [
     field("Room source", p.room.source,
           v => { store.setRoom({ source: v || undefined }); deps.onChange(); },
