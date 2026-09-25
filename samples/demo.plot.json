@@ -1,0 +1,382 @@
+{
+  "formatVersion": 1,
+  "show": "The Odd Couple",
+  "control": "dimmer-per-circuit",
+  "venue": "The Globe Black Box",
+  "studio": "Twin Oaks Studios",
+  "designer": "Jerry Jonas",
+  "date": "2026-09-23",
+  "revision": "version 1",
+  "room": {
+    "width": 33,
+    "depth": 38,
+    "gridHeight": 14,
+    "source": "Site visit 08-29-1016",
+    "sightPoint": {
+      "y": 2,
+      "h": 3.5,
+      "source": "EXAMPLE DATA — no real sight point measured. In a black box the worst seat moves with the risers, so this is a placeholder for one seating configuration. It sits INSIDE the room, like everything else."
+    },
+    "gridSource": "House documents",
+    "horizontalZero": {
+      "at": "center",
+      "name": "centre of the room"
+    },
+    "configuration": "black box — no proscenium and no plaster line. The risers move, so where the audience sits is part of the design rather than a property of the room.",
+    "houseCeiling": 18
+  },
+  "positions": [
+    {
+      "name": "Cat 1",
+      "type": "catwalk",
+      "foh": true,
+      "x1": 0,
+      "y1": 4,
+      "x2": 33,
+      "y2": 4,
+      "width": 3,
+      "trim": 18
+    },
+    {
+      "name": "GRID B",
+      "x1": 0,
+      "y1": 16,
+      "x2": 33,
+      "y2": 16,
+      "trim": 14,
+      "type": "electric"
+    },
+    {
+      "name": "GRID C",
+      "x1": 0,
+      "y1": 20,
+      "x2": 33,
+      "y2": 20,
+      "trim": 14,
+      "type": "electric",
+      "circuits": [
+        {
+          "id": 3,
+          "x": 4
+        },
+        {
+          "id": 4,
+          "x": 12
+        },
+        {
+          "id": 5,
+          "x": 20
+        },
+        {
+          "id": 6,
+          "x": 28
+        }
+      ],
+      "circuitSource": "EXAMPLE DATA — invented for the sample. The Drake's real circuit map has not been asked for."
+    },
+    {
+      "name": "GRID D",
+      "x1": 0,
+      "y1": 24,
+      "x2": 33,
+      "y2": 24,
+      "trim": 14,
+      "type": "electric",
+      "circuits": [
+        7,
+        8,
+        9
+      ],
+      "circuitSource": "EXAMPLE DATA — no locations, so units cannot be matched automatically."
+    },
+    {
+      "name": "House Right Boom #1",
+      "type": "boom",
+      "x1": 30.5,
+      "y1": 14,
+      "x2": 30.5,
+      "y2": 14,
+      "mount": "boom-base"
+    },
+    {
+      "name": "House Left Box Boom 1",
+      "type": "box-boom",
+      "x1": 2,
+      "y1": 6,
+      "x2": 2,
+      "y2": 6,
+      "mount": "flange",
+      "foh": true
+    },
+    {
+      "name": "Electric 7",
+      "type": "electric",
+      "x1": 10,
+      "y1": 13,
+      "x2": 10,
+      "y2": 36,
+      "trim": 14
+    }
+  ],
+  "instruments": [
+    {
+      "unit": 1,
+      "channel": 1,
+      "type": "S4 26",
+      "x": 5.5,
+      "y": 20,
+      "trim": 14,
+      "focusX": 8,
+      "focusY": 10,
+      "color": "R52+R119",
+      "lamp": "HPL 575",
+      "position": "GRID C",
+      "purpose": "Area 1",
+      "accessories": [
+        "top hat"
+      ]
+    },
+    {
+      "unit": 2,
+      "channel": 2,
+      "type": "S4 26",
+      "x": 11,
+      "y": 20,
+      "trim": 14,
+      "focusX": 13,
+      "focusY": 10,
+      "color": "R52+R119",
+      "lamp": "HPL 575",
+      "position": "GRID C",
+      "purpose": "Area 2",
+      "address": 93
+    },
+    {
+      "unit": 3,
+      "channel": 3,
+      "type": "S4 26",
+      "x": 16.5,
+      "y": 20,
+      "trim": 14,
+      "focusX": 16.5,
+      "focusY": 10,
+      "color": "R52+R119",
+      "lamp": "HPL 575",
+      "position": "GRID C",
+      "purpose": "Area 3"
+    },
+    {
+      "unit": 4,
+      "channel": 4,
+      "type": "S4 26",
+      "x": 19,
+      "y": 20,
+      "trim": 14,
+      "focusX": 20,
+      "focusY": 10,
+      "color": "R52+R119",
+      "lamp": "HPL 575",
+      "position": "GRID C",
+      "purpose": "Area 4"
+    },
+    {
+      "unit": 5,
+      "channel": 49,
+      "type": "S4 26",
+      "x": 27.5,
+      "y": 20,
+      "trim": 14,
+      "focusX": 25,
+      "focusY": 10,
+      "color": "R52+R119",
+      "lamp": "HPL 575",
+      "position": "GRID C",
+      "purpose": "Area 5"
+    },
+    {
+      "unit": 1,
+      "channel": 11,
+      "type": "S4 36",
+      "x": 8,
+      "y": 24,
+      "trim": 14,
+      "focusX": 10,
+      "focusY": 14,
+      "lamp": "HPL 575",
+      "position": "GRID D",
+      "purpose": "BAX",
+      "accessories": [
+        "4-way barn door",
+        "gobo"
+      ]
+    },
+    {
+      "unit": 2,
+      "channel": 12,
+      "type": "S4 36",
+      "x": 16.5,
+      "y": 24,
+      "trim": 14,
+      "focusX": 16.5,
+      "focusY": 14,
+      "lamp": "HPL 750",
+      "position": "GRID D",
+      "purpose": "BAX",
+      "notes": "750W — drawn with the blackened rear per RP-2 §6.15's mark"
+    },
+    {
+      "unit": 3,
+      "channel": 13,
+      "type": "S4 36",
+      "x": 25,
+      "y": 24,
+      "trim": 14,
+      "focusX": 23,
+      "focusY": 14,
+      "lamp": "HPL 575",
+      "position": "GRID D",
+      "purpose": "BAX"
+    },
+    {
+      "unit": 1,
+      "channel": 21,
+      "type": "Lustr 26 EDLT",
+      "x": 11,
+      "y": 16,
+      "trim": 14,
+      "focusX": 13,
+      "focusY": 8,
+      "mode": "Regulated 3200K",
+      "position": "GRID B",
+      "purpose": "Special SL"
+    },
+    {
+      "unit": 2,
+      "channel": 22,
+      "type": "Lustr 26 EDLT",
+      "x": 22,
+      "y": 16,
+      "trim": 14,
+      "focusX": 20,
+      "focusY": 8,
+      "mode": "Regulated 3200K",
+      "position": "GRID B",
+      "purpose": "Special SR"
+    },
+    {
+      "unit": 4,
+      "channel": 14,
+      "type": "S4 PARNel @25",
+      "x": 27,
+      "y": 24,
+      "trim": 14,
+      "focusX": 25,
+      "focusY": 14,
+      "lensRotation": 45,
+      "lamp": "HPL 575",
+      "position": "GRID D",
+      "purpose": "BAX",
+      "notes": "Lightwright calls this 'ETC Source4 PARNel'; the photometric table key is 'S4 PARNel @25'. See docs/NEXT.md."
+    },
+    {
+      "unit": 1,
+      "channel": 31,
+      "type": "S4 26",
+      "x": 30.5,
+      "y": 14,
+      "height": 12,
+      "trim": 12,
+      "focusX": 20,
+      "focusY": 14,
+      "color": "R52+R119",
+      "position": "House Right Boom #1",
+      "purpose": "Side SR high"
+    },
+    {
+      "unit": 2,
+      "channel": 32,
+      "type": "S4 36",
+      "x": 30.5,
+      "y": 14,
+      "height": 8,
+      "trim": 8,
+      "focusX": 20,
+      "focusY": 16,
+      "color": "R52+R119",
+      "position": "House Right Boom #1",
+      "purpose": "Side SR mid"
+    },
+    {
+      "unit": 3,
+      "channel": 33,
+      "type": "S4 36",
+      "x": 30.5,
+      "y": 14,
+      "height": 4.5,
+      "trim": 4.5,
+      "focusX": 20,
+      "focusY": 18,
+      "color": "R52+R119",
+      "position": "House Right Boom #1",
+      "purpose": "Side SR shin"
+    },
+    {
+      "unit": 1,
+      "channel": 41,
+      "type": "S4 19",
+      "x": 2,
+      "y": 6,
+      "height": 14,
+      "trim": 14,
+      "focusX": 14,
+      "focusY": 12,
+      "color": "R52+R119",
+      "position": "House Left Box Boom 1",
+      "purpose": "FOH box boom"
+    },
+    {
+      "unit": 2,
+      "channel": 45,
+      "type": "S4 36",
+      "x": 2,
+      "y": 6,
+      "trim": 6,
+      "height": 6,
+      "position": "House Left Box Boom 1",
+      "color": "R52+R119",
+      "focusX": 28.583333333333332,
+      "focusY": 8.916666666666666
+    },
+    {
+      "unit": 1,
+      "channel": 46,
+      "type": "S4 36",
+      "x": 10,
+      "y": 31.166666666666668,
+      "trim": 14,
+      "position": "Electric 7",
+      "color": "R52+R119",
+      "focusX": 21.833333333333332,
+      "focusY": 20.583333333333332
+    },
+    {
+      "unit": 2,
+      "channel": 47,
+      "type": "S4 36",
+      "x": 10,
+      "y": 27.166666666666668,
+      "trim": 14,
+      "position": "Electric 7",
+      "color": "R52+R119",
+      "focusX": 23.333333333333332,
+      "focusY": 27.166666666666668
+    }
+  ],
+  "notes": [
+    "A demonstration plot. Open it, click a light, drag it, drag the ring to re-aim it, and watch the throw, the pool and the footcandles change.",
+    "Everything here is computed from published photometric data, and every figure names its source. It does not know your room — check anything that matters against something you measured.",
+    "Things worth looking at: the boom elevations beside the plot (RP-2 §6.12 — in plan a boom is a single point, so its units are drawn to the side); the pipe running up and downstage, whose units number from the downstage end; and the pools, which are ellipses rather than circles because a cone only cuts a circle when it points straight down.",
+    "Export → Plot PDF draws it to USITT RP-2 on ARCH D, at the largest standard scale that fits. Export → Instrument schedule and Channel hookup give you the paperwork, with the load totalled."
+  ],
+  "boomLayout": "option1"
+}

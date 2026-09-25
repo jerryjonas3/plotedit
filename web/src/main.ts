@@ -487,8 +487,11 @@ async function boot() {
     }
 
     if (!opened) {
-      const r = await fetch("/bluver.plot.json");
-      if (!r.ok) throw new Error(`cannot load the sample plot: ${r.status}`);
+      // ⚠ The DEMO, not the test fixture. samples/bluver.plot.json is what the
+      // suites assert against and it is labelled "test data, not a design";
+      // demo.plot.json is the one a stranger should meet first.
+      const r = await fetch("/demo.plot.json");
+      if (!r.ok) throw new Error(`cannot load the demo plot: ${r.status}`);
       const json: unknown = await r.json();
       if (!isPlot(json)) throw new Error("that file is not a plot (formatVersion must be 1)");
       opened = json as Plot;
