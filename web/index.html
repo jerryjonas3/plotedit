@@ -134,6 +134,9 @@
                  padding:4px 8px; border-radius:var(--shape-full); cursor:pointer; }
     .bar label:hover { background:var(--surface-container-high); }
     input[type=checkbox] { accent-color:var(--primary); width:16px; height:16px; margin:0; }
+    /* ⚠ `rulers` sits among the display toggles but does NOT change the screen.
+       Saying so on the control is cheaper than explaining it afterwards. */
+    .print-only { opacity:.62; font-size:.85em; }
     input[type=range] { accent-color:var(--primary); }
 
     /* ---- the drawing ------------------------------------------------- */
@@ -334,12 +337,6 @@
           <option value="3/4">3/4"</option>
           <option value="1">1"</option>
         </select>
-        <!-- Print-only, and sits with the print controls rather than with the
-             display checkboxes for that reason: the browser does not draw
-             rulers, so a toggle among the others would promise something the
-             screen never shows. -->
-        <label title="Print a dimension scale along the edges of the plan — X across the bottom, Y up the left side. Read off where something is without walking a scale rule across the sheet.">
-          <input type="checkbox" id="rulers"> rulers</label>
       </div>
     </div>
     <div class="bar">
@@ -358,6 +355,8 @@
       </select></label>
       <label><input type="checkbox" id="focus" checked> focus</label>
       <label><input type="checkbox" id="labels" checked> labels</label>
+      <label title="PRINT ONLY — the screen never draws these. A dimension scale along the edges of the plan: X across the bottom, Y up the side, so you can read where something is without walking a scale rule across the sheet.">
+        <input type="checkbox" id="rulers"> rulers <span class="print-only">(print)</span></label>
       <div class="divider"></div>
       <label><span class="material-symbols-outlined">zoom_in</span>
         <input type="range" id="zoom" min="6" max="40" step="0.5" value="14"></label>

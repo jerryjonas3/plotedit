@@ -122,23 +122,30 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
           { hint: "The date on the plot. The sheet also stamps the day it was rendered." }),
   ]);
 
+  // ⚠ The unit in the CAPTION has to follow the plot, or a metric plot shows
+  // "Width (ft)" above a box reading 10.06 m — a number and a label
+  // contradicting each other, which is the one failure this whole pass existed
+  // to prevent. Caught by Jerry in the browser, 2026.09.25, after the drawing
+  // and the paperwork were already right.
+  const U = (p.units ?? "imperial") === "metric" ? "m" : "ft";
+
   group("The room", [
-    field("Width (ft)", p.room.width,
+    field(`Width (${U})`, p.room.width,
           v => { const n = feet(v); if (n !== undefined) { store.setRoom({ width: n }); deps.onGeometry(); } },
           { step: 0.5 }),
-    field("Depth (ft)", p.room.depth,
+    field(`Depth (${U})`, p.room.depth,
           v => { const n = feet(v); if (n !== undefined) { store.setRoom({ depth: n }); deps.onGeometry(); } },
           { step: 0.5 }),
-    field("Grid (ft)", p.room.gridHeight,
+    field(`Grid (${U})`, p.room.gridHeight,
           v => { store.setRoom({ gridHeight: feet(v) }); deps.onGeometry(); },
           { step: 0.5, hint: "Floor to grid. Trims are checked against it. Blank means "
                            + "NOT KNOWN, and the checks say so rather than passing quietly." }),
-    field("House ceiling (ft)", p.room.houseCeiling,
+    field(`House ceiling (${U})`, p.room.houseCeiling,
           v => { store.setRoom({ houseCeiling: feet(v) }); deps.onGeometry(); },
           { step: 0.5, hint: "The ceiling over the AUDIENCE. A catwalk at 18' in a room "
                            + "with a 15' grid is ordinary — checking it against the grid "
                            + "reports a fault that is not there." }),
-    field("Plaster line (ft)", p.room.plasterLine,
+    field(`Plaster line (${U})`, p.room.plasterLine,
           v => { store.setRoom({ plasterLine: feet(v) }); deps.onGeometry(); },
           { step: 0.5, hint: "Divides the room into house and stage; it is what makes a "
                            + "position front of house. A black box has none — leave it blank." }),
