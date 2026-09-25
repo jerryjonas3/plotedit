@@ -138,6 +138,29 @@ export class Store {
     this.emit();
   }
 
+  /** Change a line weight. Points on paper, so the value means the same at
+   *  every scale. Clearing a field REMOVES the override rather than storing a
+   *  zero — a zero-width line is not a thin line, it is an invisible one. */
+  setWeight(path: "light" | "medium" | "heavy" | `positions.${string}` | `styles.${string}`,
+            value: number | undefined): void {
+    this.begin(null);
+    const w = (this._plot.lineWeights ??= {});
+    const [head, key] = path.split(".") as [string, string | undefined];
+    if (key === undefined) {
+      if (value === undefined) delete (w as Record<string, unknown>)[head];
+      else (w as Record<string, unknown>)[head] = value;
+    } else {
+      const group = ((w as Record<string, Record<string, number>>)[head] ??= {});
+      if (value === undefined) delete group[key];
+      else group[key] = value;
+      if (Object.keys(group).length === 0) delete (w as Record<string, unknown>)[head];
+    }
+    // An empty override block is noise in the file; drop it.
+    if (Object.keys(w).length === 0) delete this._plot.lineWeights;
+    this._dirty = true;
+    this.emit();
+  }
+
   /** Change the room. ⚠ Every one of these moves the DRAWING, not just a label:
    *  width and depth resize it, the grid height and house ceiling are what
    *  trims are checked against, and the plaster line decides which positions

@@ -20,7 +20,8 @@ from plotedit.booms import BOOM_PITCH
 
 
 def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
-           pool_plane=None, show_pools=True, show_focus=True, show_labels=True):
+           pool_plane=None, show_pools=True, show_focus=True, show_labels=True,
+           rulers=None):
     # "fit" means: zoom in as far as the sheet allows. An explicit scale is
     # still honoured — a plot issued at 1/4" stays at 1/4" when it is reissued.
     if scale in ("fit", "max", None):
@@ -33,7 +34,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
             lambda k, path: render(plot_path, path, scale=k, page=page,
                                    landscape=landscape, pool_plane=pool_plane,
                                    show_pools=show_pools, show_focus=show_focus,
-                                   show_labels=show_labels)[0])
+                                   show_labels=show_labels, rulers=rulers)[0])
 
     plot = json.load(open(plot_path))
     room = plot["room"]
@@ -41,7 +42,11 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=plot.get("revision", ""), rev=plot.get("revision", "0")[:3],
               designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
-              studio=plot.get("studio", ""), dxf=dxf)
+              studio=plot.get("studio", ""), dxf=dxf,
+              # ⭐ Line weights come off the PLOT, not off an export option.
+              # "the pipes are too thick" is a property of the drawing, so it
+              # belongs with the drawing and travels with the file.
+              weights=plot.get("lineWeights"))
     # ⭐ FOH positions — catwalks — sit over the AUDIENCE, downstage of the
     # plaster line and outside the stage rectangle, at negative y. The origin has
     # to make room for them or they are clipped straight off the bottom of the
@@ -152,6 +157,18 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     # own page is a page nobody carries up the ladder.
     from plotedit import key as _key
     _key.draw(s, plot, room["width"] + 4.0, room["depth"])
+
+    # ⭐ The rulers go on LAST, so the tick interval is chosen against the scale
+    # that was actually settled on — including the one the fit search picked.
+    # Drawn before the origin was known, they would be laid out for a sheet
+    # nobody ended up issuing.
+    _r = rulers if rulers is not None else plot.get("rulers")
+    if _r:
+        _opt = _r if isinstance(_r, dict) else {}
+        s.rulers(0.0, room["width"], 0.0, room["depth"],
+                 step=_opt.get("step"),
+                 bottom=_opt.get("bottom", True),
+                 side=_opt.get("side", "left"))
 
     if room.get("source"):
         # ⚠ This note is the one that says the room was never measured and may

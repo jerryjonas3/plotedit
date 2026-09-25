@@ -48,6 +48,9 @@ export interface ExportOptions {
   showLabels?: boolean;
   /** The height the pools are cut at, in feet. */
   poolPlane?: number;
+  /** Print a dimension scale along the plan's edges. PDF only — the browser
+   *  does not draw them. */
+  rulers?: boolean;
 }
 
 export async function exportFile(
@@ -67,6 +70,7 @@ export async function exportFile(
       ...(opts.showFocus === undefined ? {} : { showFocus: opts.showFocus }),
       ...(opts.showLabels === undefined ? {} : { showLabels: opts.showLabels }),
       ...(opts.poolPlane === undefined ? {} : { poolPlane: opts.poolPlane }),
+      ...(opts.rulers ? { rulers: true } : {}),
     }),
   });
   if (!r.ok) {

@@ -264,6 +264,9 @@ class ExportRequest(BaseModel):
     # The height the pools are cut at, in feet. None means the editor did not
     # choose one, and each unit falls back to its own focus height.
     poolPlane: Optional[float] = None
+    # ⭐ Rulers along the plan's edges: X across the bottom, Y up one side.
+    # true for the defaults, or {"side": "right", "step": 5} to place them.
+    rulers: Optional[Any] = None
 
 
 def _attach(body: bytes, media: str, filename: str) -> Response:
@@ -329,7 +332,8 @@ def export_pdf(req: ExportRequest) -> Response:
                                     show_pools=req.showPools,
                                     show_focus=req.showFocus,
                                     show_labels=req.showLabels,
-                                    pool_plane=req.poolPlane)
+                                    pool_plane=req.poolPlane,
+                                    rulers=req.rulers)
         # ⚠ Refuse only what makes the drawing WRONG. A clipped sheet is
         # unusable, so it is a 422. Everything else — a grazing pool, an
         # unrecognised accessory — is a true note ABOUT the plot, and refusing

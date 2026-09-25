@@ -651,8 +651,19 @@ def draw(sheet, prims, x, y, rotate_deg=0.0, width=None):
     symbol either to its focus point or to a 90° axis.
     """
     # §6.18: a luminaire is a HEAVY line — it is a thing that physically exists.
-    from .scaled_pdf import LINE_STYLES
-    lw = width if width is not None else LINE_STYLES["luminaire"][0]
+    # ⚠ Ask the SHEET, not the module table. The table is the standard; the
+    # sheet is what this plot actually draws with, and reading the constant
+    # here meant a plot that dialled the heavy weight down got thinner pipes
+    # and full-weight instruments — the one place the difference is most
+    # obvious. Falls back to the standard for any caller without a sheet.
+    if width is not None:
+        lw = width
+    else:
+        try:
+            lw = sheet.style("luminaire")[0]
+        except AttributeError:
+            from .scaled_pdf import LINE_STYLES
+            lw = LINE_STYLES["luminaire"][0]
     a = math.radians(rotate_deg)
     ca, sa = math.cos(a), math.sin(a)
 
