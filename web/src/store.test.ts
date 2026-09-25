@@ -264,5 +264,28 @@ check("up and downstage", runOf({ x1: 6, y1: 10, x2: 6, y2: 30 }), "up-and-downs
 check("a point", runOf({ x1: 6, y1: 10, x2: 6, y2: 10 }), "a point");
 check("raked", runOf({ x1: 0, y1: 10, x2: 20, y2: 30 }), "raked");
 
+console.log("\nthe toolbar keeps its controls where they can be reached");
+// 🔴 Jerry, 2026.09.25: "I can't see a tick box for the rulers." It was in the
+// DOM and 20px past the right edge of a 1024px window, because it had been
+// appended to a row that was already 1108px wide. Present, unreachable, and
+// indistinguishable from the feature not working at all.
+//
+// ⚠ There is no DOM in these tests, so this asserts the MARKUP instead: the
+// print toggle has to live in the same bar as the display toggles, which is
+// the short row. A layout bug cannot be caught here, but putting a control
+// back on the full row can be.
+{
+  const fs = await import("node:fs");
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const bars = html.split(/<div class="bar">/).slice(1);
+  const barWith = (id: string) => bars.findIndex(b => b.includes(`id="${id}"`));
+  check("the rulers toggle is in the markup", /id="rulers"/.test(html), true);
+  check("...in the same bar as the display toggles",
+        barWith("rulers") === barWith("labels") && barWith("labels") >= 0, true);
+  check("...and NOT in the bar with Export and the scale menu",
+        barWith("rulers") === barWith("export"), false);
+  check("it says it only affects the print", /rulers\s*<span class="print-only"/.test(html), true);
+}
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
