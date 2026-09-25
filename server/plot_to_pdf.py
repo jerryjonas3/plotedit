@@ -20,13 +20,20 @@ from plotedit.booms import BOOM_PITCH
 
 
 def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
-           pool_plane=None):
+           pool_plane=None, show_pools=True, show_focus=True, show_labels=True):
     # "fit" means: zoom in as far as the sheet allows. An explicit scale is
     # still honoured — a plot issued at 1/4" stays at 1/4" when it is reissued.
     if scale in ("fit", "max", None):
+        # ⚠ The fit search has to draw the SAME picture that will be issued.
+        # Pools are the widest thing on a plot by a distance, so measuring with
+        # them on and then issuing with them off picks a scale far smaller than
+        # the sheet can hold — a drawing correct in every dimension and half the
+        # size it should be.
         scale = largest_scale(
             lambda k, path: render(plot_path, path, scale=k, page=page,
-                                   landscape=landscape, pool_plane=pool_plane)[0])
+                                   landscape=landscape, pool_plane=pool_plane,
+                                   show_pools=show_pools, show_focus=show_focus,
+                                   show_labels=show_labels)[0])
 
     plot = json.load(open(plot_path))
     room = plot["room"]
@@ -133,6 +140,8 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
                    symbol_angle=plot.get("symbolAngle", "orthogonal"),
                    pool_plane=pool_plane if pool_plane is not None
                               else plot.get("poolPlane"),
+                   show_pool=show_pools, show_focus=show_focus,
+                   show_labels=show_labels,
                    in_plan=(inst.get("position") or "").strip().lower()
                            not in _boom_names)
         rows.append(r)
@@ -145,7 +154,12 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     _key.draw(s, plot, room["width"] + 4.0, room["depth"])
 
     if room.get("source"):
-        s.note(1, room["depth"] - 1.5, f"Room: {room['source'][:110]}")
+        # ⚠ This note is the one that says the room was never measured and may
+        # not be quoted. It used to be cut to 110 characters, which ended it
+        # mid-word — losing the half that named the source. Wrapped to the room
+        # now, so all of it is there and none of it is off the paper.
+        s.note(1, room["depth"] - 1.5, f"Room: {room['source']}",
+               width_ft=max(room["width"] - 2.0, 8.0))
     s.finish()
     return s, rows
 

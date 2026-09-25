@@ -31,9 +31,14 @@ and still openable in twenty years.
 2. Double-click **`run.command`** on a Mac, or **`run.bat`** on Windows.
 3. Your browser opens on the editor.
 
-The first run takes a minute while it sets itself up. After that it starts in a
-few seconds. Leave the terminal window open while you work — closing it, or
-pressing ctrl-C, stops the program.
+**That is how you start it every time, not just the first.** There is nothing to
+install and no separate launcher: the same file sets itself up on the first run
+and starts the program on every run after it. The first run takes a minute; after
+that it starts in a few seconds.
+
+Leave the terminal window open while you work — closing it, or pressing ctrl-C,
+stops the program. If it stops with an error, the window stays open and the
+message says why.
 
 > **On Windows**, install Python from
 > [python.org](https://www.python.org/downloads/) and tick
@@ -42,9 +47,12 @@ pressing ctrl-C, stops the program.
 > running anything. SmartScreen may also warn about an unrecognised app —
 > **More info** → **Run anyway**.
 >
-> ⚠ `run.bat` has been written but **not tested on a Windows machine** — there
-> isn't one here. If it fails, the Developing section below works on Windows
-> too, one command per terminal.
+> **Extract the zip before running it.** Windows lets you look inside a zip as
+> though it were an ordinary folder, and `run.bat` fails confusingly when it is
+> started from in there. Right-click the zip → **Extract All** first.
+>
+> If it still will not start, the Developing section below works on Windows too,
+> one command per terminal.
 
 > **macOS may refuse to open it the first time** — "cannot be opened because it
 > is from an unidentified developer". Right-click `run.command` → **Open** →
