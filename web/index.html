@@ -137,6 +137,11 @@
     /* ⚠ `rulers` sits among the display toggles but does NOT change the screen.
        Saying so on the control is cheaper than explaining it afterwards. */
     .print-only { opacity:.62; font-size:.85em; }
+    .version { opacity:.5; font-size:.78em; letter-spacing:.02em; white-space:nowrap; }
+    /* A build that is not a release says so, and says it in a colour that asks
+       to be noticed — running a working copy and reporting it as a release is
+       how a bug gets hunted in the wrong source. */
+    .version.dev { opacity:.9; color:var(--tertiary, #994C00); font-weight:600; }
     input[type=range] { accent-color:var(--primary); }
 
     /* ---- the drawing ------------------------------------------------- */
@@ -306,6 +311,11 @@
       <span class="venue" id="venue"></span>
       <span id="dirty"></span>
       <span id="status" class="muted"></span>
+      <!-- ⭐ Which build this is. A tester who finds something has to be able to
+           say which version they saw it in, and until now nothing in the
+           download said. Sits by the show name, muted, out of the way until
+           somebody goes looking for it. -->
+      <span id="version" class="version" title="Which build this is. Quote it if you report something."></span>
       <div class="group grow">
         <button id="undo" class="icon" title="Undo (⌘Z)" disabled>
           <span class="material-symbols-outlined">undo</span></button>
