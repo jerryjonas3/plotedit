@@ -105,12 +105,16 @@ _FEET = _re.compile(r"-?\d+'-\d+\"|-?\d+'(?!\w)")
 _METRES = _re.compile(r"-?\d+\.\d+\s?m\b")
 
 
-def _drawn(**over):
+def _drawn(scale="fit", **over):
+    """⚠ "fit" is the NORMAL path and the only one that tests anything here.
+    Forcing scale="1/4" on a metric plot is a deliberate override, and it
+    correctly prints an imperial label — asserting against that would be
+    asserting the override works, not that metric does."""
     body = dict(_src); body.update(over); body["rulers"] = True
     d = _tf.mkdtemp()
     jp = _os.path.join(d, "p.json"); _json.dump(body, open(jp, "w"))
     out = _os.path.join(d, "p.pdf")
-    sheet, _ = _render(jp, out, scale="1/4")
+    sheet, _ = _render(jp, out, scale=scale)
     return sheet, _fitz.open(out)[0].get_text()
 
 
@@ -121,14 +125,12 @@ check("an imperial plot is full of feet", len(_FEET.findall(_imp)) > 30, True)
 check("...and carries no metre lengths", _METRES.findall(_imp), [])
 check("a metric plot carries metre lengths", len(_METRES.findall(_met)) > 0, True)
 
-# ⚠ THE SCALE BAR AND THE SCALE LABEL ARE STILL IMPERIAL, on purpose. The
-# drawing SCALE is its own piece of work (1:50 rather than 1/4" = 1'-0"), and
-# relabelling the bar in metres while the ratio stayed imperial would be a
-# worse lie than leaving it alone. Asserted as a KNOWN state so that finishing
-# the scale work has to come back and change this line deliberately.
-_left = sorted(set(_FEET.findall(_met)))
-check("the only feet left on a metric sheet are the scale bar and label",
-      _left, ["0'", "1'-0\"", "10'", "5'"])
+# ⭐ AND NOW THERE ARE NONE. This assertion used to list the four feet that
+# survived — the scale bar and the scale label — because the drawing SCALE was
+# still imperial. Finishing that work had to come back and change this line,
+# which is exactly what it was written to force.
+check("NOTHING on a metric sheet is written in feet",
+      sorted(set(_FEET.findall(_met))), [])
 
 check("the room DIMENSION converts", "10.06 m" in _met or "11.58 m" in _met, True)
 check("the sheet knows its own system",
@@ -154,6 +156,52 @@ check("asking for nothing gets feet", _a["throw_ft"].endswith('"'), True)
 check("asking for metric gets metres", _b["throw_ft"].endswith(" m"), True)
 check("the underlying number is the SAME — only the label moved",
       _a["throw"], _b["throw"])
+
+print()
+print("a metric plot is DRAWN at a metric ratio")
+from plotedit.scaled_pdf import Sheet as _Sheet, fit_scales as _fit, FIT_SCALES_METRIC
+import tempfile as _tf2, os as _os2
+
+check("1/4 inch is 1:48 exactly", U.scale_ratio("1/4"), 48.0)
+check("...so a quarter-inch sheet and a 1:48 sheet are the same drawing",
+      round(U.points_per_foot("1/4"), 6), round(U.points_per_foot("1:48"), 6))
+
+def _sheet(sc):
+    return _Sheet(_os2.path.join(_tf2.mkdtemp(), "s.pdf"), scale=sc)
+
+_q, _fifty = _sheet("1/4"), _sheet("1:50")
+check("an imperial sheet says so", _q.scale_label, "1/4\" = 1'-0\"")
+check("a metric sheet says its ratio", _fifty.scale_label, "1:50")
+check("...and is very slightly smaller than a quarter inch",
+      _fifty.pt_per_ft < _q.pt_per_ft, True)
+
+check("the fit ladder follows the system",
+      (_fit(U.IMPERIAL)[0], _fit(U.METRIC)[0]), ("1", "1:10"))
+check("...and metric climbs real drafting ratios",
+      _fit(U.METRIC), FIT_SCALES_METRIC)
+
+_ms, _mt = _drawn(units="metric")
+check("the fitted metric scale is a ratio", _ms.scale_label.startswith("1:"), True)
+check("the scale bar is LABELLED in metres", " m" in _mt and "5 m" in _mt, True)
+# ⚠ And the geometry, not just the label. A bar reading "0 5 10 m" with
+# one-foot divisions is 3.28 times too short and is the one thing on the sheet
+# somebody would physically measure against.
+check("...and one division really IS a metre",
+      round(_ms.scale_bar_step(), 6), round(_ms.pt_per_ft * U.FOOT_PER_M, 6))
+check("...while an imperial division is a foot",
+      round(_imp_sheet.scale_bar_step(), 6), round(_imp_sheet.pt_per_ft, 6))
+# A print check, not a drawing scale: it proves the sheet came out at 100%.
+check("the print check is 50 mm on a metric sheet",
+      "50 mm when printed at 100%" in _mt, True)
+check("...and an inch on an imperial one",
+      'bar is 1" when printed at 100%' in _imp, True)
+
+# ⚠ And the override still behaves: a metric plot FORCED to a quarter inch says
+# so on its face rather than claiming a ratio it was not drawn at.
+_forced_sheet, _forced = _drawn(scale="1/4", units="metric")
+check("a metric plot forced to an imperial scale admits it",
+      _forced_sheet.scale_label, "1/4\" = 1'-0\"")
+check("...while its lengths stay metric", "10.06 m" in _forced, True)
 
 print()
 if FAILS:

@@ -84,12 +84,43 @@ function opts(): RenderOptions {
   };
 }
 
+/** The scale menu offers the scales the PLOT can be drawn at.
+ *
+ * ⚠ Imperial fractions or metric ratios, never both. 1/4" = 1'-0" IS 1:48, so
+ * a metric plot could be drawn at 1/4" and be arithmetically fine — and no
+ * reader would have that ratio on their scale rule. The restriction is about
+ * the person at the other end, not about the numbers.
+ *
+ * ⚠ "Fit" is kept whatever the system, and the CURRENT choice survives when it
+ * is still on offer — rebuilding the menu on every draw would otherwise reset
+ * a chosen scale back to Fit on any edit.
+ */
+function fillScaleMenu(): void {
+  const sel = $<HTMLSelectElement>("scale");
+  const metric = (store.plot.units ?? "imperial") === "metric";
+  const want = metric
+    ? ["1:10", "1:20", "1:25", "1:50", "1:100"]
+    : ["1", "3/4", "1/2", "3/8", "1/4", "1/8"];
+  const have = Array.from(sel.options).slice(1).map(o => o.value);
+  if (have.join() === want.join()) return;           // nothing to do
+  const chosen = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  for (const v of want) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = metric ? v : `${v}"`;
+    sel.appendChild(o);
+  }
+  sel.value = want.includes(chosen) ? chosen : "fit";
+}
+
 function draw() {
   // ⚠ Before ANYTHING is formatted. The system is ambient (see geometry.ts) and
   // this is the single place it is refreshed — a draw that ran with a stale one
   // would label a metric plot in feet and look like a conversion bug rather
   // than a missing assignment.
-  setUnitSystem(store.plot.units); render(svg, store.plot, view(), computed, opts()); }
+  setUnitSystem(store.plot.units);
+  fillScaleMenu(); render(svg, store.plot, view(), computed, opts()); }
 
 function fillTable() {
   const tb = $<HTMLTableElement>("schedule").querySelector("tbody")!;
