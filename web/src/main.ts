@@ -246,13 +246,28 @@ function wirePanels(): void {
  * browser, with the same guarded storage as the panels; double-click resets.
  */
 const ASIDE_DEFAULT = 380, ASIDE_MIN = 280, CANVAS_MIN = 240;
+/** The splitter's own column, and it has to be paid for. */
+const SPLITTER_W = 6;
 
 function wireSplitter(): void {
   const main = document.querySelector("main") as HTMLElement;
   const bar = $("splitter");
-  const clamp = (w: number) =>
-    Math.round(Math.max(ASIDE_MIN, Math.min(w, window.innerWidth - CANVAS_MIN)));
+  // ⚠ THE SPLITTER IS A COLUMN TOO. The grid is `1fr | 6px | aside`, so the
+  // drawing gets (width − splitter − aside). Clamping against the width alone
+  // left the canvas 234px against an advertised 240 — six pixels, but the
+  // number the code promises is the number it should keep.
+  //
+  // ⚠ And measured off MAIN rather than the window. They are the same today;
+  // the moment anything sits beside main they are not, and the one that
+  // matters is the box the grid is actually laid out in.
+  const clamp = (w: number) => {
+    const room = main.clientWidth || window.innerWidth;
+    return Math.round(Math.max(ASIDE_MIN,
+                               Math.min(w, room - CANVAS_MIN - SPLITTER_W)));
+  };
   const set = (w: number) => main.style.setProperty("--aside-w", `${clamp(w)}px`);
+  const current = () =>
+    parseFloat(getComputedStyle(main).getPropertyValue("--aside-w")) || ASIDE_DEFAULT;
   const save = (w: number | null) => {
     try {
       if (w === null) localStorage.removeItem("plotedit.asideWidth");
@@ -284,6 +299,40 @@ function wireSplitter(): void {
   bar.addEventListener("pointerup", end);
   bar.addEventListener("pointercancel", end);
   bar.addEventListener("dblclick", () => { set(ASIDE_DEFAULT); save(null); });
+
+  // ⚠ Re-clamp when the WINDOW changes, not only when the splitter is dragged.
+  // A width saved on a wide screen is restored whole on a narrow one, and
+  // nothing was re-checking it — so the drawing could be squeezed under its
+  // minimum, or behind `overflow:hidden` entirely, without a pointer ever
+  // touching the splitter. The saved value is left alone: the reader still
+  // wants that width back when the window is wide again.
+  window.addEventListener("resize", () => set(current()));
+
+  // ⭐ Keyboard, because this declares role="separator". Announcing a control
+  // and then only accepting a pointer is worse than not announcing it: a
+  // screen reader offers the reader something they cannot use.
+  bar.tabIndex = 0;
+  bar.setAttribute("aria-label", "Side panel width");
+  const announce = () => {
+    bar.setAttribute("aria-valuenow", String(Math.round(current())));
+    bar.setAttribute("aria-valuemin", String(ASIDE_MIN));
+    bar.setAttribute("aria-valuemax",
+                     String(Math.round((main.clientWidth || window.innerWidth)
+                                       - CANVAS_MIN - SPLITTER_W)));
+  };
+  announce();
+  bar.addEventListener("keydown", (e) => {
+    const STEP = e.shiftKey ? 48 : 12;
+    let w: number | null = null;
+    if (e.key === "ArrowLeft") w = current() + STEP;       // left widens the panel
+    else if (e.key === "ArrowRight") w = current() - STEP;
+    else if (e.key === "Home") w = ASIDE_MIN;
+    else if (e.key === "End") w = Infinity;                // clamped to the max
+    else if (e.key === "Enter" || e.key === " ") { set(ASIDE_DEFAULT); save(null); announce(); e.preventDefault(); return; }
+    if (w === null) return;
+    set(w); save(current()); announce();
+    e.preventDefault();
+  });
 }
 
 /** Zoom presets beside the slider: whole plot, fit height, fit width, 100%.
@@ -298,13 +347,39 @@ function wireZoomButtons(): void {
     slider.value = String(Math.max(lo, Math.min(hi, Math.floor(px / step) * step)));
     draw();
   };
-  // Available room inside the canvas, less its padding. The fit is computed
-  // against the space WITHOUT a scrollbar, because a fitted drawing has none.
+  // ⚠ Measured ONCE and reused. It adds a probe element to the document to
+  // find the scrollbar's width, and doing that inside every fit meant three
+  // layout flushes to answer a question whose answer does not change.
+  let barW: number | null = null;
+  const bar = () => {
+    if (barW !== null) return barW;
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;visibility:hidden;overflow:scroll;width:100px;height:100px";
+    document.body.append(probe);
+    barW = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    return barW;
+  };
+
+  // The room a fitted drawing would have, less the canvas's padding.
+  //
+  // 🔴 clientWidth ALREADY EXCLUDES a scrollbar that is showing right now, so
+  // it is not the scrollbar-free room this needs — it is the room as things
+  // currently stand. Click fit-width while a vertical scrollbar happens to be
+  // up and its width came off twice: once here, and again in the adjustment
+  // below. The drawing came out a little small and nothing said why.
+  //
+  // So: add back whichever bars are up, to get the room as if none were, and
+  // let the caller take one off again only for the axis that really overflows.
   const room = () => {
     const cs = getComputedStyle(canvas);
+    const vUp = canvas.scrollHeight > canvas.clientHeight + 1;
+    const hUp = canvas.scrollWidth > canvas.clientWidth + 1;
     return {
-      w: canvas.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
-      h: canvas.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+      w: canvas.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+         + (vUp ? bar() : 0),
+      h: canvas.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+         + (hUp ? bar() : 0),
     };
   };
   $("zoom-page").addEventListener("click", () => {
@@ -314,14 +389,6 @@ function wireZoomButtons(): void {
   // ⚠ Fitting ONE side lets the other overflow, and the scrollbar that brings
   // takes its width out of the side just fitted — fit-to-width then needs a
   // horizontal scrollbar too. Leave room for it when the other side overflows.
-  const bar = () => {
-    const probe = document.createElement("div");
-    probe.style.cssText = "position:absolute;visibility:hidden;overflow:scroll;width:100px;height:100px";
-    document.body.append(probe);
-    const size = probe.offsetWidth - probe.clientWidth;
-    probe.remove();
-    return size;
-  };
   $("zoom-height").addEventListener("click", () => {
     const r = room(), d = drawingFeet();
     let px = r.h / d.h;
