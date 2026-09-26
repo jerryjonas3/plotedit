@@ -287,5 +287,34 @@ console.log("\nthe toolbar keeps its controls where they can be reached");
   check("it says it only affects the print", /rulers\s*<span class="print-only"/.test(html), true);
 }
 
+console.log("\nunits are never hand-formatted outside the formatters");
+// 🔴 fmtFc existed, was tested, and was called by NOTHING. The inspector
+// printed `${c.footcandles} fc` directly, so a metric plot showed throws and
+// pools in metres and the level beside them in footcandles. The PDF was right
+// and the screen was wrong, which is the harder way round to notice.
+//
+// ⚠ So the assertion is not "the inspector imports fmtFc" — that passes the
+// moment somebody imports it and keeps the old string. It is that NO app
+// source hand-writes a unit onto a number. fmtFt and fmtFc are the only two
+// places allowed to, and they live in geometry.ts.
+{
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dir = new URL("./", import.meta.url).pathname;
+  const exempt = new Set(["geometry.ts", "feet.ts", "geometry.test.ts", "store.test.ts"]);
+  const offenders: string[] = [];
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith(".ts") && !exempt.has(f))) {
+    const src = fs.readFileSync(path.join(dir, f), "utf8");
+    for (const [i, line] of src.split("\n").entries()) {
+      if (line.trimStart().startsWith("//") || line.trimStart().startsWith("*")) continue;
+      // a value interpolated straight onto a unit: `${x} fc`, `${x} lx`, `${x} m`
+      if (/\}\s*(fc|lx)\b/.test(line)) offenders.push(`${f}:${i + 1}`);
+    }
+  }
+  check("no source pastes a unit onto a number", offenders, []);
+  const insp = fs.readFileSync(path.join(dir, "inspector.ts"), "utf8");
+  check("the inspector formats levels through fmtFc", /fmtFc\(/.test(insp), true);
+}
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
