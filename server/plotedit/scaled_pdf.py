@@ -254,6 +254,41 @@ class Sheet:
         return feet * self.pt_per_ft
 
     # ---- primitives (all args in real feet) --------------------------
+    def scale_bar_plan(self, target_in=3.5):
+        """(divisions, points per division, total points) for the scale bar.
+
+        🔴 THE BAR IS SIZED TO THE PAPER, not to a fixed count of divisions. It
+        used to be ten of them, always — which is five inches of bar at 1/2" and
+        ten inches at 1". Metric made that break: a metre at 1:25 is 113pt, so
+        ten of them is fifteen and three quarter INCHES of bar. It ran through
+        the title block and off the right-hand edge of the sheet, and the "10 m"
+        label was not on the page at all.
+
+        ⚠ And nothing caught it, because the bar is drawn in page points
+        directly rather than through P() — so the clipping guard, which only
+        knows what the DRAWING touched, never saw it leave.
+
+        Divisions come off a round ladder so the numbers under the ticks stay
+        readable: 1, 2, 5, 10, 20, 50.
+        """
+        unit = self.scale_bar_step()
+        target = target_in * inch
+        # ⚠ At least TWO divisions. One is not a scale bar — the alternating
+        # fill is what makes it readable, and a single block has nothing to
+        # alternate with. At 1:10 a whole metre is already near the target, so
+        # the bar drops to half-metre divisions rather than to one of them.
+        best = None
+        for per_div, count in ((1.0, 50), (1.0, 20), (1.0, 10), (1.0, 5),
+                               (1.0, 2), (0.5, 2)):
+            if count * per_div * unit <= target:
+                best = (per_div, count)
+                break
+        if best is None:
+            best = (0.5, 2)
+        per_div, count = best
+        step = per_div * unit
+        return count, step, count * step, per_div
+
     def scale_bar_step(self):
         """Points of paper for ONE division of the scale bar — a foot on an
         imperial sheet, a metre on a metric one.
@@ -1074,19 +1109,27 @@ class Sheet:
             foot = f"{self.meta['studio']} — {foot}"
         c.drawRightString(x0 + tb_w - 6, y0 + 6, foot)
         # scale bar: 0 to 10 ft in 1-ft ticks, left of title block
-        sx, sy = x0 - 0.4 * inch - 10 * self.pt_per_ft, m + 0.35 * inch
+        # ⚠ Positioned from the bar's REAL width. It used to be placed as though
+        # it were ten feet wide and then drawn ten metres wide, so on a metric
+        # sheet it started in the right place and ended a long way past the edge.
+        sx, sy = x0 - 0.4 * inch - self.scale_bar_plan()[2], m + 0.35 * inch
         c.setStrokeColor(black); c.setFillColor(black); c.setLineWidth(1)
         # ⚠ The bar is divided in the unit the sheet is DRAWN in — ten feet on an
         # imperial sheet, ten metres on a metric one. A metric drawing with a
         # bar ticked in feet is the one thing on the page somebody would measure
         # against, and it would be lying.
-        step = self.scale_bar_step()
-        for i in range(10):
+        divs, step, total, per_div = self.scale_bar_plan()
+        for i in range(divs):
             c.rect(sx + i * step, sy, step, 5, stroke=1, fill=(i % 2 == 0))
         c.setFont("Helvetica", 6)
-        for i in (0, 5, 10):
+        # Ends always; the middle only when it lands on a whole division.
+        marks = [0, divs] if divs % 2 else [0, divs // 2, divs]
+        unit = "m" if self.is_metric_scale else "'"
+        for i in marks:
+            v = i * per_div
+            txt = f"{v:g}"
             c.drawCentredString(sx + i * step, sy - 8,
-                                f"{i} m" if self.is_metric_scale else f"{i}'")
+                                f"{txt} m" if self.is_metric_scale else f"{txt}'")
         c.drawString(sx, sy + 9, f"Scale {self.scale_label}")
         # A PRINT CHECK, not a drawing scale: it proves the sheet came out of the
         # printer at 100% rather than fitted to the page. 50 mm on a metric sheet

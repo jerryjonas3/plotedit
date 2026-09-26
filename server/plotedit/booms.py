@@ -68,7 +68,7 @@ def units_on(pos, instruments):
     return [i for i in instruments if _key(i.get("position")) == _key(pos.get("name"))]
 
 
-def elevation(pos, units, max_gap=2.5):
+def elevation(pos, units, max_gap=2.5, system=None):
     """One boom's elevation: where each unit is DRAWN, and what it is labelled.
 
     `dy` is feet above the elevation's base. `height` is the real trim and is
@@ -85,7 +85,7 @@ def elevation(pos, units, max_gap=2.5):
         "units": [{"unit": u.get("unit"), "channel": u.get("channel"),
                    "type": u.get("type", ""), "color": u.get("color"),
                    "accessories": list(u.get("accessories") or []),
-                   "height": u["height"], "label": _ph.fmt_ft(u["height"]),
+                   "height": u["height"], "label": _ph.fmt_ft(u["height"], system),
                    "dy": dy}
                   for u, dy in zip(placed, ys)],
         # ⚠ Never dropped. A unit with no height is a unit nobody can hang, and
@@ -96,7 +96,7 @@ def elevation(pos, units, max_gap=2.5):
     }
 
 
-def layout(positions, instruments, max_gap=2.5):
+def layout(positions, instruments, max_gap=2.5, system=None):
     """Every boom that carries units, placed left of the room in drawing order.
 
     A boom with NO units gets no elevation — there is nothing to lay out — but
@@ -110,7 +110,7 @@ def layout(positions, instruments, max_gap=2.5):
         on = units_on(p, instruments)
         if not on:
             continue
-        e = elevation(p, on, max_gap)
+        e = elevation(p, on, max_gap, system=system)
         e["x"], e["y"] = x, BASE_Y
         # Where the boom actually IS. In plan it is a point, drawn as its mount
         # with one hatched symbol standing for the whole stack.
