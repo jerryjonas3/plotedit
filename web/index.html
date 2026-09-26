@@ -330,12 +330,10 @@
         </select>
         <select id="scale" title="Paper scale for the exported PDF. Fit picks the largest standard scale at which nothing runs off the sheet.">
           <option value="fit" selected>Fit</option>
-          <option value="1/8">1/8"</option>
-          <option value="1/4">1/4"</option>
-          <option value="3/8">3/8"</option>
-          <option value="1/2">1/2"</option>
-          <option value="3/4">3/4"</option>
-          <option value="1">1"</option>
+          <!-- Filled from the plot's units at render time: imperial fractions or
+               metric ratios, never both. Offering 1/4" on a metric plot would
+               let somebody issue a drawing at a ratio their scale rule does not
+               have on it. -->
         </select>
       </div>
     </div>

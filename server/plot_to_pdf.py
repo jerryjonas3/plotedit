@@ -22,8 +22,14 @@ from plotedit.booms import BOOM_PITCH
 def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
            pool_plane=None, show_pools=True, show_focus=True, show_labels=True,
            rulers=None):
+    from plotedit import units as _units
     # "fit" means: zoom in as far as the sheet allows. An explicit scale is
     # still honoured — a plot issued at 1/4" stays at 1/4" when it is reissued.
+    # ⚠ The system has to be known BEFORE the fit search, because the ladder it
+    # climbs is different: imperial fractions or metric ratios. Read straight
+    # from the file rather than waiting for the Sheet, which does not exist yet.
+    import json as _json
+    _system = _units.system_of(_json.load(open(plot_path)))
     if scale in ("fit", "max", None):
         # ⚠ The fit search has to draw the SAME picture that will be issued.
         # Pools are the widest thing on a plot by a distance, so measuring with
@@ -34,9 +40,9 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
             lambda k, path: render(plot_path, path, scale=k, page=page,
                                    landscape=landscape, pool_plane=pool_plane,
                                    show_pools=show_pools, show_focus=show_focus,
-                                   show_labels=show_labels, rulers=rulers)[0])
+                                   show_labels=show_labels, rulers=rulers)[0],
+            system=_system)
 
-    from plotedit import units as _units
     plot = json.load(open(plot_path))
     room = plot["room"]
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,

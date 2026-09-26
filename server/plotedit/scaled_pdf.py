@@ -174,10 +174,22 @@ class Sheet:
         self.page_in = (w, h)
         self.c = canvas.Canvas(path, pagesize=self.page_pt)
         self.path = path
-        self.paper_in_per_ft = SCALES[scale] if isinstance(scale, str) else float(scale)
-        self.scale_label = (f'{scale}" = 1\'-0"' if isinstance(scale, str)
+        # ⭐ BOTH SYSTEMS REDUCE TO POINTS PER FOOT, which is why one number runs
+        # the whole drawing. 1/4" = 1'-0" IS 1:48 exactly — a foot is twelve
+        # inches and a quarter inch goes into twelve forty-eight times — so a
+        # metric ratio is not a conversion of an imperial scale, it is the same
+        # quantity written the other way.
+        #
+        # ⚠ The SCALE STRING decides how it is written, not the plot's units. A
+        # sheet drawn at "1:50" says 1:50 whoever asked for it, and one drawn at
+        # "1/4" says 1/4" = 1'-0". Reading the label off plot.units instead would
+        # let a plot claim a ratio it was not drawn at.
+        from . import units as _u
+        self.is_metric_scale = isinstance(scale, str) and scale.startswith("1:")
+        self.pt_per_ft = _u.points_per_foot(scale)         # the whole trick
+        self.paper_in_per_ft = self.pt_per_ft / inch
+        self.scale_label = (str(scale) if self.is_metric_scale
                             else f'{scale}" = 1\'-0"')
-        self.pt_per_ft = self.paper_in_per_ft * inch       # the whole trick
         self.margin = margin_in * inch
         self.ox, self.oy = self.margin, self.margin           # page pt where real (0,0) sits
         # 🔴 NOTHING ABOUT WHOSE DRAWING THIS IS IS HARDCODED. Jerry, 2026.09.24:
@@ -242,6 +254,18 @@ class Sheet:
         return feet * self.pt_per_ft
 
     # ---- primitives (all args in real feet) --------------------------
+    def scale_bar_step(self):
+        """Points of paper for ONE division of the scale bar — a foot on an
+        imperial sheet, a metre on a metric one.
+
+        ⚠ Its own method so it can be asserted directly. Tested through the
+        drawn LABELS alone, a bar ticked "0 5 10 m" with one-foot divisions
+        passes: the text is right and the geometry is 3.28 times too short,
+        which is the one error on the sheet somebody would measure against.
+        """
+        from . import units as _u
+        return self.pt_per_ft * (_u.FOOT_PER_M if self.is_metric_scale else 1.0)
+
     def fmt_len(self, value_ft):
         """A length, in the system this sheet prints in. Takes FEET always."""
         from . import units as _units
@@ -1052,16 +1076,28 @@ class Sheet:
         # scale bar: 0 to 10 ft in 1-ft ticks, left of title block
         sx, sy = x0 - 0.4 * inch - 10 * self.pt_per_ft, m + 0.35 * inch
         c.setStrokeColor(black); c.setFillColor(black); c.setLineWidth(1)
+        # ⚠ The bar is divided in the unit the sheet is DRAWN in — ten feet on an
+        # imperial sheet, ten metres on a metric one. A metric drawing with a
+        # bar ticked in feet is the one thing on the page somebody would measure
+        # against, and it would be lying.
+        step = self.scale_bar_step()
         for i in range(10):
-            c.rect(sx + i * self.pt_per_ft, sy, self.pt_per_ft, 5, stroke=1, fill=(i % 2 == 0))
+            c.rect(sx + i * step, sy, step, 5, stroke=1, fill=(i % 2 == 0))
         c.setFont("Helvetica", 6)
         for i in (0, 5, 10):
-            c.drawCentredString(sx + i * self.pt_per_ft, sy - 8, f"{i}'")
+            c.drawCentredString(sx + i * step, sy - 8,
+                                f"{i} m" if self.is_metric_scale else f"{i}'")
         c.drawString(sx, sy + 9, f"Scale {self.scale_label}")
-        # one-inch check bar: exactly 72 pt, tagged so --check can find it
+        # A PRINT CHECK, not a drawing scale: it proves the sheet came out of the
+        # printer at 100% rather than fitted to the page. 50 mm on a metric sheet
+        # because nobody reaches for an inch rule to check a 1:50 drawing.
         cx, cy = sx, sy + 0.32 * inch
-        c.setLineWidth(1); c.rect(cx, cy, 72, 4, stroke=1, fill=0)
-        c.drawString(cx + 76, cy, 'this bar is 1" when printed at 100%')
+        if self.is_metric_scale:
+            bar_pt, bar_says = 50.0 / 25.4 * inch, "this bar is 50 mm when printed at 100%"
+        else:
+            bar_pt, bar_says = 72.0, 'this bar is 1" when printed at 100%'
+        c.setLineWidth(1); c.rect(cx, cy, bar_pt, 4, stroke=1, fill=0)
+        c.drawString(cx + bar_pt + 4, cy, bar_says)
         c.save()
         if _dxf and self.dxf_path: _dxf.save(self.dxf_path)
 
@@ -1159,9 +1195,19 @@ def section(path, units, deck_length, grid_height, scale="1/2", page="ARCH_D", l
 # solving for a ratio would break the tool it is read with, which is why this
 # walks a fixed list.
 FIT_SCALES = ["1", "3/4", "1/2", "3/8", "1/4", "1/8"]
+# ⭐ Largest first, same as the imperial list. These are the ratios an architect
+# actually draws at — 1:30 and 1:40 exist but are not standard here, and a scale
+# nobody recognises is worse than a smaller one everybody does.
+FIT_SCALES_METRIC = ["1:10", "1:20", "1:25", "1:50", "1:100"]
 
 
-def largest_scale(render_fn):
+def fit_scales(system=None):
+    """The ladder to try, for the system the plot is written in."""
+    from . import units as _u
+    return list(FIT_SCALES_METRIC if system == _u.METRIC else FIT_SCALES)
+
+
+def largest_scale(render_fn, system=None):
     """The biggest standard scale at which nothing runs off the sheet.
 
     `render_fn(scale, path)` draws the whole thing and returns its Sheet.
@@ -1177,7 +1223,8 @@ def largest_scale(render_fn):
     import os as _os
     import tempfile
     probe = _os.path.join(tempfile.mkdtemp(), "fit.pdf")
-    for k in FIT_SCALES:
+    ladder = fit_scales(system)
+    for k in ladder:
         with contextlib.redirect_stderr(io.StringIO()):
             sheet = render_fn(k, probe)
         if not any("CLIPPED" in w for w in sheet.warnings):
@@ -1185,7 +1232,7 @@ def largest_scale(render_fn):
     # ⚠ Never silently. Nothing fits, so take the smallest and let the guard say
     # so on the real render — a drawing quietly made at a scale that clips is
     # exactly the failure the guard exists to catch.
-    return FIT_SCALES[-1]
+    return ladder[-1]
 
 
 def check(path):
