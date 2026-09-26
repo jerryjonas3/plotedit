@@ -39,9 +39,8 @@ let fixtureTable: Record<string, FixtureRow> = {};
 let basePlan: DxfPaths | null = null;
 let symbolCache: Record<string, SymbolPrim[]> = {};
 
-function view(): View {
-  const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
-  const margin = VIEW_MARGIN;
+/** The whole drawing's size in FEET — room, house, boom elevations and margin. */
+function drawingFeet(): { w: number; h: number; house: number } {
   const { width, depth } = store.plot.room;
   // ⭐ The canvas has to be tall enough for the HOUSE as well as the stage.
   // Front-of-house positions sit at negative y, and a view fitted to the room
@@ -51,9 +50,15 @@ function view(): View {
   // ⭐ And WIDE enough for the boom elevations, which sit off the stage-left
   // edge at negative x. The server says how much room they need — the same
   // figure plot_to_pdf uses to set its origin.
-  return fitView(width, depth,
-                 (width + boomSpace + margin * 2) * pxPerFoot,
-                 (depth + house + margin * 2) * pxPerFoot, margin, house, boomSpace);
+  return { w: width + boomSpace + VIEW_MARGIN * 2,
+           h: depth + house + VIEW_MARGIN * 2, house };
+}
+
+function view(): View {
+  const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
+  const { width, depth } = store.plot.room;
+  const { w, h, house } = drawingFeet();
+  return fitView(width, depth, w * pxPerFoot, h * pxPerFoot, VIEW_MARGIN, house, boomSpace);
 }
 
 /** The height to cut the pools at. Aiming and cutting are different choices:
@@ -232,6 +237,104 @@ function wirePanels(): void {
       catch { /* nothing to do; the panel still works this session */ }
     });
   }
+}
+
+/** The splitter between the drawing and the side panel.
+ *
+ * ⭐ Tim, 2026.09.25: make the side panel wider "and not need to use the
+ * horizontal scrollbar for some content." Dragged width is remembered per
+ * browser, with the same guarded storage as the panels; double-click resets.
+ */
+const ASIDE_DEFAULT = 380, ASIDE_MIN = 280, CANVAS_MIN = 240;
+
+function wireSplitter(): void {
+  const main = document.querySelector("main") as HTMLElement;
+  const bar = $("splitter");
+  const clamp = (w: number) =>
+    Math.round(Math.max(ASIDE_MIN, Math.min(w, window.innerWidth - CANVAS_MIN)));
+  const set = (w: number) => main.style.setProperty("--aside-w", `${clamp(w)}px`);
+  const save = (w: number | null) => {
+    try {
+      if (w === null) localStorage.removeItem("plotedit.asideWidth");
+      else localStorage.setItem("plotedit.asideWidth", String(clamp(w)));
+    } catch { /* the width still applies this session */ }
+  };
+  try {
+    const saved = Number(localStorage.getItem("plotedit.asideWidth"));
+    if (saved > 0) set(saved);
+  } catch { /* no storage — default width */ }
+
+  let dragging = false;
+  const widthAt = (clientX: number) => main.getBoundingClientRect().right - clientX;
+  bar.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    bar.setPointerCapture(e.pointerId);
+    bar.classList.add("dragging");
+    document.body.classList.add("resizing");
+    e.preventDefault();
+  });
+  bar.addEventListener("pointermove", (e) => { if (dragging) set(widthAt(e.clientX)); });
+  const end = (e: PointerEvent) => {
+    if (!dragging) return;
+    dragging = false;
+    bar.classList.remove("dragging");
+    document.body.classList.remove("resizing");
+    save(widthAt(e.clientX));
+  };
+  bar.addEventListener("pointerup", end);
+  bar.addEventListener("pointercancel", end);
+  bar.addEventListener("dblclick", () => { set(ASIDE_DEFAULT); save(null); });
+}
+
+/** Zoom presets beside the slider: whole plot, fit height, fit width, 100%.
+ *  "100%" is the slider's default of 14 px per foot, the editor's home zoom. */
+const ZOOM_DEFAULT = 14;
+
+function wireZoomButtons(): void {
+  const slider = $<HTMLInputElement>("zoom");
+  const canvas = $("canvas");
+  const setZoom = (px: number) => {
+    const lo = Number(slider.min), hi = Number(slider.max), step = Number(slider.step);
+    slider.value = String(Math.max(lo, Math.min(hi, Math.floor(px / step) * step)));
+    draw();
+  };
+  // Available room inside the canvas, less its padding. The fit is computed
+  // against the space WITHOUT a scrollbar, because a fitted drawing has none.
+  const room = () => {
+    const cs = getComputedStyle(canvas);
+    return {
+      w: canvas.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      h: canvas.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+    };
+  };
+  $("zoom-page").addEventListener("click", () => {
+    const r = room(), d = drawingFeet();
+    setZoom(Math.min(r.w / d.w, r.h / d.h));
+  });
+  // ⚠ Fitting ONE side lets the other overflow, and the scrollbar that brings
+  // takes its width out of the side just fitted — fit-to-width then needs a
+  // horizontal scrollbar too. Leave room for it when the other side overflows.
+  const bar = () => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;visibility:hidden;overflow:scroll;width:100px;height:100px";
+    document.body.append(probe);
+    const size = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    return size;
+  };
+  $("zoom-height").addEventListener("click", () => {
+    const r = room(), d = drawingFeet();
+    let px = r.h / d.h;
+    if (d.w * px > r.w) px = (r.h - bar()) / d.h;
+    setZoom(px);
+  });
+  $("zoom-width").addEventListener("click", () => {
+    const r = room(), d = drawingFeet();
+    let px = r.w / d.w;
+    if (d.h * px > r.h) px = (r.w - bar()) / d.w;
+    setZoom(px);
+  });
+  $("zoom-100").addEventListener("click", () => setZoom(ZOOM_DEFAULT));
 }
 
 /** The header's own copy of the show and venue, so editing them in the panel
@@ -647,6 +750,8 @@ async function boot() {
       if (name) void openPlot(name);
     });
     wirePanels();
+    wireSplitter();
+    wireZoomButtons();
     void refreshOpenList();
     // ⌘S saves, ⇧⌘S saves as. The browser's own Save-page dialog is not what
     // anyone means by ⌘S with a plot open.
