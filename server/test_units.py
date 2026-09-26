@@ -182,7 +182,13 @@ check("...and metric climbs real drafting ratios",
 
 _ms, _mt = _drawn(units="metric")
 check("the fitted metric scale is a ratio", _ms.scale_label.startswith("1:"), True)
-check("the scale bar is LABELLED in metres", " m" in _mt and "5 m" in _mt, True)
+# ⚠ Asserted against the PLAN, not against a hardcoded "5 m". The bar is sized
+# to the paper now, so how many divisions it has depends on the scale — a test
+# naming a specific number breaks whenever that sizing is tuned, and tells you
+# nothing about whether the unit is right.
+_divs, _step, _total, _per = _ms.scale_bar_plan()
+_end = f"{_divs * _per:g} m"
+check("the scale bar's last mark is in metres", _end in _mt, True)
 # ⚠ And the geometry, not just the label. A bar reading "0 5 10 m" with
 # one-foot divisions is 3.28 times too short and is the one thing on the sheet
 # somebody would physically measure against.
@@ -202,6 +208,39 @@ _forced_sheet, _forced = _drawn(scale="1/4", units="metric")
 check("a metric plot forced to an imperial scale admits it",
       _forced_sheet.scale_label, "1/4\" = 1'-0\"")
 check("...while its lengths stay metric", "10.06 m" in _forced, True)
+
+print()
+print("everything the SERVER formats for the screen follows the plot too")
+# 🔴 Jerry, 2026.09.26: "the dimensions on the boom are imperial, at least on
+# the screen." They were. Boom height labels are built on the server — the
+# browser is deliberately not allowed to retype that arithmetic — and the
+# formatter was never told which system, so a metric plot drew its boom
+# elevation in feet on screen while the PDF beside it said metres.
+#
+# ⚠ Same shape as the lux bug an hour earlier: a formatter that takes a system,
+# a caller that does not pass one. Worth testing every server-formatted string
+# rather than the one that was reported.
+from plotedit import booms as _booms, labels as _labels
+
+_bi = _booms.layout(_src["positions"], _src["instruments"], system=U.IMPERIAL)
+_bm = _booms.layout(_src["positions"], _src["instruments"], system=U.METRIC)
+_li = [u["label"] for b in _bi for u in b["units"]]
+_lm = [u["label"] for b in _bm for u in b["units"]]
+check("there are boom units to label at all", len(_li) > 0, True)
+check("imperial boom heights are feet and inches",
+      all(l.endswith('"') for l in _li), True)
+check("metric boom heights are metres", all(l.endswith(" m") for l in _lm), True)
+check("...and it is the same height, written differently", len(_li), len(_lm))
+
+_trim = {"name": "E1", "type": "electric", "x1": 0, "y1": 20, "x2": 33, "y2": 20,
+         "trim": 14.0, "movable": True}   # trim shows only on a movable position
+check("a position label's trim is imperial by default",
+      _labels.text_for(_trim).endswith("14'-0\""), True)
+# ⚠ Lowercase m. Position names are drawn in CAPS and the unit symbol went with
+# them, so a metric trim read "4.27 M" — which in SI is a mega- prefix, not
+# metres. Feet and inches survive uppercasing; metres do not.
+check("...and metric when the plot is, with a lowercase metre",
+      _labels.text_for(_trim, U.METRIC), "E1 — TRIM 4.27 m")
 
 print()
 if FAILS:

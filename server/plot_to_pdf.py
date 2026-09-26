@@ -104,7 +104,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     spots = {id(p): a for p, a in
              zip(plot["positions"],
                  L.plan(plot["positions"], plot["instruments"], _measure,
-                        room_width=room["width"], bounds=_bounds))}
+                        room_width=room["width"], system=_system, bounds=_bounds))}
 
     for p in plot["positions"]:
         at = spots.get(id(p))
@@ -124,7 +124,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
 
     # §6.12: the readable layout goes BESIDE the plot, because in plan a boom is
     # a point. Placed off the room's stage-left edge, which is the low-x side.
-    _placed = {b["name"]: b for b in _B.layout(plot["positions"], plot["instruments"])}
+    _placed = {b["name"]: b for b in _B.layout(plot["positions"], plot["instruments"], system=_system)}
     for p in booms:
         spot = _placed.get((p.get("name") or "").upper())
         if spot:

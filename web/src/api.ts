@@ -218,7 +218,12 @@ export interface BoomElevation {
 export async function booms(plot: Plot): Promise<{ booms: BoomElevation[]; space: number }> {
   const r = await fetch("/api/booms", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ positions: plot.positions, instruments: plot.instruments }),
+    // ⚠ units too. The boom labels are formatted on the SERVER, so without
+    // this a metric plot showed its boom heights in feet on screen while
+    // the PDF said metres — screen and paper disagreeing about the same
+    // number, which is the failure the shared layout exists to prevent.
+    body: JSON.stringify({ positions: plot.positions, instruments: plot.instruments,
+                           units: plot.units }),
   });
   if (!r.ok) throw new Error(`booms failed: ${r.status}`);
   const j = await r.json();
@@ -248,6 +253,8 @@ export async function positionLabels(
     body: JSON.stringify({
       positions: plot.positions, instruments: plot.instruments,
       room_width: plot.room.width, char_w: charW, text_h: textH,
+      // A position label carries its trim, so it is formatted too.
+      units: plot.units,
       ...(bounds ? { bounds } : {}),
     }),
   });

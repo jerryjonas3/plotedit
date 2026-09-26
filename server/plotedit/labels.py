@@ -138,7 +138,7 @@ def place(items, obstacles=(), pad=PAD, bounds=None):
     return out
 
 
-def text_for(pos):
+def text_for(pos, system=None):
     """The string a position's label actually shows, CAPS and all.
 
     ⚠ Built here so the paper and the screen show the SAME name. The trim
@@ -153,16 +153,22 @@ def text_for(pos):
     name = (pos.get("name") or "").strip()
     text = name
     if pos.get("trim") is not None and pos.get("movable"):
-        text += f" — trim {_ph.fmt_ft(pos['trim'])}"
+        text += f" — trim {_ph.fmt_ft(pos['trim'], system)}"
     foh = pos.get("foh")
     if foh is None:
         foh = (pos.get("type") or "").strip().lower() == "catwalk"
     if foh and "FOH" not in name.upper():
         text += "  (FOH)"
-    return text.upper()
+    # ⚠ Position names are drawn in CAPS, but a unit SYMBOL is not a word. In SI
+    # "m" is metres and "M" is the mega- prefix, so uppercasing the whole string
+    # turned a 4.27 m trim into "4.27 M" — wrong, and wrong in a way a metric
+    # reader notices immediately. Feet and inches survive it; metres do not.
+    import re as _re
+    return _re.sub(r"(\d)\s*M\b", r"\1 m", text.upper())
 
 
 def plan(positions, instruments, measure, room_width=None, unit_r=1.35,
+         system=None,
          text_h=0.4, gap=0.5, bounds=None):
     """Fit every position name around the units and around each other.
 

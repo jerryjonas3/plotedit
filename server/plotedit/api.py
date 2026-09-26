@@ -622,6 +622,10 @@ def save_plot(req: SaveRequest) -> Dict[str, Any]:
 class BoomRequest(BaseModel):
     positions: List[Dict[str, Any]]
     instruments: List[Dict[str, Any]]
+    # ⚠ Formatting only. The heights are feet either way; this decides how the
+    # LABEL beside each unit is written. Without it a metric plot showed its
+    # boom heights in feet and inches on screen while the paper said metres.
+    units: Optional[str] = None
 
 
 @app.post("/booms")
@@ -641,7 +645,9 @@ def boom_layout(req: BoomRequest) -> Dict[str, Any]:
     REAL trim and are never compressed — the break marks say the paper is
     short, never that a number is approximate.
     """
-    out = booms.layout(req.positions, req.instruments)
+    from . import units as _u
+    out = booms.layout(req.positions, req.instruments,
+                       system=_u.system_of({"units": req.units}))
     for b in out:
         # §6.12: "hatch or shade acceptable for top view of boom." ONE symbol
         # standing for the stack — four drawn on top of each other is a blob.
@@ -678,6 +684,8 @@ class LabelRequest(BaseModel):
     # whatever the system gave it, and neither can measure for the other.
     char_w: float = 0.26
     text_h: float = 0.42
+    # Formatting only: a position label carries its trim.
+    units: Optional[str] = None
 
 
 @app.post("/labels")
@@ -693,9 +701,11 @@ def label_layout(req: LabelRequest) -> Dict[str, Any]:
     the paper choose the same slot. Only the width measurement differs, because
     it has to.
     """
+    from . import units as _u
     out = lbl.plan(req.positions, req.instruments,
                    lambda t: len(t) * req.char_w,
                    room_width=req.room_width, text_h=req.text_h,
+                   system=_u.system_of({"units": req.units}),
                    bounds=tuple(req.bounds) if req.bounds else None)
     return {"labels": out, "source": "USITT RP-2 (2006) 2.1"}
 

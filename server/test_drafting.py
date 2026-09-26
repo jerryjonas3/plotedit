@@ -13,6 +13,8 @@ left the instruments at full weight, because symbols.draw() read the module
 constant instead of asking the sheet — the one place the mismatch is most
 visible. Several assertions below exist only to catch that coming back.
 """
+import contextlib
+import io as _io
 import json
 import os
 import sys
@@ -154,6 +156,60 @@ print("tick labels read as feet and inches, and keep their sign")
 for _v, _want in ((0, "0'"), (12, "12'"), (7.25, "7'-3\""), (-11.5, "-11'-6\"")):
     check(f"{_v} reads as {_want}", _feet_label(_v), _want)
 
+
+print()
+print("the scale bar stays on the paper, at every scale")
+# 🔴 It did not. The bar was always TEN divisions of one unit, and when a
+# division became a metre that made it 15.75 inches long at 1:25 — through the
+# title block and off the right-hand edge, with the last label not on the page.
+#
+# ⚠ Nothing caught it because the bar is drawn in PAGE POINTS, not through P().
+# The clipping guard only knows what the drawing touched, so furniture can walk
+# off the sheet without it ever being asked. Hence this test measures the
+# rendered rectangles rather than trusting the arithmetic that placed them.
+from plotedit.scaled_pdf import fit_scales as _fits
+from plotedit import units as _u
+
+def _bar_extent(path):
+    """(left, right) of the scale bar's run of little rectangles, in points."""
+    page = fitz.open(path)[0]
+    runs = []
+    for drawing in page.get_drawings():
+        for item in drawing["items"]:
+            if item[0] == "re":
+                r = item[1]
+                if 4.0 < r.height < 7.0 and r.width > 8.0:
+                    runs.append((r.x0, r.x1))
+    return (min(x0 for x0, _ in runs), max(x1 for _, x1 in runs)) if runs else None
+
+
+_checked = 0
+for _sys in (_u.IMPERIAL, _u.METRIC):
+    for _sc in _fits(_sys):
+        _d = tempfile.mkdtemp()
+        _body = dict(plot)
+        if _sys == _u.METRIC:
+            _body["units"] = "metric"
+        _jp = os.path.join(_d, "p.json")
+        json.dump(_body, open(_jp, "w"))
+        _out = os.path.join(_d, "p.pdf")
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            _sheet, _ = render(_jp, _out, scale=_sc)
+        _page = fitz.open(_out)[0]
+        _ext = _bar_extent(_out)
+        _ok = _ext is not None and _ext[0] >= 0 and _ext[1] <= _page.rect.width
+        if not _ok:
+            check(f"{_sc}: the scale bar is on the page", (_ext, _page.rect.width), "on it")
+        _checked += 1
+        _divs, _step, _total, _per = _sheet.scale_bar_plan()
+        if _divs < 2:
+            check(f"{_sc}: at least two divisions", _divs, ">= 2")
+        if _total > 4.2 * 72:
+            check(f"{_sc}: the bar is a readable length", round(_total / 72, 2), "<= 4.2 in")
+
+check(f"every scale in both ladders drawn and measured ({_checked})", _checked, 11)
+check("...and none of them put the bar off the sheet", True, True)
 
 print()
 if FAILS:
