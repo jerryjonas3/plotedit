@@ -21,6 +21,7 @@ import { isPlot, symbolKey, plotFileName, newPlot, type Plot } from "./plot.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels, savePlot, listPlots, loadPlot, pdfPages, pdfPaths,
+         serverVersion,
          type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim,
          type BoomElevation, type PositionLabel } from "./api.js";
 import { Store } from "./store.js";
@@ -503,7 +504,21 @@ Is the Python service running?
     cd server && uvicorn plotedit.api:app --reload`;
 }
 
+/** Show which build this is, beside the show name.
+ *
+ * ⚠ Never blocks boot and never invents a number. If the server cannot be
+ * asked, the slot says so — a working copy reporting itself as a release sends
+ * whoever reads a bug report hunting in source that was not running. */
+async function showVersion(): Promise<void> {
+  const el = $("version");
+  const v = await serverVersion();
+  const known = v !== "dev" && v !== "unknown";
+  el.textContent = known ? `v${v}` : (v === "dev" ? "dev build" : "version unknown");
+  el.classList.toggle("dev", !known);
+}
+
 async function boot() {
+  void showVersion();
   try {
     // ⭐ Open what you were last working on. Starting on the bundled sample
     // every time means a designer's first act at every session is to find their
