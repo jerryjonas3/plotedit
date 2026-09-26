@@ -8,7 +8,7 @@
 import { isVertical, type Instrument } from "./plot.js";
 import { confirmDelete, describeUnit } from "./confirm.js";
 import { parseFeet } from "./feet.js";
-import { fmtFt } from "./geometry.js";
+import { fmtFt, fmtFc } from "./geometry.js";
 import type { Store } from "./store.js";
 import type { Computed } from "./render.js";
 
@@ -99,7 +99,12 @@ export function renderInspector(
       box.innerHTML =
         `<b>${c.throw_ft}</b> throw · <b>${c.elevation?.toFixed(0)}°</b> · ` +
         `pool <b>${c.field_ft ?? "—"}</b><br>` +
-        (c.footcandles != null ? `<b>${c.footcandles} fc</b> ` : "") +
+        // 🔴 Not `${c.footcandles} fc`. The throws and pools beside it already
+        // read in metres on a metric plot, and a level hardcoded to "fc" put a
+        // number and a contradicting unit on the same line — the exact failure
+        // the metric work existed to prevent. The PDF had it right and the
+        // screen did not, which is the harder way round to notice.
+        (c.footcandles != null ? `<b>${fmtFc(c.footcandles)}</b> ` : "") +
         `<span class="muted">${escape(c.footcandles_note ?? "")}</span>`;
     } else {
       box.innerHTML = `<span class="warn">Not computed — ${escape(c.note ?? "")}</span>`;
