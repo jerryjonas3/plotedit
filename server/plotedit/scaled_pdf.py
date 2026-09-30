@@ -660,7 +660,7 @@ class Sheet:
         self.line(x1, y, x2, y, style="batten")
         if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True, knockout=True)
 
-    def position(self, pos, label=None, label_at=None):
+    def position(self, pos, label=None, label_at=None, draw_label=True):
         """Draw one horizontal hanging position from a plot record.
 
         `type` decides the drawing, and the distinction is not decoration:
@@ -737,18 +737,35 @@ class Sheet:
             self.line(x1, y1, x2, y2, style=_pstyle, width_override=_pw)
             top = max(y1, y2)
 
-        if label:
-            # CAPS on a plot — Jerry, 2026.09.22: "probably caps are more legible."
-            text = label.upper() + ("  (FOH)" if foh and "FOH" not in label.upper() else "")
-            # ⭐ `label_at` comes from labels.place(), which fits every name around
-            # the units and around the other names. Without it the name always
-            # went to the pipe's stage-left end, which is how CAT 1 and HOUSE
-            # LEFT BOX BOOM 1 ended up on top of each other and on the box boom.
-            if label_at:
-                self.text(label_at["x"], label_at["y"], text, size=7, bold=True,
-                          align=label_at["align"], knockout=True)
-            else:
-                self.text(x1, top + ft(0, 6), text, size=7, bold=True, knockout=True)
+        if not label:
+            return None
+        # CAPS on a plot — Jerry, 2026.09.22: "probably caps are more legible."
+        text = label.upper() + ("  (FOH)" if foh and "FOH" not in label.upper() else "")
+        # ⭐ `label_at` comes from labels.place(), which fits every name around
+        # the units and around the other names. Without it the name always
+        # went to the pipe's stage-left end, which is how CAT 1 and HOUSE
+        # LEFT BOX BOOM 1 ended up on top of each other and on the box boom.
+        spec = ({"x": label_at["x"], "y": label_at["y"], "text": text,
+                 "align": label_at["align"]} if label_at else
+                {"x": x1, "y": top + ft(0, 6), "text": text, "align": None})
+        if draw_label:
+            self.position_label(spec)
+        return spec
+
+    def position_label(self, spec):
+        """Set one position name, knocked out of whatever is under it.
+
+        🔴 SEPARATE FROM THE PIPE so the caller can draw it LAST. A knockout
+        only clears what is already on the canvas, and plot_to_pdf draws the
+        positions before the units — so a pool, or a later position's pipe,
+        was painted straight over a label the knockout had just cleared for it.
+        Proved by drawing a line after a knocked-out label: 2898 of its pixels
+        came back. Deferring the names is the only thing that makes "the label
+        is legible" true rather than "the label is legible for now".
+        """
+        self.layer("POSITIONS")
+        self.text(spec["x"], spec["y"], spec["text"], size=7, bold=True,
+                  align=spec["align"], knockout=True)
 
     @staticmethod
     def foh_extent(positions):
