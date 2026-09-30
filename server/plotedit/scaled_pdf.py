@@ -603,7 +603,7 @@ class Sheet:
         c.restoreState()
 
     def text(self, x, y, s, size=8, center=False, color=black, rotate=0, bold=False,
-             align=None):
+             align=None, knockout=False):
         """`align` is "left" (default), "center" or "right".
 
         ⚠ Right alignment is not a nicety. A label placed just left of a line and
@@ -611,12 +611,42 @@ class Sheet:
         height labels did: the text started 4" clear of the pipe and then grew
         rightwards over it. Anchoring the END of the string is the only way to
         keep a label clear of something to its right.
+
+        ⭐ `knockout` clears a box out of whatever is underneath before setting
+        the text in it — drafting practice, and the only thing that works when
+        what is underneath is an imported ground plan. `labels.py` fits names
+        around units and around each other, but a base plan is routinely
+        thousands of paths with ink almost everywhere, so there is no clear spot
+        to find. Issue #66: on a real venue plan, 42 words had a line running
+        straight through them, including the leading letter of ELECTRIC 1.
+
+        ⚠ NOT in the DXF. A knockout is a property of the printed sheet; in DXF
+        the text is on its own layer and the reader turns layers off, so a white
+        rectangle exported beside it would be an object nobody asked for. Note
+        the knockout is drawn on the canvas only, below.
         """
         how = align or ("center" if center else "left")
         c = self.c; c.saveState(); c.setFillColor(color)
         c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
         px, py = self.P(x, y); c.translate(px, py); c.rotate(rotate)
         dy = -size / 3 if how == "center" else 0
+        if knockout and s:
+            w = c.stringWidth(s, "Helvetica-Bold" if bold else "Helvetica", size)
+            # ⚠ Anchored the same way the text is, or the box sits beside the
+            # words instead of behind them.
+            x0 = {"center": -w / 2, "right": -w}.get(how, 0.0)
+            # ⚠ The box is the font's OWN extent, ascender to descender, not the
+            # cap height. Sized to the caps it left a strip above them, and a
+            # rule running through that strip still reads as struck through —
+            # 2.7% of the label's pixels on a twelve-line comb, which the test
+            # in test_drafting.py measures by rasterising.
+            pad = size * 0.16
+            c.saveState()
+            c.setFillColor(white)
+            c.rect(x0 - pad, dy - size * 0.25 - pad,
+                   w + 2 * pad, size * 1.03 + 2 * pad, stroke=0, fill=1)
+            c.restoreState()
+            c.setFillColor(color)
         draw = {"center": c.drawCentredString, "right": c.drawRightString}.get(how, c.drawString)
         draw(0, dy, s)
         c.restoreState()
@@ -628,7 +658,7 @@ class Sheet:
         """A hanging position. §6.18: a batten is HEAVY."""
         self.layer("POSITIONS")
         self.line(x1, y, x2, y, style="batten")
-        if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
+        if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True, knockout=True)
 
     def position(self, pos, label=None, label_at=None):
         """Draw one horizontal hanging position from a plot record.
@@ -716,9 +746,9 @@ class Sheet:
             # LEFT BOX BOOM 1 ended up on top of each other and on the box boom.
             if label_at:
                 self.text(label_at["x"], label_at["y"], text, size=7, bold=True,
-                          align=label_at["align"])
+                          align=label_at["align"], knockout=True)
             else:
-                self.text(x1, top + ft(0, 6), text, size=7, bold=True)
+                self.text(x1, top + ft(0, 6), text, size=7, bold=True, knockout=True)
 
     @staticmethod
     def foh_extent(positions):
@@ -759,11 +789,11 @@ class Sheet:
         text = (label if label is not None else pos.get("name", "")).upper()
         if label_at:
             self.text(label_at["x"], label_at["y"], text, size=6, bold=True,
-                      align=label_at["align"])
+                      align=label_at["align"], knockout=True)
         else:
             out = -1 if center_x is None else (1 if x >= center_x else -1)
             self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
-                      bold=True, center=False if out > 0 else True)
+                      bold=True, center=False if out > 0 else True, knockout=True)
 
     def _unused_marker(self):
         pass
