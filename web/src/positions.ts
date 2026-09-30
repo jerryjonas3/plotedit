@@ -11,10 +11,11 @@
  */
 import type { Plot, Position } from "./plot.js";
 import { isVertical, resolveEnds, runOf, lengthOf, angleOf,
-         endsFromLengthAngle, duplicateNames, duplicateUnits } from "./plot.js";
+         endsFromLengthAngle, duplicateNames, duplicateUnits,
+         nextPositionName } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
-import { confirmDelete } from "./confirm.js";
+import { confirmDelete, confirmSharedName } from "./confirm.js";
 import { parseFeet } from "./feet.js";
 import { fmtFt } from "./geometry.js";
 
@@ -293,29 +294,34 @@ export function renderPositions(
     note.className = "muted pos-note";
     const bits: string[] = [];
 
-    // 🔴 A DUPLICATE NAME IS A BROKEN PLOT, not an untidy one. Units say which
-    // position they are on by NAME, so two positions called the same thing
-    // share their units, merge in the schedule and the hookup, and move each
-    // other's rig when one gets a new trim.
+    // ⭐ SHARING A NAME IS ALLOWED, and is how you say "these two segments are
+    // one position" — a V or an L. So this states the consequence rather than
+    // warning against it. Everything joins by name, so the segments are already
+    // one heading in the schedule and one run of unit numbers.
     //
-    // ⚠ Found the hard way: drawing a pipe looked it up by name and moved the
-    // wrong one. That lookup is fixed, but the plot was already ambiguous
-    // before the button existed and nothing said so.
-    if (clashes.has(p.name.trim().toLowerCase())) {
-      bits.push(`🔴 ANOTHER POSITION IS ALSO CALLED "${p.name.trim()}" — `
-        + `units say which position they are on by name, so these two share `
-        + `their rig, merge in the schedule and move each other's trim. `
-        + `Rename one`);
+    // ⚠ The thing that DOES go wrong is the numbering, and it is checked below.
+    const sharing = clashes.has(p.name.trim().toLowerCase());
+    if (sharing) {
+      bits.push(`shares its name with another position — they are one position `
+        + `in the schedule and number as one run`);
     }
 
-    // 🔴 RP-2 §2.3.2 numbers units per position, so unit 1 on two different
-    // pipes is right. Two unit 1s on the SAME pipe is not: the schedule, the
+    // 🔴 THIS is the thing that actually breaks when a name is shared. RP-2
+    // §2.3.2 numbers units per POSITION, so unit 1 on two different pipes is
+    // right — but a shared name makes those pipes one position, and then two
+    // unit 1s are two lights the paperwork cannot tell apart. The schedule, the
     // hookup and the focus chart all address a light as "position, number".
+    //
+    // ⚠ It is not automatic. `+ unit` takes max+1 across every segment of the
+    // name, so it stays unique going forward — but MERGING two pipes that each
+    // already had units 1-5 gives 1,1,2,2,3,3,4,4,5. Renumber spans the whole
+    // name and fixes it in one click, so the note says so.
     const dupUnits = duplicateUnits(plot.instruments, p.name);
     if (dupUnits.length) {
       bits.push(`🔴 ${dupUnits.length > 1 ? "UNITS" : "UNIT"} `
         + `${dupUnits.join(", ")} ${dupUnits.length > 1 ? "are" : "is"} used twice `
-        + `on this position — the paperwork cannot tell them apart. Renumber`);
+        + `on this position — the paperwork cannot tell them apart. `
+        + `Renumber fixes it across every segment of the name`);
     }
 
     // ⭐ A trim above the ceiling cannot be hung. Nothing checked until
@@ -502,9 +508,30 @@ export function renderPositions(
   const addPos = document.createElement("button");
   addPos.textContent = "+ Add position";
   addPos.addEventListener("click", () => {
+    // ⭐ THE USER NAMES IT. The old button invented `Electric ${count + 1}`,
+    // which is one delete away from a collision — the demo ships seven
+    // positions, one called "Electric 7", so deleting any of them and pressing
+    // add produced a second "Electric 7" silently.
+    //
+    // ⚠ And a clash is ALLOWED, because it is a real thing to want. A V or an L
+    // is one position made of two straight segments; sharing the name is how
+    // you say so, and the plot already treats them as one for numbering and
+    // paperwork. So: suggest a free name, say plainly when the typed one is
+    // taken and what that means, and let them go ahead.
+    const suggested = nextPositionName(plot.positions);
+    const typed = window.prompt("Name this position", suggested);
+    if (typed === null) return;                       // cancelled; add nothing
+    const wanted = typed.trim();
+    if (!wanted) {
+      deps.onStatus?.("A position needs a name.", true);
+      return;
+    }
+    const clashes = plot.positions.filter(
+      q => q.name.trim().toLowerCase() === wanted.toLowerCase()).length;
+    if (clashes && !confirmSharedName(wanted, clashes)) return;
     const n = plot.positions.length + 1;
     store.addPosition({
-      name: `Electric ${n}`,
+      name: wanted,
       type: "electric",
       x1: 0, y1: Math.min(plot.room.depth - 2, 8 + n * 4),
       x2: plot.room.width, y2: Math.min(plot.room.depth - 2, 8 + n * 4),

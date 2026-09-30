@@ -505,3 +505,24 @@ export function duplicateUnits(
   }
   return [...twice].sort((a, b) => a - b);
 }
+
+/** A position name not already in use: Electric 8, or 9, or 10...
+ *
+ *  🔴 `Electric ${positions.length + 1}` COLLIDES, and it is one delete away.
+ *  The demo ships seven positions, one of them called "Electric 7". Delete any
+ *  position and press add: six positions, so the new one is named "Electric 7"
+ *  and the plot now has two. Every unit on that name then belongs to both —
+ *  see `duplicateNames`.
+ *
+ *  ⚠ Counts from the number of positions, not from 1, so a plot with eight
+ *  pipes offers "Electric 9" rather than walking up from the bottom every time.
+ */
+export function nextPositionName(
+  positions: readonly { name: string }[], stem = "Electric",
+): string {
+  const taken = new Set(positions.map(p => (p.name ?? "").trim().toLowerCase()));
+  for (let n = positions.length + 1; ; n++) {
+    const candidate = `${stem} ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}

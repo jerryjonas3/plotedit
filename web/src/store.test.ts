@@ -1,10 +1,11 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
 import { plotFileName, newPlot, isPlot, resolveEnds, runOf, lengthOf, angleOf,
-         endsFromLengthAngle, duplicateNames, duplicateUnits, type Plot } from "./plot.js";
+         endsFromLengthAngle, duplicateNames, duplicateUnits, nextPositionName,
+         type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
-import { deleteMessage, describeUnit } from "./confirm.js";
+import { deleteMessage, describeUnit, sharedNameMessage } from "./confirm.js";
 import { parseFeet } from "./feet.js";
 
 let fails = 0;
@@ -498,6 +499,61 @@ check("matched the way the joins match",
       duplicateUnits([u("grid c", 2), u("GRID C ", 2)], "GRID C"), [2]);
 check("a unit with no number is not a duplicate",
       duplicateUnits([{ position: "GRID C" }, { position: "GRID C" }], "GRID C"), []);
+
+
+// ------------------------------------------- sharing a name is allowed, not wrong
+// ⭐ Jerry, 2026.09.30: "let the user name the position... Then if its the same
+// name, say there is already a position with that name - let them use the same
+// name if they want." A V or an L is ONE position made of two straight
+// segments, and sharing the name is how you say so.
+console.log("\nsharing a name is offered, not refused");
+
+const _one = sharedNameMessage("V", 1);
+check("it names the position", _one.includes('"V"'), true);
+check("...and says how many already have it", _one.includes("another position"), true);
+check("two others are counted", sharedNameMessage("V", 2).includes("2 other positions"), true);
+// ⚠ The dialog must say what sharing MEANS, because that is the decision being
+// made. "Are you sure?" would ask the reader to work it out themselves.
+check("it explains the numbering", _one.includes("one run of unit numbers"), true);
+check("...and that the schedule merges them", _one.includes("schedule"), true);
+check("...and names the case it is for", /V or an L/.test(_one), true);
+// 🔴 It must not read as a refusal. This is a legitimate thing to want.
+check("it does not warn against it", /cannot|must not|error|invalid/i.test(_one), false);
+check("it ends with the question", _one.trim().endsWith("Use the same name?"), true);
+
+
+// ------------------------------------- the SUGGESTED name is one nobody is using
+// 🔴 The old button invented `Electric ${positions.length + 1}`, which is one
+// delete away from a collision: the demo ships seven positions, one called
+// "Electric 7", so deleting any of them and pressing add produced a second
+// "Electric 7" with no prompt and no warning. Reproduced in the app.
+//
+// ⚠ This is the SUGGESTION only. A clash the user types deliberately is still
+// allowed — see sharedNameMessage — because a V is a real thing to want.
+console.log("\nthe suggested position name is free");
+
+const P = (...names: string[]) => names.map(n => ({ name: n }));
+check("an empty plot starts at 1", nextPositionName(P()), "Electric 1");
+check("counts from the number of positions",
+      nextPositionName(P("a", "b", "c")), "Electric 4");
+check("skips a name already taken",
+      nextPositionName(P("Cat 1", "GRID C", "GRID D", "HR Boom", "HL Boom", "Electric 7")),
+      "Electric 8");
+check("...and keeps skipping",
+      nextPositionName(P("a", "b", "Electric 3", "Electric 4", "Electric 5")),
+      "Electric 6");
+check("case-insensitively, the way the joins compare",
+      nextPositionName(P("a", "b", "electric 3")), "Electric 4");
+
+// ⭐ The invariant, not the examples: what the button suggests is never what
+// duplicateNames flags.
+let _grow = P("Cat 1", "GRID C", "GRID D", "HR Boom", "HL Boom", "Electric 7");
+let _clean = true;
+for (let i = 0; i < 12; i++) {
+  _grow = [..._grow, { name: nextPositionName(_grow) }];
+  if (duplicateNames(_grow).size) _clean = false;
+}
+check("twelve in a row never suggests a duplicate", _clean, true);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
