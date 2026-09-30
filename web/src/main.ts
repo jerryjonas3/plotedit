@@ -16,9 +16,12 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 /** Load a plot, draw it, let it be edited. */
-import { fitView, fohExtent, setUnitSystem, fmtFt, toPlot, type View, placeBase, toScreen} from "./geometry.js";
+import { fitView, fohExtent, setUnitSystem, fmtFt, toPlot, type View, placeBase,
+         toScreen } from "./geometry.js";
 import { isPlot, symbolKey, plotFileName, newPlot, type Plot, type Position,
          lengthOf, angleOf, runOf } from "./plot.js";
+import { startSeq, seqClick, clickLine, seqReport, runIndices,
+         type Seq } from "./sequence.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels, savePlot, listPlots, loadPlot, pdfPages, pdfPaths,
@@ -276,6 +279,7 @@ function drawInspector() {
     onChange: () => { draw(); recompute(); },
     onStatus: (msg, bad) => status(msg, bad),
     onDrawPipe: (pos) => startPipeDraw(pos),
+    onNumberSeq: (pos, start) => startNumbering(pos, start),
   });
   renderInspector($("inspector"), store, computed, {
     fixtures: Object.keys(fixtureTable).sort(),
@@ -331,6 +335,19 @@ function paint() {
   $("dirty").textContent = store.dirty ? "Unsaved changes" : "";
   ($("undo") as HTMLButtonElement).disabled = !store.canUndo;
   ($("redo") as HTMLButtonElement).disabled = !store.canRedo;
+  // ⭐ Jerry, 2026.09.30: "make the UI save button inactive if there is nothing
+  // to save." It sits with undo and redo because it is the same rule — a control
+  // that cannot do anything should not look like it can.
+  //
+  // ⚠ SAVE ONLY, never Save As. Saving a copy under a new name is a real thing
+  // to want with nothing changed, and it is also the only way to write a plot
+  // that has never been saved — `save()` falls through to `saveAs()` when there
+  // is no file name yet, and a brand new plot is not dirty.
+  //
+  // The title changes with it. A greyed button with no explanation is a puzzle.
+  const saveBtn = $("save") as HTMLButtonElement;
+  saveBtn.disabled = !store.dirty;
+  saveBtn.title = store.dirty ? "Save (⌘S)" : "No changes to save";
   // ⭐ Each section header says what is IN it. The three panels were three grey
   // blocks that had to be read to be told apart; a count in the header answers
   // "which one is this" and "is there anything here" in one glance.
@@ -693,7 +710,8 @@ async function placeBackdrop(file: File, page: number): Promise<void> {
  *  file would have to declare.
  */
 function startCalibration(): void {
-  if (!baseImage) return;
+  if (!baseImage) return;      // nothing started, so nothing to stop
+  stopPlanModes();
   calibrating = {};
   svg.style.cursor = "crosshair";
 }
@@ -736,6 +754,70 @@ function calibrationClick(x: number, y: number): boolean {
   return true;
 }
 
+// --------------------------------------------------- number by clicking
+/** Numbering a run by pointing at the units in hanging order.
+ *
+ *  ⭐ Jerry, 2026.09.30: "pick a starting sequence number and then letting the
+ *  user fix the sequence by selecting units."
+ *
+ *  Same shape as `calibrating` and `drawingPipe` — a mode the PLAN is in, not a
+ *  dialog, because the thing being pointed at is the rig. The rules live in
+ *  `sequence.ts` so they can be tested without a browser; this is the wiring.
+ */
+let numbering: Seq | undefined;
+
+function startNumbering(pos: Position, start: number): void {
+  stopPlanModes();
+  numbering = startSeq(pos.name, start);
+  svg.style.cursor = "crosshair";
+  const n = runIndices(store.plot.instruments, pos.name).length;
+  status(`Click the ${n} unit${n > 1 ? "s" : ""} on ${pos.name} in hanging order. `
+       + `Next: ${start}. Escape to stop.`);
+}
+
+function stopNumbering(): void {
+  if (!numbering) return;
+  // ⚠ Report on the way out however the pass ended, including abandoned. A run
+  // left half-numbered is the one case that genuinely breaks, and it must not
+  // end in silence — see `seqReport`.
+  const verdict = seqReport(numbering, store.plot.instruments);
+  numbering = undefined;
+  svg.style.cursor = "";
+  status(verdict, verdict.includes("🔴"));
+}
+
+/** A click while numbering. Returns true if it was consumed.
+ *
+ *  ⚠ Consumed EITHER WAY, including a refusal. A click on the wrong unit must
+ *  not fall through and select or drag it — the pointer is in a mode, and the
+ *  refusal says why.
+ */
+function numberingClick(target: Element | null): boolean {
+  if (!numbering) return false;
+  const hit = target?.closest("[data-index]");
+  if (!hit) {
+    status(`Click a unit on ${numbering.name}, or Escape to stop.`, true);
+    return true;
+  }
+  const index = Number(hit.getAttribute("data-index"));
+  const r = seqClick(numbering, store.plot.instruments, index);
+  if (!r.ok) { status(r.why, true); return true; }
+
+  // ⚠ ONE UNDO STEP PER CLICK, deliberately. Jerry, 2026.09.30: "you can't just
+  // renumber the units." A misclick in the middle of a run should cost one ⌘Z,
+  // not the whole pass.
+  store.begin(null);
+  const inst = store.plot.instruments[index];
+  if (inst) inst.unit = r.to;
+  store.commit();
+  store.select(index);
+  draw(); recompute();
+
+  const line = clickLine(r);
+  if (r.last) { stopNumbering(); status(line); } else { status(line); }
+  return true;
+}
+
 /** The imported vector plan, moved and turned to where the designer put it.
  *  The arithmetic is `placeBase` in geometry.ts, where it is unit-tested. */
 function placedBasePaths(): { layer: string; points: [number, number][] }[] | undefined {
@@ -773,8 +855,26 @@ async function baseForExport(): Promise<Record<string, unknown> | undefined> {
  *  ⚠ The near end is the FIRST click, so the pipe keeps the end you placed
  *  deliberately — the same rule the Length and Angle boxes follow.
  */
-function startPipeDraw(pos: Position): void {
+/** End whatever mode the plan is in, before putting it in another one.
+ *
+ *  🔴 THREE MODES NOW WANT THE SAME CLICKS — calibrating, drawing a pipe, and
+ *  numbering a run — and each start used to stop only CALIBRATION. So pressing
+ *  "draw" during a numbering pass left both armed: numbering is asked first, so
+ *  it ate the clicks while the status said "Click one end of Cat 1". The button
+ *  did nothing and said it was working.
+ *
+ *  ⚠ A numbering pass ended this way still reports, and that report is then
+ *  overwritten by the new mode's prompt. That is accepted: the durable signal is
+ *  the red duplicate-unit note on the position row, which does not scroll away.
+ */
+function stopPlanModes(): void {
   stopCalibration();
+  stopPipeDraw();
+  stopNumbering();
+}
+
+function startPipeDraw(pos: Position): void {
+  stopPlanModes();
   drawingPipe = { pos };
   svg.style.cursor = "crosshair";
   status(`Click one end of ${pos.name}. Escape to stop.`);
@@ -1299,7 +1399,20 @@ async function boot() {
     // light by accident while measuring a wall is the kind of thing that makes
     // somebody stop trusting a tool.
     svg.addEventListener("pointerdown", (e) => {
-      if (!calibrating && !drawingPipe) return;
+      if (!calibrating && !numbering && !drawingPipe) return;
+      // ⚠ Numbering is asked FIRST and by TARGET, not by coordinate. It picks a
+      // unit out of the app's own hit regions, which is what makes a unit in the
+      // boom ELEVATION clickable too — on a boom that diagram is where you would
+      // naturally point along the run.
+      //
+      // ⭐ Asking it before the two COORDINATE modes is also what keeps them
+      // apart: numbering wants the thing under the pointer, while calibrating
+      // and drawing a pipe want the point itself. Only one mode is ever live —
+      // each start function stops the others — so the order settles nothing
+      // more than which question is cheapest to answer.
+      if (numberingClick(e.target as Element | null)) {
+        e.preventDefault(); e.stopPropagation(); return;
+      }
       const r = svg.getBoundingClientRect();
       const pt = toPlot({ x: e.clientX - r.left, y: e.clientY - r.top }, view());
       if (calibrationClick(pt.x, pt.y) || pipeDrawClick(pt.x, pt.y)) {
@@ -1321,8 +1434,13 @@ async function boot() {
     });
     // Escape abandons it rather than leaving the cursor a crosshair for ever.
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && calibrating) { stopCalibration(); status(""); }
-      if (e.key === "Escape" && drawingPipe) { stopPipeDraw(); status(""); }
+      if (e.key !== "Escape") return;
+      if (calibrating) { stopCalibration(); status(""); }
+      if (drawingPipe) { stopPipeDraw(); status(""); }
+      // ⚠ Numbering LAST, and it does not clear the status — `stopNumbering`
+      // writes its own verdict there, and an empty status would throw away the
+      // report on an abandoned pass.
+      if (numbering) stopNumbering();
     });
 
     wireBackdropBar();
@@ -1335,7 +1453,12 @@ async function boot() {
     window.addEventListener("keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        void (e.shiftKey ? saveAs() : save());
+        if (e.shiftKey) { void saveAs(); return; }
+        // ⚠ The shortcut follows the button. A disabled Save whose ⌘S still
+        // writes the file is two answers to one question — and saying nothing
+        // would read as a save that silently failed, which is worse than both.
+        if (!store.dirty) { status("No changes to save."); return; }
+        void save();
       }
     });
     window.addEventListener("beforeunload", (e) => {
