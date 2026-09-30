@@ -15,7 +15,7 @@ import { isVertical, resolveEnds, runOf, lengthOf, angleOf,
          nextPositionName } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
-import { confirmDelete, confirmSharedName } from "./confirm.js";
+import { confirmDelete, confirmSharedName, sharedNameRenumberNote } from "./confirm.js";
 import { parseFeet } from "./feet.js";
 import { fmtFt } from "./geometry.js";
 
@@ -69,8 +69,8 @@ export function nextBoomHeight(
   if (below >= MIN_BOOM_GAP) return below;
 
   // No room underneath. Fall back to the widest gap BETWEEN units — the same
-  // rule a pipe uses. The new unit will be numbered last and out of order, so
-  // the caller says to press renumber.
+  // rule a pipe uses. The new unit is numbered last and so sits out of order on
+  // the boom; the caller states that, and leaves the fix to the designer.
   let best: number | undefined;
   let widest = MIN_BOOM_GAP;
   for (let k = 0; k < heights.length - 1; k++) {
@@ -314,14 +314,22 @@ export function renderPositions(
     //
     // ⚠ It is not automatic. `+ unit` takes max+1 across every segment of the
     // name, so it stays unique going forward — but MERGING two pipes that each
-    // already had units 1-5 gives 1,1,2,2,3,3,4,4,5. Renumber spans the whole
-    // name and fixes it in one click, so the note says so.
+    // already had units 1-5 gives 1,1,2,2,3,3,4,4,5.
+    //
+    // 🔴 AND THE NOTE DOES NOT SEND THE READER TO RENUMBER, which is what it
+    // used to do. Jerry, 2026.09.30: "you can't just renumber the units […] you
+    // can allow the user to do it, but doing automatically is bad." A unit
+    // number is not a label the file owns. It is spiked on the pipe, written in
+    // the hookup the electrician is holding, and called out in the dark. Renumber
+    // rewrites all of them in the file and none of them in the room. Changing
+    // ONE number by hand is the small fix; renumbering the run is a decision
+    // about a document that may already have gone out.
     const dupUnits = duplicateUnits(plot.instruments, p.name);
     if (dupUnits.length) {
       bits.push(`🔴 ${dupUnits.length > 1 ? "UNITS" : "UNIT"} `
         + `${dupUnits.join(", ")} ${dupUnits.length > 1 ? "are" : "is"} used twice `
         + `on this position — the paperwork cannot tell them apart. `
-        + `Renumber fixes it across every segment of the name`);
+        + `Give one of each pair a free number in the inspector`);
     }
 
     // ⭐ A trim above the ceiling cannot be hung. Nothing checked until
@@ -432,11 +440,15 @@ export function renderPositions(
       });
       if (outOfOrder) {
         // ⚠ Say it. A unit numbered 5 sitting between 2 and 3 on the elevation
-        // is a paperwork error waiting to happen, and the fix is one button
-        // away — but only if the reader knows to press it.
+        // is a paperwork error waiting to happen.
+        //
+        // It used to end "press renumber on X". It no longer tells anyone to do
+        // that — see the note on duplicate units above. State the fact and let
+        // the designer decide whether the order is worth rewriting the run for;
+        // on a boom that is still being built it usually is not.
         deps.onStatus?.(
-          `Unit ${nextUnit} went in above a lower one, so the numbers are out of `
-          + `order — press renumber on ${p.name}.`);
+          `Unit ${nextUnit} went in above a lower one, so ${p.name} is not in `
+          + `numerical order down the boom.`);
       }
       deps.onChange();
     });
@@ -483,7 +495,13 @@ export function renderPositions(
         const lines = r.moves.slice(0, 12)
           .map(m => `   unit ${m.from} → ${m.to}`).join("\n");
         const more = r.moves.length > 12 ? `\n   …and ${r.moves.length - 12} more` : "";
-        if (!confirm(`${r.convention}\n\n${r.changed} of ${r.count} units change:\n${lines}${more}\n\nApply?`)) return;
+        // 🔴 A shared name is two legs ordered by ONE leg's geometry, which
+        // interleaves them when they cover the same ground. Say so above the
+        // moves — the reader still decides. See `sharedNameRenumberNote`.
+        const legs = plot.positions.filter(
+          q => q.name.trim().toLowerCase() === p.name.trim().toLowerCase()).length;
+        const shared = legs > 1 ? `${sharedNameRenumberNote(p.name, legs)}\n\n` : "";
+        if (!confirm(`${shared}${r.convention}\n\n${r.changed} of ${r.count} units change:\n${lines}${more}\n\nApply?`)) return;
         store.begin(null);
         const byPos = new Map(r.instruments.map(i => [`${i.x},${i.y},${i.height ?? ""}`, i.unit]));
         const name = p.name.trim().toLowerCase();

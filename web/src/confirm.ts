@@ -72,3 +72,36 @@ export function sharedNameMessage(name: string, existing: number): string {
 export function confirmSharedName(name: string, existing: number): boolean {
   return window.confirm(sharedNameMessage(name, existing));
 }
+
+/** What to add to the renumber question when the name is shared by two legs.
+ *
+ *  🔴 MEASURED, not inferred. A '>' shaped cove named once across two legs,
+ *  four units on each, no two at the same coordinate — renumber returned NO
+ *  warning and produced this:
+ *
+ *      leg A  x=0,4,8,12   → units 1, 3, 5, 7
+ *      leg B  x=14,10,6,2  → units 8, 6, 4, 2
+ *
+ *  Odds down one leg and evens back up the other. Nobody could hang that. It
+ *  happens because ONE sort key is worked out from ONE leg's geometry — stage
+ *  left to stage right, per RP-2 §2.3.2 — and then applied to every unit on the
+ *  name. When the legs overlap along that axis they interleave. `number()`'s own
+ *  guard misses it: it only fires when two units share a coordinate exactly,
+ *  which at the apex they often do and elsewhere they do not.
+ *
+ *  ⭐ AND THIS IS STILL THE READER'S CALL. Jerry, 2026.09.30: "you can allow the
+ *  user to do it, but doing automatically is bad." So this is a sentence in the
+ *  dialog above the moves, not a refusal — a V that runs one way across both
+ *  legs numbers correctly, and the reader can see the moves and judge.
+ *
+ *  ⚠ How a multi-leg run SHOULD number — walking the pipe, leg by leg, rather
+ *  than sorting the whole name on one axis — is an open question for Jerry, not
+ *  something to guess at here. See `docs/NEXT.md`.
+ */
+export function sharedNameRenumberNote(name: string, legs: number): string {
+  return [
+    `⚠ "${name}" is ${legs} positions sharing one name, and the order below was`,
+    `worked out along the FIRST of them. Where the legs cover the same ground the`,
+    `numbers alternate between them — check the moves before applying.`,
+  ].join("\n");
+}

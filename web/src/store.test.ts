@@ -5,7 +5,8 @@ import { plotFileName, newPlot, isPlot, resolveEnds, runOf, lengthOf, angleOf,
          type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
-import { deleteMessage, describeUnit, sharedNameMessage } from "./confirm.js";
+import { deleteMessage, describeUnit, sharedNameMessage,
+         sharedNameRenumberNote } from "./confirm.js";
 import { parseFeet } from "./feet.js";
 
 let fails = 0;
@@ -554,6 +555,39 @@ for (let i = 0; i < 12; i++) {
   if (duplicateNames(_grow).size) _clean = false;
 }
 check("twelve in a row never suggests a duplicate", _clean, true);
+
+// ---------------------------------------------------------------- renumber
+// 🔴 Jerry, 2026.09.30: "you can't just renumber the units […] you can allow the
+// user to do it, but doing automatically is bad." So two things are tested: the
+// dialog SAYS what a shared name does to the order, and nothing in the UI tells
+// the reader to press the button.
+const _rn = sharedNameRenumberNote("Cove", 2);
+check("names the position", _rn.includes('"Cove"'), true);
+check("counts the legs", _rn.includes("2 positions"), true);
+check("says which leg set the order", _rn.includes("FIRST"), true);
+check("says they alternate", _rn.includes("alternate"), true);
+check("sends the reader to the moves, not to Apply",
+      _rn.includes("check the moves"), true);
+// ⚠ It must not read as a refusal — the reader is allowed to do this.
+check("does not refuse", /cannot|refus|not allowed/i.test(_rn), false);
+
+// ⭐ THE REAL REGRESSION, and the reason this block exists. The duplicate-unit
+// note used to end "Renumber fixes it across every segment of the name", which
+// pointed the reader at a button that rewrites every number on the run. It now
+// points at the one number that is wrong. Asserted against the SOURCE, because
+// the note is built inline in a DOM-rendering function.
+const _fsRn = await import("node:fs");
+const _srcRaw = _fsRn.readFileSync(new URL("./positions.ts", import.meta.url), "utf8");
+// ⚠ COMMENTS STRIPPED FIRST. The assertion is about what reaches the reader, and
+// the comments explaining this very change mention the old wording — a test that
+// failed on its own explanation would push the explanation out of the file.
+const _src = _srcRaw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+check("no note tells the reader to press renumber",
+      /press renumber|Renumber fixes/.test(_src), false);
+check("the duplicate-unit note offers the by-hand fix instead",
+      _src.includes("Give one of each pair a free number"), true);
+// And the button itself is still there — this was never about removing it.
+check("the renumber button survives", _src.includes('textContent = "renumber"'), true);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
