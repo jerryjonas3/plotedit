@@ -274,6 +274,33 @@ with _tf2.TemporaryDirectory() as _d:
     check("...and the note says what was left out",
           "outside the page" in _g["note"], True)
 
+
+# ------------------------------------------------- an unknown scale is a 400
+print("\na scale this plot cannot be drawn at is a bad request")
+# 🔴 It used to be a bare KeyError deep in units.py, surfacing as a 500 with a
+# stack trace. Found by asking for "3/16" — which the PDF IMPORTER offers,
+# because the scale a borrowed drawing was made at is a different question from
+# the scale this plot is drawn at. Two honest lists that are easy to confuse, so
+# the error has to name the allowed ones.
+from plotedit import units as _u
+from plotedit import pdf_bridge as _pb2
+
+_r = client.post("/export/pdf", json={"plot": _plot, "scale": "3/16"})
+check("an import-only scale is refused, not a crash", _r.status_code, 400)
+check("...and the message names it", '"3/16"' in _r.json()["detail"], True)
+check("...and lists what IS allowed",
+      all(f'{k}"' in _r.json()["detail"] for k in _u.IMPERIAL_SCALES), True)
+check("nonsense is refused the same way",
+      client.post("/export/pdf", json={"plot": _plot, "scale": "banana"}).status_code, 400)
+
+# ⚠ Named so the gap cannot close silently: these are the scales the importer
+# accepts that a plot cannot be DRAWN at. If the ladders are ever unified this
+# list goes empty and the test above needs a different input.
+check("the two ladders still differ, which is why this matters",
+      sorted(s_ for s_ in _pb2.SCALES if not s_.startswith("1:")
+             and s_ not in _u.IMPERIAL_SCALES),
+      ["1/16", "3/16", "3/32"])
+
 if FAILS:
     print(f"{len(FAILS)} FAILED")
     for f in FAILS:
