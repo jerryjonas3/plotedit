@@ -298,6 +298,35 @@ class Sheet:
         self.ox = self.margin + x_ft * self.pt_per_ft
         self.oy = self.margin + y_ft * self.pt_per_ft
 
+    def base_image(self, png_bytes, x_ft, y_ft, wide_ft, tall_ft,
+                   rotate_deg=0.0, opacity=0.45):
+        """A picture of a plan, drawn under everything as a tracing backdrop.
+
+        🔴 NOT A MEASUREMENT, and it must not be mistaken for one on paper any
+        more than on screen. It is drawn faded and underneath, and the room
+        outline, the pipes and the rig are all heavier than it by §6.18.
+
+        ⚠ Drawn from BYTES, not a path. The image came up from the browser in
+        the export request; writing it to a file first would only mean deleting
+        it afterwards.
+        """
+        import io as _io
+        from reportlab.lib.utils import ImageReader
+        x0, y0 = self.P(x_ft, y_ft)
+        w = wide_ft * self.pt_per_ft
+        h = tall_ft * self.pt_per_ft
+        self.P(x_ft + wide_ft, y_ft + tall_ft)      # so the guard sees its extent
+        c = self.c
+        c.saveState()
+        try:
+            if rotate_deg:
+                c.translate(x0, y0); c.rotate(rotate_deg); c.translate(-x0, -y0)
+            c.setFillAlpha(opacity)
+            c.drawImage(ImageReader(_io.BytesIO(png_bytes)), x0, y0, w, h,
+                        mask="auto", preserveAspectRatio=False)
+        finally:
+            c.restoreState()
+
     def import_dxf(self, path, **kw):
         """Draw a venue's DXF under the plot as the base drawing. See dxf_bridge.import_into."""
         from .dxf_bridge import import_into

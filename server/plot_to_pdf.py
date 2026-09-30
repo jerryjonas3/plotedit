@@ -21,7 +21,7 @@ from plotedit.booms import BOOM_PITCH
 
 def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
            pool_plane=None, show_pools=True, show_focus=True, show_labels=True,
-           rulers=None, lift=None):
+           rulers=None, lift=None, base=None):
     """Draw the plot.
 
     ⭐ `lift` is how far up the sheet the drawing sits, in feet, and None means
@@ -103,6 +103,32 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     s.origin(ft(4) + boom_space, _floor_y + (lift or 0.0))
 
     s.layer("BASE")
+    # ⭐ THE IMPORTED GROUND PLAN, if there is one — under everything, exactly
+    # where the browser drew it.
+    #
+    # 🔴 THIS NEVER PRINTED. plot_pdf has always taken a dxf_path and the export
+    # endpoint has never passed one, so an imported plan was on the screen and
+    # absent from the paper. Found 2026.09.30.
+    #
+    # ⚠ The coordinates arrive ALREADY IN STAGE FEET, transformed by the browser.
+    # Re-applying a placement here would be the same arithmetic in two languages,
+    # which is what test_agreement.py exists to stop.
+    if base:
+        img = base.get("image")
+        if img:
+            import base64 as _b64
+            s.base_image(_b64.b64decode(img),
+                         float(base.get("x", 0.0)), float(base.get("y", 0.0)),
+                         float(base.get("wide", 0.0)), float(base.get("tall", 0.0)),
+                         rotate_deg=float(base.get("rotate", 0.0)),
+                         opacity=float(base.get("opacity", 0.45)))
+        for _path in base.get("paths") or []:
+            pts = _path.get("points") or _path
+            for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+                # §6.18: a venue's own drawing is SCENERY — lightweight, and it
+                # sits behind the rig rather than competing with it.
+                s.line(ax, ay, bx, by, style="scenery")
+
     # §6.18: architecture is HEAVY; the reference lines are MEDIUM and dashed;
     # dimensions are LIGHT.
     s.rect(0, 0, room["width"], room["depth"], style="architecture")

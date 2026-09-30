@@ -138,6 +138,11 @@ export interface ExportOptions {
   /** Print a dimension scale along the plan's edges. PDF only — the browser
    *  does not draw them. */
   rulers?: boolean;
+  /** The imported base plan, already placed in stage feet — `paths`, and an
+   *  `image` as base64 PNG with its rectangle. ⚠ Sent as DRAWN rather than as
+   *  imported, so the server does not redo the placement arithmetic. Two copies
+   *  of it is exactly how the screen and the paper drift apart. */
+  base?: Record<string, unknown>;
 }
 
 export async function exportFile(
@@ -159,6 +164,7 @@ export async function exportFile(
       ...(opts.showLabels === undefined ? {} : { showLabels: opts.showLabels }),
       ...(opts.poolPlane === undefined ? {} : { poolPlane: opts.poolPlane }),
       ...(opts.rulers ? { rulers: true } : {}),
+      ...(opts.base ? { base: opts.base } : {}),
     }),
   });
   if (!r.ok) {

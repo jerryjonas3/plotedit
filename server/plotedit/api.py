@@ -348,6 +348,16 @@ class ExportRequest(BaseModel):
     # way to issue a clean plan was to delete the focus points.
     # Defaulting to True keeps every existing caller — and every saved plot —
     # drawing exactly what it drew before.
+    # 🔴 THE BASE PLAN NEVER REACHED THE PAPER. plot_pdf has always taken a
+    # dxf_path and export_pdf has never passed one, so an imported ground plan
+    # was drawn on screen and silently absent from the PDF. Found 2026.09.30
+    # while adding the raster backdrop — the same hole swallowed both kinds.
+    #
+    # ⭐ THE BROWSER SENDS WHAT IT DREW, already transformed into stage feet.
+    # The alternative is sending a transform and applying it again here, which
+    # is two copies of the same arithmetic and exactly how the screen and the
+    # paper drift apart — see test_agreement.py.
+    base: Optional[Dict[str, Any]] = None
     showPools: bool = True
     showFocus: bool = True
     showLabels: bool = True
@@ -432,7 +442,8 @@ def export_pdf(req: ExportRequest) -> Response:
                                     show_focus=req.showFocus,
                                     show_labels=req.showLabels,
                                     pool_plane=req.poolPlane,
-                                    rulers=req.rulers)
+                                    rulers=req.rulers,
+                                    base=req.base)
         # ⚠ Refuse only what makes the drawing WRONG. A clipped sheet is
         # unusable, so it is a 422. Everything else — a grazing pool, an
         # unrecognised accessory — is a true note ABOUT the plot, and refusing
