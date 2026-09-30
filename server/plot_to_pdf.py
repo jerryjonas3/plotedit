@@ -21,7 +21,7 @@ from plotedit.booms import BOOM_PITCH
 
 def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=None,
            pool_plane=None, show_pools=True, show_focus=True, show_labels=True,
-           rulers=None, lift=None, base=None):
+           rulers=None, lift=None, shift=None, base=None):
     """Draw the plot.
 
     ⭐ `lift` is how far up the sheet the drawing sits, in feet, and None means
@@ -61,19 +61,27 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
                                    landscape=landscape, pool_plane=pool_plane,
                                    show_pools=show_pools, show_focus=show_focus,
                                    show_labels=show_labels, rulers=rulers,
-                                   lift=0.0)[0],
+                                   lift=0.0, shift=None)[0],
             system=_system)
 
     # ⭐ PASS ONE: draw it at the floor to find out how much room is left.
-    if lift is None:
+    # ⚠ ONE probe answers BOTH axes. The vertical was measured here already; the
+    # horizontal had never been measured at all, which is how the demo plot came
+    # to sit 4.21' inside its left margin and 3.03' off its right edge with 1.18'
+    # of slack unused. Asking twice would double a pass that costs a render.
+    if lift is None or shift is None:
         import tempfile as _tf
         with _tf.TemporaryDirectory() as _d:
             _probe, _ = render(plot_path, os.path.join(_d, "probe.pdf"),
                                scale=scale, page=page, landscape=landscape,
                                dxf=dxf, pool_plane=pool_plane,
                                show_pools=show_pools, show_focus=show_focus,
-                               show_labels=show_labels, rulers=rulers, lift=0.0)
-        lift = _probe.slack_above()
+                               show_labels=show_labels, rulers=rulers,
+                               lift=0.0, shift=0.0, base=base)
+        if lift is None:
+            lift = _probe.slack_above()
+        if shift is None:
+            shift = _probe.slack_left()
 
     plot = json.load(open(plot_path))
     room = plot["room"]
@@ -100,7 +108,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     from plotedit import booms as _B
     boom_space = _B.space_needed(plot["positions"], plot["instruments"])
     _floor_y = ft(4) + (house + 1.5 if house else 0)
-    s.origin(ft(4) + boom_space, _floor_y + (lift or 0.0))
+    s.origin(ft(4) + boom_space + (shift or 0.0), _floor_y + (lift or 0.0))
 
     s.layer("BASE")
     # ⭐ THE IMPORTED GROUND PLAN, if there is one — under everything, exactly
@@ -244,7 +252,21 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     # matters: it is the sheet an electrician has in front of them. A key on its
     # own page is a page nobody carries up the ladder.
     from plotedit import key as _key
-    _key.draw(s, plot, room["width"] + 4.0, room["depth"])
+    # 🔴 Clear of what is ACTUALLY on the page, not of the room. §5.0's "does not
+    # conflict with other information" is the whole requirement, and a fixed
+    # offset from the room wall only satisfies it while nothing reaches past the
+    # room. Pools do. Booms do. An imported base plan offset ten feet ran its
+    # walls through "6) S4 26" and four lines of NOTATION and read as a
+    # strikethrough — and the clipping guard said nothing, because the guard
+    # polices the sheet EDGE and the key sits nowhere near it.
+    #
+    # ⚠ This can make the drawing too wide for the sheet, and that is the point:
+    # it was always too wide, and the overlap was the only way it showed. Now it
+    # is the guard's business, and the guard names the scale that fits.
+    _key_gap = 4.0
+    _right = s.drawn_right_ft()
+    _key.draw(s, plot, max(room["width"], _right if _right is not None else 0.0)
+              + _key_gap, room["depth"])
 
     # ⭐ The rulers go on LAST, so the tick interval is chosen against the scale
     # that was actually settled on — including the one the fit search picked.
