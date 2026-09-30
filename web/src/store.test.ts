@@ -459,5 +459,22 @@ check("a position with no length has no angle, not NaN",
 check("length of a point is zero", lengthOf({ x1: 3, y1: 3, x2: 3, y2: 3 }), 0);
 check("a 3-4-5 pipe is 5 long", lengthOf({ x1: 0, y1: 0, x2: 3, y2: 4 }), 5);
 
+// -------------------------------------------- Save is dead when nothing changed
+// Jerry, 2026.09.30: "make the UI save button inactive if there is nothing to
+// save." Asserted from the source, because the rule lives in `paint()` — a
+// DOM-painting function with no seam to call from here.
+{
+  const fsSv = await import("node:fs");
+  const m = fsSv.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  check("Save follows dirty", /saveBtn\.disabled = !store\.dirty/.test(m), true);
+  // ⚠ SAVE AS MUST STAY LIVE. Saving a copy under a new name is a real thing to
+  // want with nothing changed — and it is the ONLY way to write a plot that has
+  // never been saved, since a brand new plot is not dirty.
+  check("Save As is left alone", /\bsaveas\b[^\n]*disabled/.test(m), false);
+  // The shortcut follows the button, or a greyed Save still writes on ⌘S.
+  check("⌘S follows the same rule",
+        /if \(!store\.dirty\) \{ status\("No changes to save\."\); return; \}/.test(m), true);
+}
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
