@@ -1,7 +1,7 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
 import { plotFileName, newPlot, isPlot, resolveEnds, runOf, lengthOf, angleOf,
-         endsFromLengthAngle, type Plot } from "./plot.js";
+         endsFromLengthAngle, duplicateNames, duplicateUnits, type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
 import { deleteMessage, describeUnit } from "./confirm.js";
@@ -458,6 +458,46 @@ check("a position with no length has no angle, not NaN",
       angleOf({ x1: 3, y1: 3, x2: 3, y2: 3 }), 0);
 check("length of a point is zero", lengthOf({ x1: 3, y1: 3, x2: 3, y2: 3 }), 0);
 check("a 3-4-5 pipe is 5 long", lengthOf({ x1: 0, y1: 0, x2: 3, y2: 4 }), 5);
+
+
+// ------------------------------------------------ two positions, one name
+// 🔴 A position's name is the JOIN KEY. Units say which position they are on by
+// name, so two positions called the same thing share their rig, merge in the
+// schedule and move each other's trim. Jerry, 2026.09.30: "I can see that
+// happening. Perhaps the position is a V for instance."
+console.log("\na duplicate position name is caught");
+
+const pos = (name: string) => ({ name });
+check("no clash on distinct names",
+      [...duplicateNames([pos("GRID B"), pos("GRID C")])], []);
+check("a repeat is caught",
+      [...duplicateNames([pos("V"), pos("GRID C"), pos("V")])], ["v"]);
+// ⚠ Compared the way the joins compare: trimmed and lower-cased. "Grid C" and
+// "GRID C " are the same position to every reader of the plot.
+check("case does not save you",
+      [...duplicateNames([pos("Grid C"), pos("GRID C")])], ["grid c"]);
+check("nor does a trailing space",
+      [...duplicateNames([pos("GRID C"), pos("GRID C ")])], ["grid c"]);
+check("three of a kind is still one clash",
+      [...duplicateNames([pos("V"), pos("V"), pos("V")])], ["v"]);
+// An unnamed position has its own problem; it is not this one, and reporting
+// every blank as a clash with every other blank would bury the real ones.
+check("blank names are not a clash",
+      [...duplicateNames([pos(""), pos(""), pos("GRID C")])], []);
+
+console.log("\ntwo units with the same number on one position");
+const u = (position: string, unit: number) => ({ position, unit });
+// ⭐ RP-2 numbers units PER POSITION, so unit 1 on two pipes is correct.
+check("the same number on two different pipes is fine",
+      duplicateUnits([u("GRID B", 1), u("GRID C", 1)], "GRID C"), []);
+check("...but twice on one pipe is not",
+      duplicateUnits([u("GRID C", 1), u("GRID C", 1)], "GRID C"), [1]);
+check("reported in order", duplicateUnits(
+      [u("GRID C", 3), u("GRID C", 1), u("GRID C", 3), u("GRID C", 1)], "GRID C"), [1, 3]);
+check("matched the way the joins match",
+      duplicateUnits([u("grid c", 2), u("GRID C ", 2)], "GRID C"), [2]);
+check("a unit with no number is not a duplicate",
+      duplicateUnits([{ position: "GRID C" }, { position: "GRID C" }], "GRID C"), []);
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

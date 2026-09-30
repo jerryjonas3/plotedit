@@ -11,7 +11,7 @@
  */
 import type { Plot, Position } from "./plot.js";
 import { isVertical, resolveEnds, runOf, lengthOf, angleOf,
-         endsFromLengthAngle } from "./plot.js";
+         endsFromLengthAngle, duplicateNames, duplicateUnits } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
 import { confirmDelete } from "./confirm.js";
@@ -131,6 +131,11 @@ export function renderPositions(
   // forEach, not an index loop: `noUncheckedIndexedAccess` is on, so
   // positions[i] is Position | undefined and every read needs a guard. The
   // callback hands back a Position that is known to exist.
+  // ⭐ ONCE for the whole panel, not once per row. Every row asks whether its
+  // name clashes, and rebuilding the set eleven times to answer eleven
+  // questions is the kind of thing that makes a panel feel slow on a big plot.
+  const clashes = duplicateNames(plot.positions);
+
   plot.positions.forEach((p) => {
     const box = document.createElement("div");
     box.className = "pos-row";
@@ -153,7 +158,31 @@ export function renderPositions(
       return v;
     };
 
-    box.appendChild(field("Name", p.name, v => set({ name: v })));
+    // ⭐ RENAMING A PIPE TAKES ITS RIG WITH IT, for the same reason changing its
+    // trim does — a unit says which position it is on by NAME, so a rename that
+    // leaves the units behind orphans every light on the pipe. They keep
+    // pointing at a name no position has any more, and drop out of the
+    // schedule, the hookup and the focus chart without a word.
+    //
+    // 🔴 FOUND BY THE WARNING BELOW TELLING PEOPLE TO DO IT. The duplicate-name
+    // note says "Rename one" — which, before this, was advice that broke the
+    // plot it was trying to fix.
+    box.appendChild(field("Name", p.name, v => {
+      const from = p.name.trim().toLowerCase();
+      const to = v.trim();
+      if (!to || to.toLowerCase() === from) { set({ name: v }); return; }
+      store.begin(null);
+      p.name = v;
+      let moved = 0;
+      for (const inst of plot.instruments) {
+        if ((inst.position ?? "").trim().toLowerCase() !== from) continue;
+        inst.position = to;
+        moved++;
+      }
+      store.commit();
+      deps.onChange();
+      if (moved) deps.onStatus?.(`${to} — ${moved} unit${moved === 1 ? "" : "s"} came with it.`);
+    }, { hint: "Every unit on this position is renamed with it" }));
     box.appendChild(field("Type", p.type ?? "electric",
       v => set({ type: v as Position["type"] }), { options: TYPES }));
     // ⭐ Moving a pipe MOVES ITS RIG. Setting the trim alone changed only the
@@ -263,6 +292,31 @@ export function renderPositions(
     const note = document.createElement("p");
     note.className = "muted pos-note";
     const bits: string[] = [];
+
+    // 🔴 A DUPLICATE NAME IS A BROKEN PLOT, not an untidy one. Units say which
+    // position they are on by NAME, so two positions called the same thing
+    // share their units, merge in the schedule and the hookup, and move each
+    // other's rig when one gets a new trim.
+    //
+    // ⚠ Found the hard way: drawing a pipe looked it up by name and moved the
+    // wrong one. That lookup is fixed, but the plot was already ambiguous
+    // before the button existed and nothing said so.
+    if (clashes.has(p.name.trim().toLowerCase())) {
+      bits.push(`🔴 ANOTHER POSITION IS ALSO CALLED "${p.name.trim()}" — `
+        + `units say which position they are on by name, so these two share `
+        + `their rig, merge in the schedule and move each other's trim. `
+        + `Rename one`);
+    }
+
+    // 🔴 RP-2 §2.3.2 numbers units per position, so unit 1 on two different
+    // pipes is right. Two unit 1s on the SAME pipe is not: the schedule, the
+    // hookup and the focus chart all address a light as "position, number".
+    const dupUnits = duplicateUnits(plot.instruments, p.name);
+    if (dupUnits.length) {
+      bits.push(`🔴 ${dupUnits.length > 1 ? "UNITS" : "UNIT"} `
+        + `${dupUnits.join(", ")} ${dupUnits.length > 1 ? "are" : "is"} used twice `
+        + `on this position — the paperwork cannot tell them apart. Renumber`);
+    }
 
     // ⭐ A trim above the ceiling cannot be hung. Nothing checked until
     // 2026.09.24, when a pipe was raised to 18' in a room with a 15' grid and
