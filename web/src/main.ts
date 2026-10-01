@@ -22,11 +22,11 @@ import { isPlot, symbolKey, plotFileName, newPlot, type Plot, type Position,
          lengthOf, angleOf, runOf } from "./plot.js";
 import { startSeq, seqClick, clickLine, seqReport, runIndices,
          type Seq } from "./sequence.js";
-import { openMenu, type MenuGroup } from "./menu.js";
+import { openMenu, type MenuGroup, type MenuItem } from "./menu.js";
 import { confirmRevert } from "./confirm.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
-         positionLabels, savePlot, listPlots, loadPlot, pdfPages, pdfPaths,
+         positionLabels, savePlot, listPlots, pickPlotsFolder, loadPlot, pdfPages, pdfPaths,
          serverVersion,
          type FixtureRow, type ExportKind, type DxfPaths, type SymbolPrim,
          type BoomElevation, type PositionLabel,
@@ -1047,12 +1047,14 @@ function wireBackdropBar(): void {
 let openItems: { label: string; value: string }[] = [];
 let sampleItems: { label: string; value: string }[] = [];
 let openFolder = "";
+let canPickFolder = false;
 
 async function refreshOpenList(): Promise<void> {
   const btn = $("open") as HTMLButtonElement;
   try {
-    const { plots, folder } = await listPlots();
+    const { plots, folder, canPickFolder: can } = await listPlots();
     openFolder = folder;
+    canPickFolder = can ?? false;
     openItems = plots.map(p => ({
       label: p.show ? `${p.show} — ${p.name}` : p.name, value: p.name,
     }));
@@ -1149,8 +1151,35 @@ function showOpenMenu(): void {
       onSelect: () => void openSample(i.value.slice(7)),
     })) });
   }
-  if (openFolder) groups.push({ items: [{ label: openFolder, disabled: true, icon: "folder" }] });
+  // ⭐ WHERE THEY LIVE, AND HOW TO CHANGE IT, at the foot of the list. Jerry,
+  // 2026-10-01: "folder picking should work just like ground plan" — a native
+  // dialog, which it is, though the server has to be the one to open it. The
+  // folder itself stays a disabled item: it is a fact about the list above, not
+  // something to click.
+  const tail: MenuItem[] = [];
+  if (openFolder) tail.push({ label: openFolder, disabled: true, icon: "folder" });
+  if (canPickFolder) {
+    tail.push({ label: "Change folder…", icon: "folder_open", onSelect: () => void changeFolder() });
+  }
+  if (tail.length) groups.push({ items: tail });
   openMenu(btn, groups);
+}
+
+/** Ask where plots should live, then show what is there.
+ *
+ *  ⚠ Nothing is sent. The server opens the operating system's dialog and reads
+ *  the answer; the browser never handles a path. See `api.pickPlotsFolder`.
+ */
+async function changeFolder(): Promise<void> {
+  try {
+    status("Choose a folder — the dialog may be behind this window.");
+    const { changed, folder } = await pickPlotsFolder();
+    if (!changed) { status(""); return; }
+    await refreshOpenList();
+    status(`Plots are now kept in ${folder}.`);
+  } catch (e) {
+    status(e instanceof Error ? e.message : String(e), true);
+  }
 }
 
 /** Say what the PDF will print at, in the toolbar, without opening anything.
