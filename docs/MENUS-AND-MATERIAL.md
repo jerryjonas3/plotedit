@@ -167,7 +167,7 @@ four controls instead of seven:
 - **Save ▾** — a **split button**: pressing the label saves, pressing the chevron
   opens Save As… and Revert. It is already disabled when there is nothing to save,
   which is M3's rule for an item that does not currently apply.
-- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §8).
+- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §9).
 
 That is "all the same type" as #56 asked, **and** Export is indented, **and** the
 row loses three controls.
@@ -349,7 +349,128 @@ whoever reads it next.
 
 ---
 
-## 3. Revert — mostly built already
+## 3. The two rows, drawn out
+
+Jerry, 2026-10-01, on the second row:
+
+> The plan, pools, focus, and labels checkboxes are just strewn across. Maybe we
+> can group them by function? the drawing zoom, and the icons to the right seem
+> to make sense together but maybe we could group them somehow. The open could be
+> a button with a dropdown? Maybe allow people to change directories? Same thing
+> with export. we use a button for the ground plan. but we could move that to the
+> end of the buttons. Can we do tool tips on the buttons?
+
+### 3.1 Row one — what the file is
+
+```
+ ↶ ↷ │  New    Open ▾    Save ▾    Export ▾   │   Ground plan…
+                 │          │          │
+                 │          │          └ Plot PDF · Plot DXF · Schedule ·
+                 │          │            Hookup · Eos patch
+                 │          │            ──────────────
+                 │          │            Sheet ▸   Scale ▸   ☐ Rulers
+                 │          │
+                 │          └ Save as…   Revert
+                 │
+                 └ (recent plots)
+                   ──────────────
+                   Comes with plotedit ▸
+                   ──────────────
+                   Change folder…
+```
+
+- **Open ▾ and Export ▾ become buttons with menus**, as asked. §1 is why that is
+  also the correct answer rather than merely the asked-for one.
+- **Save ▾ is a split button** — press the label to save, press the chevron for
+  Save as… and Revert. It is already disabled when there is nothing to save.
+- **Ground plan… moves to the end of row one**, as asked. It is a file action; it
+  was only ever in row two because row two is where things went.
+- **Sheet, Scale and Rulers move inside Export**, which is the only thing any of
+  them affect (§2.3). Rulers leaves row two, where it was the one print-only
+  control among screen-only ones.
+
+### 3.2 ⭐ Row two — they are not four functions, they are one
+
+> Maybe we can group them by function?
+
+Worth saying plainly: **plan, pools, focus and labels are all the same function.**
+Each one shows or hides a layer of the drawing. That is why the answer is *one*
+group rather than several — grouping them by function groups all four together.
+
+```
+ Show  [ plan │ pools │ focus │ labels ]  at [head 5'-6" ▾]   │   Zoom [──▭────] [⛶][↕][↔][100%]
+```
+
+- **One connected toggle group** for the four layers, which is what M3's segmented
+  and toggle buttons are for — an outlined icon when off, filled when on, so the
+  state reads at a glance instead of as four identical ticked squares.
+- **`at …` attaches to pools**, because it is not a fifth peer: it says what height
+  the pools are cut at. Today it sits between *pools* and *focus* and reads as one
+  of them. ⚠ And when pools is off it should go **disabled, not hidden** — the
+  rule already settled in `DECISIONS.md` for inert fields, and M3's rule for menu
+  items that do not currently apply.
+- **The zoom cluster becomes one group**, as asked: the slider and the four
+  buttons are one control for one thing, so they get one label and one container.
+
+That is five things in row two instead of eleven, and every one of them is at
+least 48px.
+
+### 3.3 Tooltips — yes, and 11 controls have none
+
+> Can we do tool tips on the buttons?
+
+Measured: **29 controls in the two bars, 11 with no tooltip at all** — and they
+are almost exactly the row this section is about. Every control in row one has
+one. The five display checkboxes, the pool plane, the zoom slider and the five
+backdrop fields have none; `rulers` only has one because its parent label does.
+
+M3 splits them, and the split matters here:
+
+- **Plain tooltips** label an element that has no text — the icon-only buttons:
+  undo, redo, and the three zoom icons. ⚠ M3 is explicit that a plain tooltip is
+  **not needed when the element already has label text**, so New, Save and Save
+  As… do not want one.
+- **Rich tooltips** carry a sentence or two of explanation.
+
+🔴 **The app already writes rich-tooltip content into `title`.** The Sheet
+selector's tooltip is a full paragraph about ARCH, ANSI and A-series stock; the
+rulers one explains that the screen never draws them. Native `title` renders
+those as an unstyled OS box after a delay you cannot control, and on no touch
+device at all. They are the best text in the toolbar and they are in the worst
+container.
+
+⚠ And M3's caution applies to one of them already: *do not hide critical
+information in a tooltip*. "The screen never draws these" is critical — it is why
+the checkbox looks like it does nothing — so it belongs in the label, which is
+what `(print)` is doing, and the tooltip can explain the rest.
+
+### 3.4 Changing folders — move the fence, do not open the gate
+
+> Maybe allow people to change directories?
+
+Workable, and the server is the piece that makes it possible: a browser cannot
+browse a filesystem, but `plotedit` ships its own Python server, and `/plots`
+already reports its `folder`.
+
+🔴 **But it must be built as a change of root, never as a relaxation of
+`store.resolve`.** That function is careful on purpose, and its docstring says
+why:
+
+> Checked BOTH ways: the name is matched against a pattern, and then the resolved
+> path is required to sit inside the plots directory. The pattern alone would be a
+> promise about a regex; the containment check is a fact about the filesystem.
+
+So: **`root()` becomes settable at runtime** — it already reads `PLOTEDIT_PLOTS`,
+so the idea of a configurable root exists — and `resolve()` keeps enforcing
+containment inside whatever root currently is. Every guard that exists today
+keeps working, and a plot name still cannot escape its folder.
+
+⚠ Open question in §9: picking a folder needs *some* way to name one, and a text
+box inviting a path is the thing that makes a traversal bug likely. A list of
+folders the server offers — recent, plus any subfolder of the current root — is
+narrower and probably enough.
+
+## 4. Revert — mostly built already
 
 > We should possibly add a revert to return the file to the way it was before we
 > touched it in this session
@@ -364,10 +485,10 @@ sets that pattern, and its rule applies: name the thing, say what goes with it.
 
 ---
 
-## 4. What to build, smallest first
+## 5. What to build, smallest first
 
 Each step stands alone and is worth shipping by itself. **None of them needs a
-component framework** — see §7, and §5 for why there is no such framework for
+component framework** — see §8, and §6 for why there is no such framework for
 the web anyway.
 
 1. **Give every TypeScript-built button a style class, and the labels sentence
@@ -394,12 +515,12 @@ the web anyway.
 6. **Reorder the panels to the manual's order** — Show & Venue, Positions,
    Instrument, Schedule — and open only one at a time, starting on Positions for
    a plot that has some and Show & Venue for one that does not.
-7. **Revert**, per §3.
+7. **Revert**, per §4.
 8. **Rename `.pos-row`** where it is not a position row.
 
 ---
 
-## 5. 🔴 The components this plan recommends have NO web implementation
+## 6. 🔴 The components this plan recommends have NO web implementation
 
 Checked on each component's own availability table, 2026-10-01:
 
@@ -428,9 +549,9 @@ read; the code is the part that is missing, and the code is the cheap part.
 2. **"Use the Material library" is not an option anyone can take**, so if the
    answer to "should we adopt a component library" is yes, it will not be
    Google's — it would be MUI, Angular Material or similar, which means adopting
-   their framework too. §6 and §7.
+   their framework too. §7 and §8.
 
-## 6. Bootstrap, Tailwind, and what would actually help
+## 7. Bootstrap, Tailwind, and what would actually help
 
 Jerry, 2026-10-01: *"I was thinking of Bootstrap - would Tailwind help us?"*
 
@@ -497,7 +618,7 @@ supported.
 going to give us anyway: the ARIA roles and the arrow-key contract from the APG
 pattern (§2.0), and the M3 look from tokens we already have.
 
-## 7. 🔴 What not to do: do not pull in a component library
+## 8. 🔴 What not to do: do not pull in a component library
 
 This was decided on 2026-09-24 and is worth restating, because "standardise on
 Material" is exactly the request that invites it. From `index.html`:
@@ -507,7 +628,7 @@ Material" is exactly the request that invites it. From `index.html`:
 > rather than pulled in as a framework. **A component library would have to be
 > fought at every point where this app is a drawing surface rather than a form.**
 
-That still holds, and §5 strengthens it from an unexpected direction: **for the
+That still holds, and §6 strengthens it from an unexpected direction: **for the
 web there is no Material component library to pull in.** Google's own is
 unmaintained and does not carry the components this plan wants.
 
@@ -521,12 +642,12 @@ answered — **but whether to adopt a framework-bound library** such as MUI
 (React) or Angular Material. That is a much larger decision than #56, because
 this app has no framework at all today, and it is Jerry's to make.
 
-**M3 is a specification here, not a dependency.** Everything in §4 is CSS and
+**M3 is a specification here, not a dependency.** Everything in §5 is CSS and
 plain DOM.
 
 ---
 
-## 8. Open questions for Jerry
+## 9. Open questions for Jerry
 
 1. **Switches or toggle buttons for the display layers?** Switches are the
    literal M3 answer for standalone settings; a connected group of icon toggle
@@ -543,3 +664,12 @@ plain DOM.
    instrument panel, which is a thing designers do constantly.
 4. **Is `rulers` the only print-only control?** If anything else on screen only
    affects paper, it should move with it rather than be found later.
+5. **How should a folder be chosen (§3.4)?** A text box inviting a path is the
+   thing that makes a traversal bug likely. A list the server offers — recent
+   folders, plus subfolders of the current root — is narrower, and may be enough.
+   Does it need to reach anywhere on the disk, or is "the folders I use" the real
+   requirement?
+6. **Do the four layer toggles keep their text labels?** A connected toggle group
+   of icons is the most compact and reads fastest once learned, but `plan`,
+   `pools`, `focus` and `labels` have no obvious icons and would lean on tooltips
+   until they do. Icon plus label is wider but needs no learning.
