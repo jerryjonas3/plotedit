@@ -176,6 +176,12 @@
                     color:var(--on-surface-variant); }
     /* The chevron is smaller than a leading icon and sits tight to the label. */
     .chev { font-size:18px !important; margin-left:-2px; margin-right:-6px; }
+    /* The tick sits in the same slot a leading icon would, so a list of options
+       does not shuffle sideways as the chosen one moves. */
+    .menu-tick { width:20px; flex:0 0 20px; font-size:18px !important;
+                 color:var(--primary) !important; }
+    .menu-more { font-size:18px !important; margin-right:-4px;
+                 color:var(--on-surface-variant) !important; }
 
     /* ---- connected toggle group (M3 "segmented"/toggle buttons) --------
        ⭐ The four layer toggles are ONE control. Connecting them says so: a
@@ -462,14 +468,6 @@
         <div class="divider"></div>
         <button id="export" class="outlined" title="Export a drawing or a paperwork file" aria-haspopup="menu" aria-expanded="false">
           <span class="material-symbols-outlined" aria-hidden="true">ios_share</span>Export…<span class="chev material-symbols-outlined" aria-hidden="true">arrow_drop_down</span></button>
-        <select id="page" title="The sheet the PDF is drawn on. Imperial plots are offered ARCH and ANSI sizes, metric ones the A series — a drawing issued on a sheet the reader does not stock is no more use than one at a ratio their rule does not have."></select>
-        <select id="scale" title="Paper scale for the exported PDF. Fit picks the largest standard scale at which nothing runs off the sheet.">
-          <option value="fit" selected>Fit</option>
-          <!-- Filled from the plot's units at render time: imperial fractions or
-               metric ratios, never both. Offering 1/4" on a metric plot would
-               let somebody issue a drawing at a ratio their scale rule does not
-               have on it. -->
-        </select>
         <div class="divider"></div>
         <!-- ⭐ Jerry, 2026-10-01: "we use a button for the ground plan. but we
              could move that to the end of the buttons." It is a FILE action —
@@ -518,11 +516,6 @@
         <option value="3.5">seated 3'-6"</option>
         <option value="0">the deck</option>
       </select></label>
-      <div class="divider"></div>
-      <!-- ⚠ Print-only, and separated from the four above for that reason. It
-           moves inside Export once Export is a menu — see MENUS-AND-MATERIAL §3.1 -->
-      <label title="PRINT ONLY — the screen never draws these. A dimension scale along the edges of the plan: X across the bottom, Y up the side, so you can read where something is without walking a scale rule across the sheet.">
-        <input type="checkbox" id="rulers"> rulers <span class="print-only">(print)</span></label>
       <div class="divider"></div>
       <!-- ⭐ "the drawing zoom, and the icons to the right seem to make sense
            together but maybe we could group them somehow." They are one control
@@ -594,5 +587,30 @@
   </main>
   <div id="err" hidden></div>
   <script type="module" src="/src/main.ts"></script>
+<!-- ⭐ SHEET, SCALE AND RULERS LIVE IN THE EXPORT MENU NOW. Jerry, #56: "the
+     export menu is confusing it should be indented". All three affect the
+     exported PDF and nothing else, so sitting in the toolbar beside the file
+     actions made them read as app state.
+
+     ⚠ THE CONTROLS THEMSELVES STAY HERE, HIDDEN, AND ARE THE STATE. They are
+     filled by `fillPageMenu` and `fillScaleMenu`, which are unit-aware and carry
+     a deliberate fallback — "the first is the SMALLEST, and silently issuing a
+     D-sized plot on Letter is the kind of thing nobody notices until it is
+     printed". Rewriting that to feed a menu would have risked losing the care in
+     it for nothing, so the menu READS AND WRITES these and every existing
+     `$("page").value` keeps working unchanged.
+
+     `hidden` keeps them out of the tab order. They are a model, not a UI. -->
+<div id="export-settings" hidden>
+        <select id="page" title="The sheet the PDF is drawn on. Imperial plots are offered ARCH and ANSI sizes, metric ones the A series — a drawing issued on a sheet the reader does not stock is no more use than one at a ratio their rule does not have."></select>
+        <select id="scale" title="Paper scale for the exported PDF. Fit picks the largest standard scale at which nothing runs off the sheet.">
+          <option value="fit" selected>Fit</option>
+          <!-- Filled from the plot's units at render time: imperial fractions or
+               metric ratios, never both. Offering 1/4" on a metric plot would
+               let somebody issue a drawing at a ratio their scale rule does not
+               have on it. -->
+        </select>
+        <input type="checkbox" id="rulers"> rulers <span class="print-only">(print)</span></label>
+</div>
 </body>
 </html>

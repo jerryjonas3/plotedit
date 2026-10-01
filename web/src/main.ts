@@ -1136,9 +1136,38 @@ function showOpenMenu(): void {
   openMenu(btn, groups);
 }
 
-/** Open the export menu under its button. */
+/** One submenu of radio choices, built from a hidden <select>.
+ *
+ *  ⚠ The SELECT IS THE STATE. `fillPageMenu` and `fillScaleMenu` keep it
+ *  unit-correct and carry a fallback that matters — the sheet list's first entry
+ *  is the SMALLEST, so defaulting to it would silently issue a D-sized plot on
+ *  Letter. Reading the options instead of re-deriving them keeps that care.
+ */
+function optionsSubmenu(selectId: string, after?: () => void): MenuGroup[] {
+  const sel = $<HTMLSelectElement>(selectId);
+  return [{ items: Array.from(sel.options).map(o => ({
+    label: o.textContent ?? o.value,
+    selection: "radio" as const,
+    checked: o.value === sel.value,
+    onSelect: () => { sel.value = o.value; after?.(); },
+  })) }];
+}
+
+/** Open the export menu under its button.
+ *
+ *  ⭐ Grouped by what it PRODUCES — drawings, paperwork, then the console file —
+ *  which is the indent #56 asked for. And Sheet, Scale and Rulers now live HERE,
+ *  because the exported PDF is the only thing any of them changes. In the
+ *  toolbar they read as app state; the screen drawing has never looked at them.
+ */
 function showExportMenu(): void {
   const btn = $("export") as HTMLButtonElement;
+  const sheet = $<HTMLSelectElement>("page");
+  const scale = $<HTMLSelectElement>("scale");
+  const rulers = $<HTMLInputElement>("rulers");
+  const chosen = (sel: HTMLSelectElement) =>
+    Array.from(sel.options).find(o => o.value === sel.value)?.textContent ?? "";
+
   openMenu(btn, [
     { items: [
       { label: "Plot PDF", icon: "picture_as_pdf", onSelect: () => void runExport("pdf") },
@@ -1151,6 +1180,21 @@ function showExportMenu(): void {
     { items: [
       { label: "Eos patch", trailing: "untested", icon: "memory",
         onSelect: () => void runExport("eos") },
+    ] },
+    // ⚠ PDF ONLY, and the heading says so. A CSV has no paper, and the DXF
+    // carries its own units — offering them a sheet would be a lie.
+    { heading: "PDF only", items: [
+      { label: "Sheet", icon: "description", trailing: chosen(sheet),
+        submenu: optionsSubmenu("page") },
+      { label: "Scale", icon: "straighten", trailing: chosen(scale),
+        // ⭐ Changing the SHEET can change the SCALE, because Fit means "the
+        // largest scale at which nothing runs off the chosen sheet". Showing
+        // both here, one under the other, is the first time that has been
+        // visible — in the toolbar they looked like independent menus.
+        submenu: optionsSubmenu("scale") },
+      { label: "Rulers", icon: "straighten", selection: "check",
+        checked: rulers.checked,
+        onSelect: () => { rulers.checked = !rulers.checked; } },
     ] },
   ]);
 }

@@ -38,6 +38,12 @@ export interface MenuItem {
   trailing?: string;
   /** M3: an item that does not currently apply is DISABLED, not removed. */
   disabled?: boolean;
+  /** A chosen option. Renders a tick and announces as a radio/checkbox item. */
+  checked?: boolean;
+  /** `radio` is one-of-a-set (a paper size); `check` is independent (rulers). */
+  selection?: "radio" | "check";
+  /** Opens beside this item, per M3. Submenus are a web feature. */
+  submenu?: MenuGroup[];
   onSelect?: () => void;
 }
 
@@ -47,14 +53,24 @@ export interface MenuGroup {
   items: MenuItem[];
 }
 
-let openMenuEl: HTMLElement | undefined;
+/** ⚠ A STACK, not a single menu: a submenu is open ON TOP of its parent, and
+ *  closing the parent has to take its children with it. */
+let stack: HTMLElement[] = [];
 
-/** Close whatever is open. Safe to call when nothing is. */
+function dismiss(el: HTMLElement): void {
+  try { (el as unknown as { hidePopover(): void }).hidePopover(); } catch { /* already gone */ }
+  el.remove();
+}
+
+/** Close everything. Safe to call when nothing is open. */
 export function closeMenu(): void {
-  if (!openMenuEl) return;
-  try { (openMenuEl as unknown as { hidePopover(): void }).hidePopover(); } catch { /* already gone */ }
-  openMenuEl.remove();
-  openMenuEl = undefined;
+  for (const el of stack.slice().reverse()) dismiss(el);
+  stack = [];
+}
+
+/** Close just the menus above `depth`, leaving the parent open. */
+function closeAbove(depth: number): void {
+  while (stack.length > depth) dismiss(stack.pop()!);
 }
 
 /** Does this browser have the Popover API? */
@@ -70,6 +86,11 @@ function hasPopover(el: HTMLElement): boolean {
  */
 export function openMenu(anchor: HTMLElement, groups: MenuGroup[]): void {
   closeMenu();
+  build(anchor, groups, 0);
+}
+
+function build(anchor: HTMLElement, groups: MenuGroup[], depth: number): void {
+  closeAbove(depth);
 
   const menu = document.createElement("div");
   menu.className = "menu";
@@ -92,9 +113,21 @@ export function openMenu(anchor: HTMLElement, groups: MenuGroup[]): void {
     for (const item of g.items) {
       const b = document.createElement("button");
       b.className = "menu-item";
-      b.setAttribute("role", "menuitem");
+      b.setAttribute("role", item.selection === "radio" ? "menuitemradio"
+                           : item.selection === "check" ? "menuitemcheckbox" : "menuitem");
+      if (item.selection) b.setAttribute("aria-checked", String(!!item.checked));
+      if (item.submenu) b.setAttribute("aria-haspopup", "menu");
       b.type = "button";
       if (item.disabled) b.disabled = true;
+      // ⚠ The tick occupies the SAME slot as a leading icon, so a list of
+      // options does not jump sideways as the chosen one moves.
+      if (item.selection) {
+        const t = document.createElement("span");
+        t.className = "material-symbols-outlined menu-tick";
+        t.setAttribute("aria-hidden", "true");
+        t.textContent = item.checked ? "check" : "";
+        b.appendChild(t);
+      }
       if (item.icon) {
         const i = document.createElement("span");
         i.className = "material-symbols-outlined";
@@ -112,16 +145,39 @@ export function openMenu(anchor: HTMLElement, groups: MenuGroup[]): void {
         t.textContent = item.trailing;
         b.appendChild(t);
       }
-      b.addEventListener("click", () => {
-        closeMenu();
-        item.onSelect?.();
-      });
+      if (item.submenu) {
+        const chev = document.createElement("span");
+        chev.className = "material-symbols-outlined menu-more";
+        chev.setAttribute("aria-hidden", "true");
+        chev.textContent = "chevron_right";
+        b.appendChild(chev);
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          // ⚠ Opens BESIDE, and leaves the parent standing — M3: "Submenus
+          // should open next to the parent menu item without overlapping it."
+          build(b, item.submenu!, depth + 1);
+        });
+      } else {
+        b.addEventListener("click", () => {
+          closeMenu();
+          item.onSelect?.();
+        });
+      }
       menu.appendChild(b);
     }
   });
 
-  document.body.appendChild(menu);
-  openMenuEl = menu;
+  // 🔴 A SUBMENU IS APPENDED INSIDE ITS PARENT, not to <body>. Showing an `auto`
+  // popover dismisses every other `auto` popover that is not NESTED inside it,
+  // and nesting is established by DOM ancestry. Appending to <body> made the
+  // browser treat the submenu as unrelated and close the parent — measured: the
+  // Export menu collapsed to 0x0 the moment Sheet was clicked, which then took
+  // the submenu's own anchor with it and placed it at the top-left corner.
+  //
+  // Being `position:fixed`, living inside the parent costs it nothing.
+  const parent = depth > 0 ? stack[depth - 1] : undefined;
+  (parent ?? document.body).appendChild(menu);
+  stack.push(menu);
 
   if (hasPopover(menu)) {
     (menu as unknown as { showPopover(): void }).showPopover();
@@ -138,12 +194,16 @@ export function openMenu(anchor: HTMLElement, groups: MenuGroup[]): void {
     }, 0);
   }
 
-  place(menu, anchor);
+  place(menu, anchor, depth > 0);
 
   // ⚠ Escape closes even where popover's own handling is missing, and focus
   // returns to the button rather than being dropped on the document.
   menu.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { closeMenu(); anchor.focus(); }
+    if (e.key !== "Escape") return;
+    // ⚠ Escape in a SUBMENU closes only that one and returns to the item it came
+    // from. Closing the whole stack would throw away a choice half made.
+    if (depth > 0) { closeAbove(depth); anchor.focus(); }
+    else { closeMenu(); anchor.focus(); }
   });
   menu.querySelector<HTMLButtonElement>(".menu-item:not(:disabled)")?.focus();
 }
@@ -155,12 +215,15 @@ export function openMenu(anchor: HTMLElement, groups: MenuGroup[]): void {
  * rather than be clipped, and anchor positioning does exactly that — but it is
  * one month into Baseline, so this does it by arithmetic and works everywhere.
  */
-function place(menu: HTMLElement, anchor: HTMLElement): void {
+function place(menu: HTMLElement, anchor: HTMLElement, beside = false): void {
   const a = anchor.getBoundingClientRect();
   const m = menu.getBoundingClientRect();
   const pad = 8;
-  let left = a.left;
-  let top = a.bottom + 4;
+  // A submenu opens to the SIDE of its item; a top-level menu drops below its
+  // button.
+  let left = beside ? a.right + 2 : a.left;
+  let top = beside ? a.top - 8 : a.bottom + 4;
+  if (beside && left + m.width > window.innerWidth - pad) left = a.left - m.width - 2;
   // Off the right-hand edge: align the menu's right edge to the button's.
   if (left + m.width > window.innerWidth - pad) {
     left = Math.max(pad, a.right - m.width);
@@ -170,8 +233,11 @@ function place(menu: HTMLElement, anchor: HTMLElement): void {
     const above = a.top - m.height - 4;
     top = above >= pad ? above : Math.max(pad, window.innerHeight - m.height - pad);
   }
+  // ⚠ Clamped. The arithmetic above can still produce a negative edge when the
+  // anchor is near a corner, and a menu that starts off-screen cannot be read
+  // back onto it.
   menu.style.position = "fixed";
-  menu.style.left = `${Math.round(left)}px`;
-  menu.style.top = `${Math.round(top)}px`;
+  menu.style.left = `${Math.round(Math.max(pad, left))}px`;
+  menu.style.top = `${Math.round(Math.max(pad, top))}px`;
   menu.style.margin = "0";
 }

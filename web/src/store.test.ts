@@ -760,6 +760,33 @@ check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
   // M3: an item that does not currently apply is disabled, not removed.
   check("menu items can be disabled rather than dropped",
         /disabled\?: boolean/.test(menuSrc), true);
+
+  // 🔴 A SUBMENU MUST BE APPENDED INSIDE ITS PARENT. Showing an `auto` popover
+  // dismisses every other `auto` popover not NESTED inside it, and nesting is
+  // DOM ancestry. Appending to <body> made the browser close the parent —
+  // measured: the Export menu collapsed to 0x0 the moment Sheet was clicked,
+  // which took the submenu's own anchor with it and parked it in the corner.
+  check("a submenu lives inside its parent",
+        /\(parent \?\? document\.body\)\.appendChild/.test(menuSrc), true);
+  check("...and the stack closes children with the parent",
+        /function closeAbove/.test(menuSrc), true);
+  // And a corner case the arithmetic can still reach.
+  check("placement is clamped on screen",
+        /Math\.max\(pad, left\)/.test(menuSrc) && /Math\.max\(pad, top\)/.test(menuSrc), true);
+
+  // ⭐ Sheet, Scale and Rulers moved into Export — they change the exported PDF
+  // and nothing else, so in the toolbar they read as app state.
+  check("the export settings left the toolbar",
+        /id="export-settings" hidden/.test(htmlB), true);
+  const bars = htmlB.slice(htmlB.indexOf('<div class="bar">'), htmlB.indexOf('id="export-settings"'));
+  check("...so Sheet is no longer a toolbar control", /id="page"/.test(bars), false);
+  check("...nor Scale", /id="scale"/.test(bars), false);
+  check("...nor rulers", /id="rulers"/.test(bars), false);
+  // ⚠ But they must still EXIST — they are the state the menu reads and writes,
+  // and `fillPageMenu`/`fillScaleMenu` still fill them.
+  check("Sheet still exists as state", /id="page"/.test(htmlB), true);
+  check("Scale still exists as state", /id="scale"/.test(htmlB), true);
+  check("rulers still exists as state", /id="rulers"/.test(htmlB), true);
   // ⚠ They must stay CHECKBOXES. Swapping in divs would buy the same look and
   // lose the semantics and every `.checked` read in main.ts.
   const togglesBlock = /class="toggles"[\s\S]*?<\/span>/.exec(htmlB)?.[0] ?? "";
