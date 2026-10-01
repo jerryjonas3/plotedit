@@ -94,10 +94,29 @@ the thing that goes stale.
 > Is there a spec in material for menus like the file menu or edit menu?
 
 **No. Material Design 3 has no menu bar.** Its full component list was checked
-for this: the phrase *"menu bar"* does not appear on it. The menu-shaped
-components are **Menus**, **Split buttons** and **FAB menu**, and the navigation
-vocabulary is **navigation bar / rail / drawer** — a phone-and-tablet vocabulary.
-M3 simply does not describe the File/Edit strip along the top of a desktop window.
+for this on 2026-10-01: the phrase *"menu bar"* does not appear on it. The
+menu-shaped components are **Menus**, **Split buttons** and **FAB menu**.
+
+⚠ **An earlier draft of this document gave the wrong reason** — that M3 is
+"phone-first" and does not cover desktop. That was out of date by five months.
+**Google I/O, 19 May 2026** shipped an expressive layout system whose breakpoints
+run to **Large (1200–1599dp)** and **Extra-large (1600dp+)**, both labelled
+*Desktop*, and which the page says apply to **"Android and web"**. There is now an
+adaptive scaffold, an 8dp spacing system and guidance per breakpoint.
+
+So M3 covers desktop deliberately, and *still* has no menu bar. **That is a
+choice, not a gap** — which makes it worth weighing rather than working around.
+At this app's window size (Large or Extra-large) M3's own recommendation for a
+set of actions is a **toolbar**, with **menus** for anything supplemental.
+
+⭐ One caution from the breakpoints page lands squarely on #56, which asks for the
+file controls to be "the same type" and for Export to be a menu:
+
+> Don't arbitrarily swap components that aren't functionally equivalent, such as
+> swapping a button with a menu
+
+Which is the same rule as §1, from the other end: **what the control *does*
+decides what it *is*.**
 
 ⭐ **But a standard for it does exist — it is just not Google's.** The W3C's
 [ARIA Authoring Practices menubar pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/)
@@ -148,7 +167,7 @@ four controls instead of seven:
 - **Save ▾** — a **split button**: pressing the label saves, pressing the chevron
   opens Save As… and Revert. It is already disabled when there is nothing to save,
   which is M3's rule for an item that does not currently apply.
-- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §6).
+- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §7).
 
 That is "all the same type" as #56 asked, **and** Export is indented, **and** the
 row loses three controls.
@@ -348,7 +367,8 @@ sets that pattern, and its rule applies: name the thing, say what goes with it.
 ## 4. What to build, smallest first
 
 Each step stands alone and is worth shipping by itself. **None of them needs a
-component framework** — see §5.
+component framework** — see §6, and §5 for why there is no such framework for
+the web anyway.
 
 1. **Give every TypeScript-built button a style class, and the labels sentence
    case.** One afternoon, no layout change, and it removes the single most
@@ -379,7 +399,38 @@ component framework** — see §5.
 
 ---
 
-## 5. 🔴 What not to do: do not pull in a component library
+## 5. 🔴 The components this plan recommends have NO web implementation
+
+Checked on each component's own availability table, 2026-10-01:
+
+| Component | Figma | Compose | Android Views | **Web** |
+|---|---|---|---|---|
+| **Split button** | ✅ | ✅ | ✅ | **✗ unavailable** |
+| **Menus — Expressive** | ✅ | ✅ | ✗ | **✗ unavailable** |
+| Menus — baseline | ✅ | ✅ | ✅ | ✅ |
+
+**The newest and most useful parts of M3 exist as design guidance, a Figma kit,
+and Android/Flutter code — and nothing for the web.** Material Web, Google's own
+web implementation, is separately
+[in maintenance mode pending new maintainers](https://github.com/material-components/material-web).
+
+⭐ **This is not a reason to abandon the plan. It is the reason the plan is
+written the way it is.** We were never going to install these components, because
+for the web they do not exist. The guidance is published, specific and free to
+read; the code is the part that is missing, and the code is the cheap part.
+
+⚠ It does mean two honest consequences:
+
+1. **Anything built here is ours to maintain.** A split button is roughly a
+   button, a chevron and a menu — small. Reading the Specs tab before building
+   each one is not optional, because this document is a summary and summaries go
+   stale.
+2. **"Use the Material library" is not an option anyone can take**, so if the
+   answer to "should we adopt a component library" is yes, it will not be
+   Google's — it would be MUI, Angular Material or similar, which means adopting
+   their framework too. §6.
+
+## 6. 🔴 What not to do: do not pull in a component library
 
 This was decided on 2026-09-24 and is worth restating, because "standardise on
 Material" is exactly the request that invites it. From `index.html`:
@@ -389,17 +440,26 @@ Material" is exactly the request that invites it. From `index.html`:
 > rather than pulled in as a framework. **A component library would have to be
 > fought at every point where this app is a drawing surface rather than a form.**
 
-That still holds. The app's centre is an SVG plot with its own pointer modes —
-calibrating, drawing a pipe, numbering a run — and a library's event handling is
-the first thing that would have to be prised off it. ⚠ It would also be a second
-install for a lighting designer who currently needs only Python.
+That still holds, and §5 strengthens it from an unexpected direction: **for the
+web there is no Material component library to pull in.** Google's own is
+unmaintained and does not carry the components this plan wants.
+
+The app's centre is an SVG plot with its own pointer modes — calibrating, drawing
+a pipe, numbering a run — and a library's event handling is the first thing that
+would have to be prised off it. ⚠ It would also be a second install for a
+lighting designer who currently needs only Python.
+
+⚠ **The live question is therefore not "Material library or not"** — that one is
+answered — **but whether to adopt a framework-bound library** such as MUI
+(React) or Angular Material. That is a much larger decision than #56, because
+this app has no framework at all today, and it is Jerry's to make.
 
 **M3 is a specification here, not a dependency.** Everything in §4 is CSS and
 plain DOM.
 
 ---
 
-## 6. Open questions for Jerry
+## 7. Open questions for Jerry
 
 1. **Switches or toggle buttons for the display layers?** Switches are the
    literal M3 answer for standalone settings; a connected group of icon toggle
