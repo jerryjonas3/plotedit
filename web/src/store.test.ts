@@ -687,6 +687,36 @@ check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
   check("the action row is a flex row", /display:flex/.test(posRule), true);
   check("...that wraps rather than clipping", /flex-wrap:wrap/.test(posRule), true);
 
+  // ⭐ Jerry, 2026-10-01: "Can we do tool tips on the buttons?" Measured first:
+  // 29 controls in the two bars, 11 with none — and they were almost exactly the
+  // row he was pointing at. These are the ones that had none.
+  //
+  // ⚠ Looks at the control's line AND the two above it, because a title often
+  // sits on the wrapping <label> — which is where `zoom`'s lives, and the first
+  // version of this check failed on exactly that. It is a smoke test for
+  // "somebody added a control and forgot the tooltip", not proof of coverage;
+  // the real count was taken in the running browser.
+  const lines = htmlB.split("\n");
+  const needTip = ["base", "pools", "focus", "labels", "poolplane",
+                   "bdx", "bdy", "bdw", "bdr", "bdo", "zoom"];
+  const untipped = needTip.filter(id => {
+    const i = lines.findIndex(l => l.includes(`id="${id}"`));
+    if (i < 0) return true;
+    return !lines.slice(Math.max(0, i - 2), i + 1).some(l => /title="/.test(l));
+  });
+  check("every control that had no tooltip now has one", untipped, []);
+
+  // ⭐ The four layer toggles are one connected group, not four loose boxes.
+  check("the layer toggles are grouped", /class="toggles"/.test(htmlB), true);
+  check("...and announced as a group", /role="group" aria-label="Layers/.test(htmlB), true);
+  check("the zoom slider and its buttons are grouped",
+        /class="zoomgroup"/.test(htmlB), true);
+  // ⚠ They must stay CHECKBOXES. Swapping in divs would buy the same look and
+  // lose the semantics and every `.checked` read in main.ts.
+  const togglesBlock = /class="toggles"[\s\S]*?<\/span>/.exec(htmlB)?.[0] ?? "";
+  check("the toggles are still checkboxes",
+        (togglesBlock.match(/type="checkbox"/g) || []).length, 4);
+
   // And the helper itself cannot be called without an emphasis.
   const bsrc = fsB.readFileSync(pathB.join(dirB, "button.ts"), "utf8");
   check("variant is required, not optional", /\n  variant: Variant;/.test(bsrc), true);

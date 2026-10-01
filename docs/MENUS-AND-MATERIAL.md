@@ -29,7 +29,7 @@ Every interactive control in the two toolbars, measured in the running app:
 | Controls in the two toolbars | **20** |
 | Meeting M3's 48×48 minimum target | **0** |
 | Distinct control heights | **3** — 16px, 28px, 32px |
-| Checkboxes at 16×16 | **5**, which also fails WCAG 2.2 AA's 24×24 |
+| Checkbox **labels** (the real target) | 28px tall — passes WCAG 2.2 AA's 24, fails M3's 48 |
 | `<select>` elements styled by the OS, not by us | **5** |
 | Buttons built in TypeScript | **7** |
 | …of those carrying any style class | **2** |
@@ -51,9 +51,20 @@ simply not applied.
 local rule that **duplicates `.small` exactly**, which is how the panel ended up a
 third height. The class existed; the rule was written again beside it.
 
-⚠ The 48dp figure is M3's, and it is a design target rather than a legal floor —
-**WCAG 2.2 AA requires 24×24 CSS px**. The checkboxes fail both. Everything else
-fails only M3's.
+⚠ **Corrected 2026-10-01.** An earlier draft said five checkboxes fail WCAG 2.2
+AA. **They do not.** The `<input>` is 16×16, but it sits inside a clickable
+`<label>` that is **28px tall**, and the label is the target. Measured in the app.
+
+So the accurate statement is narrower and less alarming: **nothing here fails
+WCAG's 24×24 floor; everything fails M3's 48dp.** That 48 is a *touch* figure, and
+this is a dense desktop drafting tool — which is an argument for M3's own
+technique of keeping the visual size and expanding the hit area, not for making
+every control 48px tall and stealing the drawing's space.
+
+🔴 **Twice now a claim in this section has been measured on the wrong element** —
+the buttons, and these labels. Both times the mistake was reading the control
+rather than the thing a person actually clicks. Anything else here is suspect
+until it has been measured the same way.
 
 ---
 

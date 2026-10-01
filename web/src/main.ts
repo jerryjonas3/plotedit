@@ -1303,6 +1303,19 @@ async function boot() {
       $(id).addEventListener("input", draw);
     $("poolplane").addEventListener("change", () => { void recompute(); });
 
+    // ⭐ `at …` belongs to `pools`, not to the row. When pools is off it has
+    // nothing to say, so it goes INERT — greyed and unclickable — rather than
+    // disappearing. DECISIONS.md, "Fields that do not apply go inert, not
+    // hidden": a control that vanishes takes its explanation with it, and the
+    // reader is left wondering where the height went.
+    const syncPoolPlane = () => {
+      const on = $<HTMLInputElement>("pools").checked;
+      $("poolplane-label").classList.toggle("inert", !on);
+      ($("poolplane") as HTMLSelectElement).disabled = !on;
+    };
+    $("pools").addEventListener("input", syncPoolPlane);
+    syncPoolPlane();
+
     // ---- export
     $("export").addEventListener("change", async (e) => {
       const sel = e.target as HTMLSelectElement;

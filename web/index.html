@@ -128,6 +128,39 @@
                font-weight:500; font-size:14px; letter-spacing:.1px; background:none;
                border:1px solid var(--outline); }
     .filebtn:hover { background:rgba(37,105,72,.08); }
+    /* ---- connected toggle group (M3 "segmented"/toggle buttons) --------
+       ⭐ The four layer toggles are ONE control. Connecting them says so: a
+       single outlined container, hairlines between, and the selected ones
+       filled with the primary container colour.
+
+       ⚠ They remain <input type=checkbox> inside <label>, so the accessibility
+       and every `.checked` read in main.ts are untouched. This is appearance
+       only, which is why it is safe. */
+    .toggles { display:inline-flex; align-items:stretch; flex:0 0 auto;
+               border:1px solid var(--outline); border-radius:var(--shape-full);
+               overflow:hidden; }
+    .toggles label { border-radius:0; padding:0 12px; margin:0; height:32px;
+                     border-left:1px solid var(--outline-variant); }
+    .toggles label:first-child { border-left:none; }
+    /* The tick is redundant once the whole chip fills, and it is what made four
+       identical squares read as four identical squares. */
+    .toggles input[type=checkbox] { position:absolute; opacity:0; width:1px; height:1px; }
+    .toggles label:has(input:checked) {
+      background:var(--primary-container); color:var(--on-primary-container); font-weight:500; }
+    .toggles label:hover { background:var(--surface-container-high); }
+    .toggles label:has(input:checked):hover { background:var(--primary-container); filter:brightness(.97); }
+    .toggles label:has(input:focus-visible) { outline:2px solid var(--primary); outline-offset:-2px; }
+
+    /* `at …` belongs to `pools`, so it sits tight against the group and goes
+       inert — not hidden — when pools is off. */
+    .attached { margin-left:2px; }
+    .attached.inert { opacity:.38; pointer-events:none; }
+
+    /* The zoom slider and its four buttons are one control for one thing. */
+    .zoomgroup { display:inline-flex; align-items:center; gap:4px; flex:0 0 auto;
+                 padding:2px 6px; border-radius:var(--shape-full);
+                 background:var(--surface-container); }
+
     /* M3 switch-ish checkbox row: the label is the target, not just the box. */
     .bar label { display:inline-flex; gap:6px; align-items:center;
                  color:var(--on-surface-variant); font-size:13px; letter-spacing:.25px;
@@ -393,38 +426,65 @@
                let somebody issue a drawing at a ratio their scale rule does not
                have on it. -->
         </select>
+        <div class="divider"></div>
+        <!-- ⭐ Jerry, 2026-10-01: "we use a button for the ground plan. but we
+             could move that to the end of the buttons." It is a FILE action —
+             it was only in the second row because that is where things went. -->
+        <label class="filebtn" title="Import a venue ground plan to trace over — a DXF, or a PDF page">
+          <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+          <input type="file" id="dxf" accept=".dxf,.pdf" hidden> Ground plan…
+        </label>
       </div>
     </div>
     <div class="bar">
       <span id="bdbar" hidden>
         <span id="bdwhat" class="muted" style="font-size:12px">backdrop</span>
-        <label class="muted" style="font-size:12px">x <input id="bdx" type="text" value="0'" style="width:56px"></label>
-        <label class="muted" style="font-size:12px">y <input id="bdy" type="text" value="0'" style="width:56px"></label>
-        <label class="muted" style="font-size:12px">wide <input id="bdw" type="text" style="width:62px"></label>
-        <label class="muted" style="font-size:12px">turn <input id="bdr" type="number" value="0" step="0.5" style="width:56px"></label>
-        <label class="muted" style="font-size:12px">fade <input id="bdo" type="range" min="10" max="100" value="45" style="width:70px"></label>
+        <label class="muted" style="font-size:12px" title="Move the backdrop left or right, in feet">x <input id="bdx" type="text" value="0'" style="width:56px"></label>
+        <label class="muted" style="font-size:12px" title="Move the backdrop upstage or downstage, in feet">y <input id="bdy" type="text" value="0'" style="width:56px"></label>
+        <label class="muted" style="font-size:12px" title="How wide the backdrop is in real feet. Calibrate sets this for you.">wide <input id="bdw" type="text" style="width:62px"></label>
+        <label class="muted" style="font-size:12px" title="Rotate the backdrop, in degrees, to square it to the room">turn <input id="bdr" type="number" value="0" step="0.5" style="width:56px"></label>
+        <label class="muted" style="font-size:12px" title="How strongly the backdrop shows through. It is a tracing guide, never a measurement.">fade <input id="bdo" type="range" min="10" max="100" value="45" style="width:70px"></label>
         <button id="bdcal" class="small outlined" title="Click two points you know the distance between">calibrate</button>
         <button id="bdoff" class="small outlined" title="Remove the backdrop">remove</button>
       </span>
-      <label class="filebtn" title="Import a venue ground plan — DXF or PDF">
-        <span class="material-symbols-outlined">upload_file</span>
-        <input type="file" id="dxf" accept=".dxf,.pdf" hidden> Ground plan…
-      </label>
-      <div class="divider"></div>
-      <label><input type="checkbox" id="base" checked> plan</label>
-      <label><input type="checkbox" id="pools" checked> pools</label>
-      <label>at <select id="poolplane">
+      <!-- ⭐ ONE GROUP, because they are ONE FUNCTION. Jerry, 2026-10-01: "The
+           plan, pools, focus, and labels checkboxes are just strewn across.
+           Maybe we can group them by function?" Each of the four shows or hides
+           a LAYER of the drawing — so grouping by function groups all four
+           together rather than splitting them up.
+
+           ⚠ STILL CHECKBOXES. They look like M3's connected toggle buttons, but
+           a checkbox is what they are: on or off, announced correctly, and
+           `main.ts` reads `.checked` on every one. Swapping in <div>s would have
+           bought the same appearance and cost the semantics. -->
+      <span class="toggles" role="group" aria-label="Layers to draw">
+        <label title="Draw the imported ground plan under the plot"><input type="checkbox" id="base" checked> plan</label>
+        <label title="Draw each light's pool where it lands"><input type="checkbox" id="pools" checked> pools</label>
+        <label title="Draw the focus point and its leader line"><input type="checkbox" id="focus" checked> focus</label>
+        <label title="Draw unit numbers, channels, colour and type"><input type="checkbox" id="labels" checked> labels</label>
+      </span>
+      <!-- ⚠ NOT a fifth peer. It says what height the pools are cut at, so it
+           belongs to `pools` — it used to sit between `pools` and `focus` and
+           read as one of them. It goes INERT when pools is off rather than
+           vanishing, per DECISIONS.md: "Fields that do not apply go inert, not
+           hidden." -->
+      <label class="attached" id="poolplane-label" title="The height the pools are measured at. A cone cuts a bigger ellipse low down than at head height.">at <select id="poolplane">
         <option value="">head 5'-6"</option>
         <option value="5.1667">face 5'-2"</option>
         <option value="3.5">seated 3'-6"</option>
         <option value="0">the deck</option>
       </select></label>
-      <label><input type="checkbox" id="focus" checked> focus</label>
-      <label><input type="checkbox" id="labels" checked> labels</label>
+      <div class="divider"></div>
+      <!-- ⚠ Print-only, and separated from the four above for that reason. It
+           moves inside Export once Export is a menu — see MENUS-AND-MATERIAL §3.1 -->
       <label title="PRINT ONLY — the screen never draws these. A dimension scale along the edges of the plan: X across the bottom, Y up the side, so you can read where something is without walking a scale rule across the sheet.">
         <input type="checkbox" id="rulers"> rulers <span class="print-only">(print)</span></label>
       <div class="divider"></div>
-      <label>drawing zoom: <span class="material-symbols-outlined">zoom_in</span>
+      <!-- ⭐ "the drawing zoom, and the icons to the right seem to make sense
+           together but maybe we could group them somehow." They are one control
+           for one thing, so they get one container and one label. -->
+      <span class="zoomgroup" role="group" aria-label="Zoom">
+      <label title="How many screen pixels one foot is drawn at">drawing zoom: <span class="material-symbols-outlined" aria-hidden="true">zoom_in</span>
         <input type="range" id="zoom" min="2" max="40" step="0.5" value="14"></label>
       <div class="group">
         <button id="zoom-page" class="icon" title="Fit the whole plot">
@@ -435,6 +495,7 @@
           <span class="material-symbols-outlined">width</span></button>
         <button id="zoom-100" class="small outlined" title="Default zoom (14 px per foot)">100%</button>
       </div>
+      </span>
       <div class="divider"></div>
     </div>
   </header>
