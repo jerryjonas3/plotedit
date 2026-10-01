@@ -22,6 +22,7 @@ import { isPlot, symbolKey, plotFileName, newPlot, type Plot, type Position,
          lengthOf, angleOf, runOf } from "./plot.js";
 import { startSeq, seqClick, clickLine, seqReport, runIndices,
          type Seq } from "./sequence.js";
+import { openMenu, type MenuGroup } from "./menu.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels, savePlot, listPlots, loadPlot, pdfPages, pdfPaths,
@@ -1021,24 +1022,28 @@ function wireBackdropBar(): void {
 }
 
 /** Keep the Open menu in step with what is actually on disk. */
+/** What Open’s menu will show, refreshed when the plots folder changes.
+ *
+ *  ⚠ Held rather than fetched on click, so pressing Open never waits on the
+ *  network — but refreshed after every save, because a menu that caches its
+ *  items is a menu that lies about what is on disk. */
+let openItems: { label: string; value: string }[] = [];
+let sampleItems: { label: string; value: string }[] = [];
+let openFolder = "";
+
 async function refreshOpenList(): Promise<void> {
-  const sel = $("open") as HTMLSelectElement;
+  const btn = $("open") as HTMLButtonElement;
   try {
     const { plots, folder } = await listPlots();
-    sel.replaceChildren();
-    const head = document.createElement("option");
-    head.value = ""; head.textContent = plots.length ? "Open…" : "Open… (none saved yet)";
-    sel.appendChild(head);
-    for (const p of plots) {
-      const o = document.createElement("option");
-      o.value = p.name;
-      o.textContent = p.show ? `${p.show} — ${p.name}` : p.name;
-      sel.appendChild(o);
-    }
-    sel.title = `Plots in ${folder}`;
+    openFolder = folder;
+    openItems = plots.map(p => ({
+      label: p.show ? `${p.show} — ${p.name}` : p.name, value: p.name,
+    }));
+    btn.title = `Open a saved plot — ${folder}`;
   } catch (e) {
     // The list is a convenience; failing to fetch it must not stop the editor.
-    sel.title = e instanceof Error ? e.message : String(e);
+    openItems = [];
+    btn.title = e instanceof Error ? e.message : String(e);
   }
   // ⭐ WHAT SHIPPED WITH IT, in its own group at the bottom. A beta tester
   // asked, 2026.09.30, whether there was a way to open the demo file again —
@@ -1051,19 +1056,103 @@ async function refreshOpenList(): Promise<void> {
   // wrong side.
   try {
     const bundled = await samples();
-    if (!bundled.length) return;
-    const g = document.createElement("optgroup");
-    g.label = "Comes with plotedit";
-    for (const b of bundled) {
-      const o = document.createElement("option");
-      o.value = `sample:${b.name}`;
-      o.textContent = b.show ? `${b.show} — ${b.name}` : b.name;
-      g.appendChild(o);
-    }
-    sel.appendChild(g);
+    sampleItems = bundled.map(b => ({
+      label: b.show ? `${b.show} — ${b.name}` : b.name,
+      value: `sample:${b.name}`,
+    }));
   } catch (e) {
     console.warn("samples unavailable:", e);
+    sampleItems = [];
   }
+}
+
+/** Run one export.
+ *
+ *  ⭐ Lifted out of the <select>'s change handler when Export became a button.
+ *  Jerry, 2026-10-01: "I think the export and open should be a button, just
+ *  like save as, and ground plan." The body is unchanged — which options
+ *  belong to which kind is the delicate part and was not worth re-deriving.
+ */
+async function runExport(kind: ExportKind): Promise<void> {
+    try {
+      // ⚠ Encoded ONCE — the image goes through base64 and a big plan is
+      // megabytes of string.
+      const exportBase = kind === "pdf" ? await baseForExport() : undefined;
+      // ⭐ The PDF is a drawing and honours what the checkboxes are showing:
+      // a designer who hides the pools to read the plan expects the print to
+      // match. The CSV and patch exports have no drawing in them, so they are
+      // sent the plot alone and cannot be changed by a checkbox.
+      await exportFile(kind, store.plot, {
+        scale: $<HTMLSelectElement>("scale").value,
+        // ⚠ The sheet goes with the PDF only. A CSV has no paper.
+        ...(kind === "pdf" && $<HTMLSelectElement>("page").value
+            ? { page: $<HTMLSelectElement>("page").value } : {}),
+        ...(kind === "pdf" ? {
+          showPools: $<HTMLInputElement>("pools").checked,
+          showFocus: $<HTMLInputElement>("focus").checked,
+          showLabels: $<HTMLInputElement>("labels").checked,
+          ...(poolPlane() === undefined ? {} : { poolPlane: poolPlane() }),
+          rulers: $<HTMLInputElement>("rulers").checked,
+          // 🔴 Until now the import went on the SCREEN and never on the
+          // paper. exports.plot_pdf has taken a base plan the whole time and
+          // nothing ever handed it one, so an imported venue drawing looked
+          // like it had worked right up to the moment you printed it.
+          ...(exportBase ? { base: exportBase } : {}),
+        } : {}),
+      });
+      status("");
+    } catch (err) {
+      // The commonest failure is the sheet refusing to clip, and it says
+      // which scale would fit. That belongs in front of the user, not a console.
+      status(err instanceof Error ? err.message : String(err), true);
+    }
+}
+
+/** Open the plots menu under its button. */
+function showOpenMenu(): void {
+  const btn = $("open") as HTMLButtonElement;
+  const groups: MenuGroup[] = [];
+  if (openItems.length) {
+    groups.push({ items: openItems.map(i => ({
+      label: i.label, icon: "description", onSelect: () => void openPlot(i.value),
+    })) });
+  } else {
+    // ⚠ M3: an item that cannot be used is DISABLED, not removed. An empty
+    // menu that opens and shows nothing reads as a broken button.
+    groups.push({ items: [{ label: "No saved plots yet", disabled: true }] });
+  }
+  if (sampleItems.length) {
+    // 🔴 Its own group, as it was its own optgroup. A sample is not the
+    // designer’s work, and a list that mixes the two invites Save to overwrite
+    // something that shipped.
+    groups.push({ heading: "Comes with plotedit", items: sampleItems.map(i => ({
+      label: i.label, icon: "inventory_2",
+      // ⚠ A sample opens UNSAVED and UNNAMED, so the first ⌘S asks where to
+      // put it rather than writing back over the file that shipped.
+      onSelect: () => void openSample(i.value.slice(7)),
+    })) });
+  }
+  if (openFolder) groups.push({ items: [{ label: openFolder, disabled: true, icon: "folder" }] });
+  openMenu(btn, groups);
+}
+
+/** Open the export menu under its button. */
+function showExportMenu(): void {
+  const btn = $("export") as HTMLButtonElement;
+  openMenu(btn, [
+    { items: [
+      { label: "Plot PDF", icon: "picture_as_pdf", onSelect: () => void runExport("pdf") },
+      { label: "Plot DXF", icon: "architecture", onSelect: () => void runExport("dxf") },
+    ] },
+    { items: [
+      { label: "Instrument schedule", icon: "table_rows", onSelect: () => void runExport("schedule") },
+      { label: "Channel hookup", icon: "cable", onSelect: () => void runExport("hookup") },
+    ] },
+    { items: [
+      { label: "Eos patch", trailing: "untested", icon: "memory",
+        onSelect: () => void runExport("eos") },
+    ] },
+  ]);
 }
 
 /** Bring in a ground plan from a PDF.
@@ -1317,44 +1406,11 @@ async function boot() {
     syncPoolPlane();
 
     // ---- export
-    $("export").addEventListener("change", async (e) => {
-      const sel = e.target as HTMLSelectElement;
-      const kind = sel.value as ExportKind;
-      sel.value = "";
-      if (!kind) return;
-      try {
-        // ⚠ Encoded ONCE — the image goes through base64 and a big plan is
-        // megabytes of string.
-        const exportBase = kind === "pdf" ? await baseForExport() : undefined;
-        // ⭐ The PDF is a drawing and honours what the checkboxes are showing:
-        // a designer who hides the pools to read the plan expects the print to
-        // match. The CSV and patch exports have no drawing in them, so they are
-        // sent the plot alone and cannot be changed by a checkbox.
-        await exportFile(kind, store.plot, {
-          scale: $<HTMLSelectElement>("scale").value,
-          // ⚠ The sheet goes with the PDF only. A CSV has no paper.
-          ...(kind === "pdf" && $<HTMLSelectElement>("page").value
-              ? { page: $<HTMLSelectElement>("page").value } : {}),
-          ...(kind === "pdf" ? {
-            showPools: $<HTMLInputElement>("pools").checked,
-            showFocus: $<HTMLInputElement>("focus").checked,
-            showLabels: $<HTMLInputElement>("labels").checked,
-            ...(poolPlane() === undefined ? {} : { poolPlane: poolPlane() }),
-            rulers: $<HTMLInputElement>("rulers").checked,
-            // 🔴 Until now the import went on the SCREEN and never on the
-            // paper. exports.plot_pdf has taken a base plan the whole time and
-            // nothing ever handed it one, so an imported venue drawing looked
-            // like it had worked right up to the moment you printed it.
-            ...(exportBase ? { base: exportBase } : {}),
-          } : {}),
-        });
-        status("");
-      } catch (err) {
-        // The commonest failure is the sheet refusing to clip, and it says
-        // which scale would fit. That belongs in front of the user, not a console.
-        status(err instanceof Error ? err.message : String(err), true);
-      }
-    });
+    // ⭐ BUTTONS THAT OPEN MENUS. Both were <select>s whose change handler fired
+    // an action and then set `sel.value = ""` — a control that clears itself
+    // after every use was never holding a value. See menu.ts.
+    $("export").addEventListener("click", () => showExportMenu());
+    $("open").addEventListener("click", () => showOpenMenu());
 
     // ---- import a venue ground plan
     $("dxf").addEventListener("change", async (e) => {

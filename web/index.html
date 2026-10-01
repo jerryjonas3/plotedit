@@ -98,7 +98,9 @@
 
        ⚠ This is a holding fix. Both become menu buttons in the next step, and a
        menu's width is the menu's problem, not the toolbar's. */
-    #open { max-width:220px; }
+    /* ⚠ Open is a BUTTON now, so nothing it lists can widen the toolbar — that
+       was the whole problem, and it is the menu's business instead. Sheet is
+       still a select and still sizes to "ARCH E1 (30 x 42 in)". */
     #page { max-width:190px; }
     .divider { width:1px; align-self:stretch; background:var(--outline-variant); margin:0 2px; }
 
@@ -144,6 +146,37 @@
                font-weight:500; font-size:14px; letter-spacing:.1px; background:none;
                border:1px solid var(--outline); }
     .filebtn:hover { background:rgba(37,105,72,.08); }
+    /* ---- menus (M3 Menus, on the Popover API) --------------------------
+       A temporary surface of actions, opened from a button. `popover` puts it in
+       the top layer and dismisses it on an outside click, so none of that is
+       written here. See menu.ts. */
+    .menu {
+      min-width:200px; max-width:min(420px, 90vw); max-height:70vh; overflow-y:auto;
+      padding:8px 0; margin:0; border:none;
+      background:var(--surface-container-low); color:var(--on-surface);
+      border-radius:var(--shape-s); box-shadow:var(--elev-2);
+    }
+    .menu::backdrop { background:transparent; }
+    .menu-item {
+      display:flex; align-items:center; gap:12px; width:100%;
+      height:40px; padding:0 12px; border:none; border-radius:0;
+      background:none; color:var(--on-surface); text-align:left;
+      font-size:14px; letter-spacing:.1px; font-weight:400; cursor:pointer;
+    }
+    .menu-item .material-symbols-outlined { font-size:20px; color:var(--on-surface-variant); }
+    .menu-label { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .menu-trailing { color:var(--on-surface-variant); font-size:12px; flex:0 0 auto; }
+    .menu-item:hover { background:var(--surface-container-high); }
+    .menu-item:focus-visible { background:var(--surface-container-high); outline:2px solid var(--primary); outline-offset:-2px; }
+    /* M3: an item that cannot be used now is DISABLED, not removed. */
+    .menu-item:disabled { opacity:.38; cursor:default; background:none; }
+    .menu-divider { height:1px; margin:8px 0; background:var(--outline-variant); }
+    .menu-heading { padding:6px 12px 4px; font-size:11px; line-height:16px;
+                    letter-spacing:.5px; text-transform:uppercase;
+                    color:var(--on-surface-variant); }
+    /* The chevron is smaller than a leading icon and sits tight to the label. */
+    .chev { font-size:18px !important; margin-left:-2px; margin-right:-6px; }
+
     /* ---- connected toggle group (M3 "segmented"/toggle buttons) --------
        ⭐ The four layer toggles are ONE control. Connecting them says so: a
        single outlined container, hairlines between, and the selected ones
@@ -420,20 +453,15 @@
         <div class="divider"></div>
         <button id="new" class="outlined" title="New plot (start over)">
           <span class="material-symbols-outlined">note_add</span>New</button>
-        <select id="open" title="Open a saved plot"><option value="">Open…</option></select>
+        <button id="open" class="outlined" title="Open a saved plot" aria-haspopup="menu" aria-expanded="false">
+          <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>Open…<span class="chev material-symbols-outlined" aria-hidden="true">arrow_drop_down</span></button>
         <button id="save" class="filled" title="Save (⌘S)">
           <span class="material-symbols-outlined">save</span>Save</button>
         <button id="saveas" class="outlined" title="Save As… (⇧⌘S)">
           <span class="material-symbols-outlined">save_as</span>Save As…</button>
         <div class="divider"></div>
-        <select id="export" title="Export">
-          <option value="">Export…</option>
-          <option value="pdf">Plot PDF</option>
-          <option value="dxf">Plot DXF</option>
-          <option value="schedule">Instrument schedule</option>
-          <option value="hookup">Channel hookup</option>
-          <option value="eos">Eos patch (untested)</option>
-        </select>
+        <button id="export" class="outlined" title="Export a drawing or a paperwork file" aria-haspopup="menu" aria-expanded="false">
+          <span class="material-symbols-outlined" aria-hidden="true">ios_share</span>Export…<span class="chev material-symbols-outlined" aria-hidden="true">arrow_drop_down</span></button>
         <select id="page" title="The sheet the PDF is drawn on. Imperial plots are offered ARCH and ANSI sizes, metric ones the A series — a drawing issued on a sheet the reader does not stock is no more use than one at a ratio their rule does not have."></select>
         <select id="scale" title="Paper scale for the exported PDF. Fit picks the largest standard scale at which nothing runs off the sheet.">
           <option value="fit" selected>Fit</option>

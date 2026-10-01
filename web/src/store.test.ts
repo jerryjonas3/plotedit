@@ -720,11 +720,46 @@ check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
   const groupRule = /\.group \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
   check("the toolbar group wraps", /flex-wrap:wrap/.test(groupRule), true);
 
-  // ⚠ And a <select> sizes itself to its WIDEST OPTION. Open's options are plot
-  // file names, so it was 332px — a quarter of the row — and one long name would
-  // push the whole toolbar wider. Capped until it becomes a menu button.
-  check("Open cannot be widened by a long plot name", /#open \{[^}]*max-width/.test(htmlB), true);
-  check("nor Sheet by a long paper name", /#page \{[^}]*max-width/.test(htmlB), true);
+  // ⚠ A <select> sizes itself to its WIDEST OPTION. Open's options are plot FILE
+  // NAMES, so it was 332px — a quarter of the row — and one long name pushed the
+  // whole toolbar wider. Open is a button now, so the names live in a menu and
+  // cannot reach the toolbar at all; what has to stay capped is the MENU, or a
+  // long name just moves the problem.
+  //
+  // 🔴 This check previously pinned `#open { max-width }`, and it FAILED when
+  // that rule was deleted — correctly. The rule went because the cause went.
+  const menuRule = /\.menu \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
+  check("a long plot name cannot stretch the menu", /max-width:min\(/.test(menuRule), true);
+  check("...and a long item is clipped, not wrapped",
+        /\.menu-label \{[^}]*text-overflow:ellipsis/.test(htmlB), true);
+  // Sheet is still a select, and still sizes to "ARCH E1 (30 x 42 in)".
+  check("Sheet cannot be widened by a long paper name", /#page \{[^}]*max-width/.test(htmlB), true);
+
+  // ⭐ Jerry, 2026-10-01: "I think the export and open should be a button, just
+  // like save as, and ground plan." Both were <select>s whose change handler
+  // fired an action and then set `sel.value = ""` — a control that clears itself
+  // after every use was never holding a value.
+  check("Open is a button", /<button id="open"/.test(htmlB), true);
+  check("Export is a button", /<button id="export"/.test(htmlB), true);
+  check("neither is a select any more",
+        /<select id="(open|export)"/.test(htmlB), false);
+  // A button that opens a menu has to say so, or a screen reader announces a
+  // plain button and the menu arrives unannounced.
+  const openBtn = /<button id="open"[^>]*>/.exec(htmlB)?.[0] ?? "";
+  const expBtn = /<button id="export"[^>]*>/.exec(htmlB)?.[0] ?? "";
+  check("Open announces its menu", /aria-haspopup="menu"/.test(openBtn), true);
+  check("Export announces its menu", /aria-haspopup="menu"/.test(expBtn), true);
+
+  // ⚠ The menu is built on the Popover API — Baseline since April 2025 — which
+  // is what supplies the top layer, light dismiss and Escape. The fallback path
+  // must stay, because `serve.py` opens whatever browser the designer defaults
+  // to and this app cannot pick one.
+  const menuSrc = fsB.readFileSync(new URL("./menu.ts", import.meta.url), "utf8");
+  check("the menu uses popover", /setAttribute\("popover"/.test(menuSrc), true);
+  check("...and still works without it", /hasPopover/.test(menuSrc), true);
+  // M3: an item that does not currently apply is disabled, not removed.
+  check("menu items can be disabled rather than dropped",
+        /disabled\?: boolean/.test(menuSrc), true);
   // ⚠ They must stay CHECKBOXES. Swapping in divs would buy the same look and
   // lose the semantics and every `.checked` read in main.ts.
   const togglesBlock = /class="toggles"[\s\S]*?<\/span>/.exec(htmlB)?.[0] ?? "";
