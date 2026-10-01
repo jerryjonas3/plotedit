@@ -277,8 +277,8 @@ left is narrower, and none of it blocks step 1.
 3. **What happens to objects on a deleted user layer** — move to the default, or
    refuse while it has members? The second is safer and more annoying.
 4. **Does the screen's layer panel replace the toggle group, or sit beside it?**
-   Eight checkboxes is a lot of toolbar; a panel is more room but one click
-   further from the drawing.
+   Eight chips is a lot of toolbar — the group holds four today — and a panel is
+   more room but one click further from the drawing.
 
 ---
 
