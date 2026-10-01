@@ -146,6 +146,16 @@
                font-weight:500; font-size:14px; letter-spacing:.1px; background:none;
                border:1px solid var(--outline); }
     .filebtn:hover { background:rgba(37,105,72,.08); }
+    /* A readout, not a control: it states what the PDF will print at, and
+       opens the menu that changes it. Quiet enough to be glanced past, present
+       enough to be glanced AT. */
+    .sheetinfo { height:32px; padding:0 10px; border-radius:var(--shape-xs);
+                 flex:0 0 auto;
+                 color:var(--on-surface-variant); font-weight:400; font-size:13px;
+                 letter-spacing:.25px; gap:4px; }
+    .sheetinfo:hover { background:var(--surface-container-high); }
+    .sheetinfo .sep { opacity:.5; }
+
     /* ---- menus (M3 Menus, on the Popover API) --------------------------
        A temporary surface of actions, opened from a button. `popover` puts it in
        the top layer and dismisses it on an outside click, so none of that is
@@ -533,6 +543,22 @@
         <button id="zoom-100" class="small outlined" title="Default zoom (14 px per foot)">100%</button>
       </div>
       </span>
+      <!-- ⭐ WHAT THE PDF WILL PRINT AT, at a glance. Jerry, 2026-10-01: "where
+           is the scale", then "row under the export button". Moving the CONTROLS
+           into Export was right — they change the exported PDF and nothing else,
+           and side by side their dependence is finally visible — but the toolbar
+           used to DISPLAY the scale at all times, and that readout went with
+           them. Information that was ambient had become something to go and look
+           for.
+
+           ⚠ Pushed to the right of its row rather than pinned under the Export
+           button itself: row one reflows as the window narrows, so any fixed
+           alignment to one control in it would only be true at one width.
+
+           It is a button, so it is keyboard-reachable and opens the same menu —
+           a shortcut as well as a readout. -->
+      <button id="sheetinfo" class="sheetinfo grow" aria-haspopup="menu"
+              title="The sheet and scale the PDF will print at. Click to change them."></button>
       <div class="divider"></div>
     </div>
   </header>

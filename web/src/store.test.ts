@@ -787,6 +787,24 @@ check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
   check("Sheet still exists as state", /id="page"/.test(htmlB), true);
   check("Scale still exists as state", /id="scale"/.test(htmlB), true);
   check("rulers still exists as state", /id="rulers"/.test(htmlB), true);
+
+  // ⭐ Jerry, 2026-10-01: "where is the scale" — asked right after Sheet and
+  // Scale moved into Export, which is the question answering itself. Moving the
+  // CONTROLS was right; losing the READOUT was not. The toolbar used to display
+  // the scale at all times, so what the plot would print at was ambient.
+  check("the toolbar says what the PDF will print at",
+        /id="sheetinfo"/.test(htmlB), true);
+  const mainSrc = fsB.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  check("...kept in step when a menu choice is made",
+        /sel\.value = o\.value; syncSheetInfo\(\);/.test(mainSrc), true);
+  check("...and when the units change the lists",
+        /fillScaleMenu\(\); fillPageMenu\(\); syncSheetInfo\(\)/.test(mainSrc), true);
+  // ⚠ It opens the menu anchored to EXPORT, not to itself — a menu that lands in
+  // a different place depending on which of two controls you pressed is a menu
+  // you have to look for twice.
+  check("the readout opens the same menu, in the same place",
+        /\$\("sheetinfo"\)\.addEventListener\("click", \(\) => showExportMenu\(\)\)/.test(mainSrc), true);
+  check("...and says so for a screen reader", /id="sheetinfo"[^>]*aria-haspopup/.test(htmlB), true);
   // ⚠ They must stay CHECKBOXES. Swapping in divs would buy the same look and
   // lose the semantics and every `.checked` read in main.ts.
   const togglesBlock = /class="toggles"[\s\S]*?<\/span>/.exec(htmlB)?.[0] ?? "";

@@ -205,7 +205,7 @@ function draw() {
   // would label a metric plot in feet and look like a conversion bug rather
   // than a missing assignment.
   setUnitSystem(store.plot.units);
-  fillScaleMenu(); fillPageMenu(); render(svg, store.plot, view(), computed, opts()); }
+  fillScaleMenu(); fillPageMenu(); syncSheetInfo(); render(svg, store.plot, view(), computed, opts()); }
 
 /** The dimmer, or the address where there is no dimmer, and which of the two it
  *  is. ⚠ ONE COLUMN CANNOT SAY WHICH ON ITS OWN — "12" is a plausible dimmer and
@@ -1136,6 +1136,35 @@ function showOpenMenu(): void {
   openMenu(btn, groups);
 }
 
+/** Say what the PDF will print at, in the toolbar, without opening anything.
+ *
+ *  ⭐ Jerry, 2026-10-01: "where is the scale" — asked right after Sheet and Scale
+ *  moved into the Export menu, which is the question answering itself. Moving the
+ *  CONTROLS was right; losing the READOUT was not. The toolbar used to display
+ *  the scale at all times, so what the plot would print at was ambient. It had
+ *  become something you went looking for.
+ *
+ *  ⚠ Shows the sheet too, because the two are not independent: Fit means "the
+ *  largest scale at which nothing runs off the CHOSEN sheet", so a scale without
+ *  its sheet is half an answer.
+ */
+function syncSheetInfo(): void {
+  const el = document.getElementById("sheetinfo");
+  if (!el) return;
+  const label = (sel: HTMLSelectElement) =>
+    Array.from(sel.options).find(o => o.value === sel.value)?.textContent ?? sel.value;
+  const sheet = label($<HTMLSelectElement>("page"));
+  const scale = label($<HTMLSelectElement>("scale"));
+  // The sheet's bracketed dimensions are for choosing, not for glancing at.
+  const short = sheet.replace(/\s*\(.*\)\s*$/, "");
+  el.replaceChildren();
+  el.append(short);
+  const sep = document.createElement("span");
+  sep.className = "sep";
+  sep.textContent = " · ";
+  el.append(sep, scale);
+}
+
 /** One submenu of radio choices, built from a hidden <select>.
  *
  *  ⚠ The SELECT IS THE STATE. `fillPageMenu` and `fillScaleMenu` keep it
@@ -1149,7 +1178,7 @@ function optionsSubmenu(selectId: string, after?: () => void): MenuGroup[] {
     label: o.textContent ?? o.value,
     selection: "radio" as const,
     checked: o.value === sel.value,
-    onSelect: () => { sel.value = o.value; after?.(); },
+    onSelect: () => { sel.value = o.value; syncSheetInfo(); after?.(); },
   })) }];
 }
 
@@ -1455,6 +1484,10 @@ async function boot() {
     // after every use was never holding a value. See menu.ts.
     $("export").addEventListener("click", () => showExportMenu());
     $("open").addEventListener("click", () => showOpenMenu());
+    // ⚠ Anchored to the EXPORT button, not to itself, so the menu lands where it
+    // does from every other route. A menu that moves depending on which of two
+    // things you pressed is a menu you have to look for twice.
+    $("sheetinfo").addEventListener("click", () => showExportMenu());
 
     // ---- import a venue ground plan
     $("dxf").addEventListener("change", async (e) => {
