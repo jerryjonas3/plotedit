@@ -167,7 +167,7 @@ four controls instead of seven:
 - **Save ▾** — a **split button**: pressing the label saves, pressing the chevron
   opens Save As… and Revert. It is already disabled when there is nothing to save,
   which is M3's rule for an item that does not currently apply.
-- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §7).
+- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §8).
 
 That is "all the same type" as #56 asked, **and** Export is indented, **and** the
 row loses three controls.
@@ -367,7 +367,7 @@ sets that pattern, and its rule applies: name the thing, say what goes with it.
 ## 4. What to build, smallest first
 
 Each step stands alone and is worth shipping by itself. **None of them needs a
-component framework** — see §6, and §5 for why there is no such framework for
+component framework** — see §7, and §5 for why there is no such framework for
 the web anyway.
 
 1. **Give every TypeScript-built button a style class, and the labels sentence
@@ -428,9 +428,76 @@ read; the code is the part that is missing, and the code is the cheap part.
 2. **"Use the Material library" is not an option anyone can take**, so if the
    answer to "should we adopt a component library" is yes, it will not be
    Google's — it would be MUI, Angular Material or similar, which means adopting
-   their framework too. §6.
+   their framework too. §6 and §7.
 
-## 6. 🔴 What not to do: do not pull in a component library
+## 6. Bootstrap, Tailwind, and what would actually help
+
+Jerry, 2026-10-01: *"I was thinking of Bootstrap - would Tailwind help us?"*
+
+### Bootstrap — closer to the ask than Tailwind, and still wrong here
+
+Bootstrap is the thing that fits the description: it ships a **navbar with
+dropdowns**, **button groups** and **split buttons**, with the JavaScript
+behaviour included. It is genuinely the shortest path to the bar in #56.
+
+🔴 **But it is a different design language, not a layer on Material.** Adopting it
+means adopting its look — its palette, its radii, its type scale — and this app
+has a brand-derived M3 token set built from the logo, which the brand rules pin
+down by name. We would be running two design systems and picking a winner on
+every component. Its reset also applies to the whole document, including the SVG
+drawing surface.
+
+### Tailwind — would not help with this problem
+
+Tailwind is a **utility-class** framework. It ships `flex`, `p-4`, `text-sm` and
+nothing else: **no menu, no split button, no toggle group, no focus management.**
+
+Line up what #56 actually needs against what Tailwind provides:
+
+| What is wrong | Would Tailwind fix it? |
+|---|---|
+| 5 of 7 panel buttons have no style class | No — it changes *where* the styles are written, not whether they exist |
+| 20 of 20 controls under the 48px target | No |
+| Export is a `<select>` that should be a menu | No — this is behaviour, not CSS |
+| Open needs a grouped, dividered menu | No |
+| Five display checkboxes should be one toggle group | No |
+
+⚠ **And it would cost two things.** It is a second styling vocabulary beside the
+M3 tokens already in `index.html` — tokens Tailwind would have to be reconfigured
+to match, at which point it is our tokens with extra steps. And because the panels
+are built with `createElement` in TypeScript rather than written as markup,
+Tailwind styling arrives as long `className` strings inside TS, which is harder
+to read than the CSS file it replaces.
+
+⭐ **Neither framework is the lever, because the hard part was never the CSS.** It
+is the *behaviour* of a menu: opening on a button, closing when you click away,
+trapping focus, escaping, and sitting above everything else without being clipped
+by a scrolling panel.
+
+### What would actually help, and it is already in the browser
+
+That behaviour stopped needing a library. Checked on MDN, 2026-10-01:
+
+| | Status |
+|---|---|
+| **Popover API** (`popover`, `popovertarget`) | **Baseline since April 2025** — top layer, light dismiss, Escape, and the button/popup relationship, all free |
+| **CSS anchor positioning** (`anchor-name`, `position-anchor`, `position-try`) | **Baseline since September 2026** — a menu tethered to its button that flips when it would run off screen |
+
+Together those are the two things people used to install a library for. A menu
+becomes a `<div popover>` anchored to its button; the top-layer stacking, the
+outside-click dismiss and the reposition-when-clipped are the platform's job.
+
+⚠ **Anchor positioning is one month old as Baseline**, so it is *newly* available
+rather than *widely* — and this app opens in whatever browser the designer
+defaults to (§2.0b). Treat it the way §2.0b treats `base-select`: build the menu
+so it works positioned plainly, and let anchor positioning improve it where it is
+supported.
+
+**What is left to write by hand** is small, and it is the part no framework was
+going to give us anyway: the ARIA roles and the arrow-key contract from the APG
+pattern (§2.0), and the M3 look from tokens we already have.
+
+## 7. 🔴 What not to do: do not pull in a component library
 
 This was decided on 2026-09-24 and is worth restating, because "standardise on
 Material" is exactly the request that invites it. From `index.html`:
@@ -459,7 +526,7 @@ plain DOM.
 
 ---
 
-## 7. Open questions for Jerry
+## 8. Open questions for Jerry
 
 1. **Switches or toggle buttons for the display layers?** Switches are the
    literal M3 answer for standalone settings; a connected group of icon toggle
