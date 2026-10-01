@@ -89,6 +89,143 @@ the thing that goes stale.
 
 ## 2. The problems, each with the rule that decides it
 
+### 2.0 🔴 The top bar, and the question of a File menu
+
+> Is there a spec in material for menus like the file menu or edit menu?
+
+**No. Material Design 3 has no menu bar.** Its full component list was checked
+for this: the phrase *"menu bar"* does not appear on it. The menu-shaped
+components are **Menus**, **Split buttons** and **FAB menu**, and the navigation
+vocabulary is **navigation bar / rail / drawer** — a phone-and-tablet vocabulary.
+M3 simply does not describe the File/Edit strip along the top of a desktop window.
+
+⭐ **But a standard for it does exist — it is just not Google's.** The W3C's
+[ARIA Authoring Practices menubar pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/)
+describes exactly this: a visually persistent menu *"similar to those found near
+the top of the window in many desktop applications"*. It specifies the roles
+(`menubar`, `menu`, `menuitem`, `menuitemcheckbox`), `aria-haspopup` and
+`aria-expanded` on anything with a submenu, and the keyboard contract — arrow
+keys move within and between menus, Tab leaves the whole bar, Escape closes,
+typing a letter jumps to an item.
+
+So the two standards cover different halves, and they compose:
+
+| | |
+|---|---|
+| **Structure and keyboard** | W3C ARIA APG — menubar pattern |
+| **Look, type, colour, elevation, targets** | M3 tokens, already in `index.html` |
+
+#### The fork, and it is Jerry's call
+
+**A. A real menu bar.** `File  Edit  View  Export  Help` across the top, ARIA
+pattern underneath, M3 tokens on top. Familiar to anyone who has used a drafting
+package, and it would free the toolbar completely.
+
+⚠ What it costs: **a menu bar earns its keep by hiding a large command surface.**
+This app has about fifteen actions in total — four file, five export, five display
+toggles, a handful of zoom. A menu bar would put a click in front of controls that
+are currently one click away, and the two most-used (Save, zoom) would be the ones
+that got slower. Menu bars are also the least touch-friendly pattern there is.
+
+**B. M3's own answer to the same problem**, which is a toolbar of buttons where
+the ones with lists open menus. From *Split buttons → Usage*: they
+
+> add a menu of actions alongside a main action
+
+which is precisely the Save / Save As / Revert shape. Concretely, row one becomes
+four controls instead of seven:
+
+```
+ ↶ ↷ │  New      Open ▾      Save ▾      Export ▾
+                 └ a menu     └ Save as…  └ Plot PDF, Plot DXF,
+                   of plots     Revert      Schedule, Hookup, Eos…
+                                            Sheet ▸  Scale ▸
+```
+
+- **New** — a plain button; always available, so by §1 it stays on screen.
+- **Open ▾** — a button opening a menu, with *"Comes with plotedit"* as a real
+  divider-separated group.
+- **Save ▾** — a **split button**: pressing the label saves, pressing the chevron
+  opens Save As… and Revert. It is already disabled when there is nothing to save,
+  which is M3's rule for an item that does not currently apply.
+- **Export ▾** — one menu, with Sheet and Scale as submenus (or a dialog — §6).
+
+That is "all the same type" as #56 asked, **and** Export is indented, **and** the
+row loses three controls.
+
+⭐ **B is the recommendation**, for the reason in the warning above: fifteen
+actions do not need a menu bar, and the two things a designer touches most would
+get slower. But A is a legitimate reading of #56 and of how drafting tools
+usually look, so it is written down rather than quietly dropped.
+
+#### Either way, the second row is the other half of "awkward"
+
+Two rows of chrome sit above the drawing. Row two is an import button, five
+16×16 checkboxes, a select wedged between two of them, a print-only control among
+screen-only ones, and the zoom cluster — five unrelated jobs in one line (§2.4).
+M3 has a component for most of it: **segmented buttons**, which the components
+list describes as being for switching views, and which would turn five identical
+checkboxes into one group of icon toggles that reads at a glance and meets the
+48px target.
+
+**Fixing row one without row two leaves the app still looking like two toolbars
+stacked.** They are one job.
+
+### 2.0b Where Material sits, and the standard that is above it
+
+Jerry, 2026-10-01: *"Isnt there something that has material as a decendant, or is
+it the other way around."*
+
+Both directions exist, and it is worth writing down once because it decides what
+we are allowed to lean on.
+
+```
+        W3C ARIA APG · Open UI · Design Tokens (DTCG)      ← standards ABOVE
+                          │
+                   Material Design 3                       ← the system
+                          │
+   Material Web · Angular Material · MUI · Vuetify · Flutter   ← DESCENDANTS
+```
+
+**Above** are the vendor-neutral standards Material is an instance of. **Below**
+are implementations of Material in a particular framework. Beside it sit the peer
+corporate systems — Fluent, Carbon, Primer, Spectrum.
+
+⭐ **The one above that matters for #56 is [Open UI](https://open-ui.org/).** It is
+the W3C community effort to standardise what Material, Fluent and Carbon each
+invented separately, and its first big win is landing in browsers now:
+**`appearance: base-select`**, which lets a native `<select>` be styled completely
+— the button, the popup, the chevron, the checkmark — *while keeping the native
+keyboard behaviour and accessibility*.
+
+That is almost exactly the fix §2.1 wants, for free.
+
+🔴 **And we cannot rely on it, for a reason specific to this app.** MDN:
+
+> This feature is not Baseline because it does not work in some of the most
+> widely-used browsers.
+
+It is Chrome and Edge today, with Firefox and Safari implementing. And
+`server/serve.py` opens the app with `webbrowser.open(url)` — **the designer's
+DEFAULT browser**, which on a Mac is frequently Safari. So adopting it would make
+the app look like M3 on one machine and like the OS on the next.
+
+⚠ **The complaint is inconsistency. A fix that is itself inconsistent across
+browsers is not a fix.** It falls back gracefully, so it is a fine *progressive
+enhancement* to add on top of a decision — but it cannot be the decision.
+
+**Where that leaves the five selects:** they split in two, and the split is the
+same one §1 drew.
+
+| | | |
+|---|---|---|
+| `page`, `scale`, `poolplane` | genuinely hold a **value** | stay `<select>`, styled by hand now, with `base-select` added as an enhancement |
+| `open`, `export` | fire an **action** and reset themselves | become buttons that open menus — §2.2 |
+
+That is a smaller job than the first draft of this plan assumed, and a more
+honest one: we stop fighting the two that were never selects, and keep the three
+that were.
+
 ### 2.1 🔴 Five OS-styled `<select>`s sitting among M3 buttons
 
 `open`, `export`, `page`, `scale`, `poolplane`. A native select draws itself with
@@ -141,7 +278,12 @@ which is switch or **toggle-button** territory, not checkbox. Toggle buttons als
 get the icon treatment M3 describes — outlined icon when off, filled when on —
 which is far more scannable at a glance than five identical squares.
 
-### 2.5 ⭐ The panel order contradicts our own manual
+### 2.5 A separate finding: the panel order contradicts our own manual
+
+⚠ **This is not what #56 means by "order"** — Jerry, 2026-10-01: *"I didnt mean
+the order of the panels on the side - the menus along the top seem awkward."*
+That is §2.0. This is kept because it is true and cheap, not because it was
+asked for.
 
 The right-hand panels, in DOM order, **all four `open`**:
 
@@ -214,10 +356,13 @@ component framework** — see §5.
    ships without a class.
 2. **Raise every target to 48×48**, or to 24×24 at the absolute minimum where the
    toolbar cannot afford it. The checkboxes are the urgent ones — they fail WCAG.
-3. **Replace the five `<select>`s with M3 menus** — a button that opens a
-   temporary surface, with dividers, disabled items rather than missing ones, and
-   submenus where the content nests. Export gets its indent. Open gets its
-   *"Comes with plotedit"* group as a real group.
+3. **Split the five `<select>`s two ways, per §2.0b.** `open` and `export` become
+   buttons opening M3 menus — dividers, disabled items rather than missing ones,
+   submenus where the content nests. Export gets its indent; Open gets its
+   *"Comes with plotedit"* group as a real group. `page`, `scale` and `poolplane`
+   stay selects and get styled, because they hold values.
+   ⚠ `appearance: base-select` only as an enhancement on top — it is Chrome-only
+   today and this app opens in whatever browser the designer defaults to.
 4. **Move Sheet and Scale into Export**, as a submenu or as the first thing the
    export sheet asks. State the Fit interaction in words where it is chosen, so
    changing the sheet never silently changes the scale without saying so.
