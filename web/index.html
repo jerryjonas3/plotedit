@@ -475,6 +475,12 @@
           <span class="material-symbols-outlined">save</span>Save</button>
         <button id="saveas" class="outlined" title="Save As… (⇧⌘S)">
           <span class="material-symbols-outlined">save_as</span>Save As…</button>
+        <!-- ⭐ #56: "a revert to return the file to the way it was before we
+             touched it in this session". Disabled when there is nothing to go
+             back from — the same rule Save follows, and M3's rule for a control
+             that cannot act. -->
+        <button id="revert" title="Reload the plot from disk, dropping every change since">
+          <span class="material-symbols-outlined" aria-hidden="true">history</span>Revert</button>
         <div class="divider"></div>
         <button id="export" class="outlined" title="Export a drawing or a paperwork file" aria-haspopup="menu" aria-expanded="false">
           <span class="material-symbols-outlined" aria-hidden="true">ios_share</span>Export…<span class="chev material-symbols-outlined" aria-hidden="true">arrow_drop_down</span></button>

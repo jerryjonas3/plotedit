@@ -23,6 +23,7 @@ import { isPlot, symbolKey, plotFileName, newPlot, type Plot, type Position,
 import { startSeq, seqClick, clickLine, seqReport, runIndices,
          type Seq } from "./sequence.js";
 import { openMenu, type MenuGroup } from "./menu.js";
+import { confirmRevert } from "./confirm.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels, savePlot, listPlots, loadPlot, pdfPages, pdfPaths,
@@ -349,6 +350,13 @@ function paint() {
   const saveBtn = $("save") as HTMLButtonElement;
   saveBtn.disabled = !store.dirty;
   saveBtn.title = store.dirty ? "Save (⌘S)" : "No changes to save";
+  // Revert follows the same rule, and for the same reason: with nothing changed
+  // there is nothing to go back from.
+  const revertBtn = $("revert") as HTMLButtonElement;
+  revertBtn.disabled = !store.dirty || !onDisk;
+  revertBtn.title = store.dirty
+    ? "Reload the plot from disk, dropping every change since"
+    : "Nothing has changed since this was opened";
   // ⭐ Each section header says what is IN it. The three panels were three grey
   // blocks that had to be read to be told apart; a count in the header answers
   // "which one is this" and "is there anything here" in one glance.
@@ -646,6 +654,9 @@ function recompute(delay = 120) {
  * the class of divergence that has cost a day already in this repo.
  */
 let savedAs: string | null = null;
+/** The plot as it is on disk — what Revert goes back to. Set when a plot is
+ *  adopted and again on every save. */
+let onDisk: Plot | null = null;
 
 function plotJson(): string {
   return JSON.stringify(store.plot, null, 2);
@@ -654,6 +665,12 @@ function plotJson(): string {
 async function saveTo(name: string): Promise<void> {
   const { path } = await savePlot(name, store.plot);
   savedAs = name;
+  // ⚠ Saving MOVES the point Revert goes back to. "As you opened it" and "as it
+  // is on disk" are the same thing until you save, and after that only the
+  // second one is coherent — reverting to a pre-save state would leave the
+  // editor disagreeing with a file it had just written, and still calling
+  // itself clean. Revert means "reload from disk".
+  onDisk = structuredClone(store.plot);
   store.markSaved();
   status(`Saved ${path}`);
   void refreshOpenList();
@@ -1314,6 +1331,10 @@ function mayDiscard(what: string): boolean {
  */
 async function adoptPlot(plot: Plot, savedName: string | null): Promise<void> {
   store = new Store(plot);
+  // ⭐ WHAT REVERT GOES BACK TO. #56: "save the state before we open it."
+  // Cloned, because the store mutates its plot in place and a reference would
+  // quietly become the live document.
+  onDisk = structuredClone(plot);
   savedAs = savedName;
   store.subscribe(paint);
   attachPointer(svg, store, { view, onChange: draw, onSettled: () => recompute() });
@@ -1420,6 +1441,12 @@ async function boot() {
     }
 
     store = new Store(opened);
+    // 🔴 THE SECOND PLACE A STORE IS BORN. `adoptPlot` handles Open and New and
+    // sets `onDisk` there; startup builds its own and did not, so Revert sat
+    // disabled for the whole session on the plot you actually opened the app
+    // with. Found by pressing it: the plot went dirty, Save lit up, and Revert
+    // did not — because `!onDisk` was still true.
+    onDisk = structuredClone(opened);
     fixtureTable = await fixtures();
     // ⚠ Not fatal. A missing DMX table means the Model and personality lists
     // come up empty; it must not stop the editor opening a plot.
@@ -1488,6 +1515,19 @@ async function boot() {
     // does from every other route. A menu that moves depending on which of two
     // things you pressed is a menu you have to look for twice.
     $("sheetinfo").addEventListener("click", () => showExportMenu());
+
+    $("revert").addEventListener("click", () => {
+      if (!onDisk || !store.dirty) return;
+      if (!confirmRevert(savedAs)) return;
+      store.revertTo(onDisk);
+      // ⚠ The same four things every other plot-level change does. A revert that
+      // restored the data and left the drawing, the levels and the chrome stale
+      // would look like it had half worked.
+      symbolCache = {};
+      draw(); recompute(); paintChrome();
+      status(savedAs ? `${savedAs} reloaded from disk.`
+                     : "Back to the plot as you opened it.");
+    });
 
     // ---- import a venue ground plan
     $("dxf").addEventListener("change", async (e) => {

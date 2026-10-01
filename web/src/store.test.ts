@@ -836,5 +836,66 @@ check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
   check("no label runs past three words", tooLong, []);
 }
 
+// ------------------------------------------------------------------- revert
+// #56: "a revert to return the file to the way it was before we touched it in
+// this session - save the state before we open it."
+console.log("\nrevert goes back to the file on disk");
+{
+  const p0 = newPlot();
+  p0.show = "As opened";
+  const onDisk = structuredClone(p0);
+  const st = new Store(p0);
+  check("a freshly opened plot is clean", st.dirty, false);
+
+  st.addPosition({ name: "GRID Z", type: "electric", x1: 0, y1: 10, x2: 20, y2: 10 });
+  st.setMeta({ show: "Edited" });
+  check("editing makes it dirty", st.dirty, true);
+  check("...and the edits are there", st.plot.positions.length, 1);
+
+  st.revertTo(onDisk);
+  check("revert restores the plot", st.plot.show, "As opened");
+  check("...including what was added", st.plot.positions.length, 0);
+  // 🔴 ENDS CLEAN. The plot now matches the file, so claiming unsaved changes
+  // against a document just restored would make the word meaningless.
+  check("...and ends clean", st.dirty, false);
+
+  // ⚠ UNDOABLE. A revert that cannot be taken back is a second way to lose an
+  // afternoon, and this store already had the machinery.
+  check("revert can be undone", st.canUndo, true);
+  st.undo();
+  check("...bringing the work back", st.plot.show, "Edited");
+  check("...all of it", st.plot.positions.length, 1);
+  check("...and dirty with it", st.dirty, true);
+
+  // ⚠ A COPY, not a reference. The store mutates its plot in place, so handing
+  // it the same object would make the snapshot the live document.
+  st.revertTo(onDisk);
+  st.setMeta({ show: "Changed again" });
+  check("the snapshot is not the live plot", onDisk.show, "As opened");
+}
+{
+  const fsR = await import("node:fs");
+  const mainR = fsR.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  // 🔴 TWO places build a Store: adoptPlot, and startup. Only the first set
+  // `onDisk`, so Revert sat disabled all session on the plot the app opened
+  // with. Found by pressing it — the plot went dirty, Save lit up, Revert did
+  // not. Both call sites are pinned here because a third would do it again.
+  // ⚠ Counting both and comparing totals LOOKED like a check and was not: the
+  // snapshot taken on save made the numbers balance even with a store-creation
+  // site missing. Proved by deleting one and watching it pass. So each site is
+  // checked where it stands — within a few lines of its own `new Store(`.
+  const mainLines = mainR.split("\n");
+  const bornAt = mainLines
+    .map((l, i) => (/store = new Store\(/.test(l) ? i : -1))
+    .filter(i => i >= 0);
+  check("a Store is still born in two places", bornAt.length, 2);
+  const unsnapped = bornAt.filter(i =>
+    !mainLines.slice(i, i + 12).some(l => /onDisk = structuredClone\(/.test(l)));
+  check("every Store that is born records what is on disk", unsnapped, []);
+  check("...and saving moves that point", /onDisk = structuredClone\(store\.plot\)/.test(mainR), true);
+  check("Revert is disabled when there is nothing to go back from",
+        /revertBtn\.disabled = !store\.dirty \|\| !onDisk/.test(mainR), true);
+}
+
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
