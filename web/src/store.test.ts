@@ -711,6 +711,20 @@ check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
   check("...and announced as a group", /role="group" aria-label="Layers/.test(htmlB), true);
   check("the zoom slider and its buttons are grouped",
         /class="zoomgroup"/.test(htmlB), true);
+
+  // 🔴 THE TOOLBAR GROUP MUST WRAP. `.bar` wrapped; the `.group` inside it did
+  // not, so the row overflowed the window and the LAST control left the screen.
+  // Caught by Jerry — "I couldnt see ground plan" — after it was moved to the end
+  // of row one at his own request. At 1024px it sat at x=1212, a button that
+  // existed and could not be seen.
+  const groupRule = /\.group \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
+  check("the toolbar group wraps", /flex-wrap:wrap/.test(groupRule), true);
+
+  // ⚠ And a <select> sizes itself to its WIDEST OPTION. Open's options are plot
+  // file names, so it was 332px — a quarter of the row — and one long name would
+  // push the whole toolbar wider. Capped until it becomes a menu button.
+  check("Open cannot be widened by a long plot name", /#open \{[^}]*max-width/.test(htmlB), true);
+  check("nor Sheet by a long paper name", /#page \{[^}]*max-width/.test(htmlB), true);
   // ⚠ They must stay CHECKBOXES. Swapping in divs would buy the same look and
   // lose the semantics and every `.checked` read in main.ts.
   const togglesBlock = /class="toggles"[\s\S]*?<\/span>/.exec(htmlB)?.[0] ?? "";

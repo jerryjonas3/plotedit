@@ -83,7 +83,23 @@
     }
     #status { font-size:12px; line-height:16px; letter-spacing:.4px; max-width:34em; }
     .grow { margin-left:auto; }
-    .group { display:flex; gap:8px; align-items:center; }
+    /* 🔴 WRAPS. `.bar` already wrapped, but the group inside it did not, so the
+       row overflowed the window instead and the LAST control simply left the
+       screen. Found when Ground plan moved to the end of row one at Jerry's
+       request: at a 1024px viewport it sat at x=1212–1299, a button that
+       existed and could not be seen. A control pushed off the edge is worse
+       than a crowded one, because nothing says it is there. */
+    .group { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+
+    /* 🔴 A <select> SIZES ITSELF TO ITS WIDEST OPTION, and Open's options are
+       plot FILE NAMES. It was 332px — a quarter of the whole row — and one plot
+       with a long name would push it wider still, taking the toolbar with it.
+       The same is true of Sheet, whose longest option is "ARCH E1 (30 x 42 in)".
+
+       ⚠ This is a holding fix. Both become menu buttons in the next step, and a
+       menu's width is the menu's problem, not the toolbar's. */
+    #open { max-width:220px; }
+    #page { max-width:190px; }
     .divider { width:1px; align-self:stretch; background:var(--outline-variant); margin:0 2px; }
 
     /* ---- buttons (M3 filled / tonal / outlined / text), dense ---------- */
