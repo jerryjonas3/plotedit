@@ -315,8 +315,25 @@
                       color:var(--on-surface-variant); }
     .pos-field input, .pos-field select { font-size:13px; height:30px; }
     .pos-note { grid-column:1/-1; margin:2px 0 0; font-size:11px; line-height:16px; }
-    .pos-actions { grid-column:1/-1; display:flex; gap:6px; margin-top:4px; }
-    .pos-actions button { height:28px; padding:0 12px; font-size:12px; letter-spacing:.5px; }
+    /* 🔴 WRAP, because this row has always been too wide and nobody had measured
+       it. Five buttons need 431px as main shipped them — with no icons at all —
+       inside a panel that is 302px by default, so `renumber` and `number by
+       clicking` were CLIPPED, not just tight. And the panel is resizable at the
+       splitter, so there is no width at which nowrap is safe.
+
+       ⚠ M3's own advice for a row this full is an overflow menu — "don't clutter
+       your UI with too many buttons… consider presenting low-priority actions in
+       overflow menus or as icon buttons". That is the right end state and it
+       needs the menu component, so it waits for that step. Wrapping is what makes
+       the row honest in the meantime: a second line is visible, a clipped button
+       is not. */
+    .pos-actions { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+    /* ⚠ The size rule that used to live here duplicated `.small` exactly —
+       height, padding, font-size and letter-spacing, all written out a second
+       time. That is how the panel became a third control height. The buttons
+       now ask for `small` themselves (see `button.ts`), so there is one
+       definition of what dense means. What stays here is only LAYOUT. */
+    .pos-actions .material-symbols-outlined { font-size:16px; }
     #positions > button { margin-top:4px; }
 
     /* ---- schedule ---------------------------------------------------- */

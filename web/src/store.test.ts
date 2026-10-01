@@ -587,7 +587,10 @@ check("no note tells the reader to press renumber",
 check("the duplicate-unit note offers the by-hand fix instead",
       _src.includes("Give one of each pair a free number"), true);
 // And the button itself is still there — this was never about removing it.
-check("the renumber button survives", _src.includes('textContent = "renumber"'), true);
+// ⚠ It moved from `textContent = "renumber"` to a `button({label: "Renumber"})`
+// call when the panels got their emphasis. This check CAUGHT that rather than
+// sleeping through it, which is the only reason to write it against the source.
+check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
 
 // ------------------------------------------------- every suite actually runs
 // 🔴 `test:all` LISTS THE SUITES BY HAND, so a new test file runs on the author's
@@ -650,6 +653,63 @@ check("the renumber button survives", _src.includes('textContent = "renumber"'),
   // The shortcut follows the button, or a greyed Save still writes on ⌘S.
   check("⌘S follows the same rule",
         /if \(!store\.dirty\) \{ status\("No changes to save\."\); return; \}/.test(m), true);
+}
+
+// ------------------------------------------- every button states its emphasis
+// 🔴 The panels had seven buttons and no hierarchy: `+ unit`, `draw`,
+// `renumber`, `number by clicking` and `delete` were all the same weight, so
+// nothing said which was the ordinary thing to do. M3 publishes five emphases
+// for exactly that, and index.html already defined four of them.
+//
+// ⚠ The fix is not a stylesheet — it is that `button()` REQUIRES a variant. This
+// pins it: no panel may go back to raw createElement, which is how the emphasis
+// got skipped seven times without anyone deciding to skip it.
+{
+  const fsB = await import("node:fs");
+  const pathB = await import("node:path");
+  const dirB = new URL("./", import.meta.url).pathname;
+  const uiFiles = ["positions.ts", "inspector.ts", "details.ts"]
+    .filter(f => fsB.existsSync(pathB.join(dirB, f)));
+  check("the panel files are where we think", uiFiles.length >= 2, true);
+  const raw: string[] = [];
+  for (const f of uiFiles) {
+    const src = fsB.readFileSync(pathB.join(dirB, f), "utf8");
+    if (/createElement\("button"\)/.test(src)) raw.push(f);
+  }
+  check("no panel builds a button by hand", raw, []);
+
+  // 🔴 The action row must WRAP. Measured in the app: five buttons need 431px as
+  // main shipped them — with no icons at all — inside a 302px panel, so Renumber
+  // and Number by clicking were CLIPPED rather than merely tight, and the panel
+  // is resizable so no fixed width is safe.
+  const htmlB = fsB.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const posRule = /\.pos-actions \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
+  check("the action row is a flex row", /display:flex/.test(posRule), true);
+  check("...that wraps rather than clipping", /flex-wrap:wrap/.test(posRule), true);
+
+  // And the helper itself cannot be called without an emphasis.
+  const bsrc = fsB.readFileSync(pathB.join(dirB, "button.ts"), "utf8");
+  check("variant is required, not optional", /\n  variant: Variant;/.test(bsrc), true);
+  check("...and danger is one of them", /"danger"/.test(bsrc), true);
+
+  // ⚠ M3: sentence case, first word capitalised. "+ unit" and "renumber" were
+  // neither. Checked on the labels actually passed to button().
+  // ⚠ NARROWED to labels passed to `button(`. A plain /label: "…"/ also matched
+  // the SELECT OPTION labels in details.ts — "Imperial — feet and inches",
+  // "Dimmer per circuit (most houses)" — which are prose for a dropdown and have
+  // no business being three words. The first version failed on those: the right
+  // failure for the wrong reason.
+  const labels: string[] = [];
+  for (const f of uiFiles) {
+    const src = fsB.readFileSync(pathB.join(dirB, f), "utf8");
+    for (const m of src.matchAll(/button\(\{[\s\S]*?label: "([^"]+)"/g)) labels.push(m[1]!);
+  }
+  check("there are labels to check", labels.length >= 6, true);
+  const badCase = labels.filter(l => !/^[A-Z]/.test(l));
+  check("every label is sentence case", badCase, []);
+  // M3 asks for one to three words, ideally.
+  const tooLong = labels.filter(l => l.split(/\s+/).length > 3);
+  check("no label runs past three words", tooLong, []);
 }
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }

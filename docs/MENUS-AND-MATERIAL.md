@@ -34,9 +34,22 @@ Every interactive control in the two toolbars, measured in the running app:
 | Buttons built in TypeScript | **7** |
 | …of those carrying any style class | **2** |
 
-🔴 **Five of seven buttons in the panels are unstyled `<button>` elements.** They
-render in the browser's default chrome, next to M3 buttons, in the same panel.
-That single fact is most of "the look and feel is the weakest part".
+⚠ **Corrected 2026-10-01, before building from it.** An earlier draft said the
+five class-less buttons "render in the browser's default chrome". **They do not.**
+Measured in the app: Roboto, `--primary` green, pill radius, transparent
+background — the global `button` rule reaches them, so they are M3 **text**
+buttons, which is a real M3 variant.
+
+🔴 **What is actually wrong is subtler and still worth fixing: there is no
+emphasis.** In a position row, `+ unit`, `draw`, `renumber`, `number by clicking`
+and `delete` are all the same weight, so nothing says which is the ordinary thing
+to do. M3 gives five emphases precisely so a group can answer that, and
+`index.html` already defines `filled`, `tonal`, `outlined` and `danger` — they are
+simply not applied.
+
+⚠ And `.pos-actions button { height:28px; padding:0 12px; font-size:12px }` is a
+local rule that **duplicates `.small` exactly**, which is how the panel ended up a
+third height. The class existed; the rule was written again beside it.
 
 ⚠ The 48dp figure is M3's, and it is a design target rather than a legal floor —
 **WCAG 2.2 AA requires 24×24 CSS px**. The checkboxes fail both. Everything else
