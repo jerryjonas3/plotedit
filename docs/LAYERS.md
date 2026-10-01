@@ -269,12 +269,8 @@ is still reachable on its own.
 The four questions this section used to hold are answered at the top. What is
 left is narrower, and none of it blocks step 1.
 
-1. **🔴 Does a hidden layer change the PAPERWORK?** §5 is unchanged and it is the
-   sharp one: a hidden unit is still in the plot, and the schedule, the hookup
-   and the **circuit loads** have to decide whether it exists. ⚠ The safe answer
-   is that visibility is a drawing concern and never touches a number — but then
-   a designer who hides a layer and prints a schedule gets rows they did not
-   expect, and that needs saying on the page rather than discovering.
+1. ✅ **ANSWERED — a hidden layer does NOT change the paperwork.** See the section
+   below; it was the sharp one and it is settled.
 2. **Does a unit belong to exactly one layer?** One is simpler and is what CAD
    does. More than one makes "the act 2 specials" and "the dance plot" both work
    for a unit that is in both, and makes deleting a layer harder to reason about.
@@ -283,3 +279,51 @@ left is narrower, and none of it blocks step 1.
 4. **Does the screen's layer panel replace the toggle group, or sit beside it?**
    Eight checkboxes is a lot of toolbar; a panel is more room but one click
    further from the drawing.
+
+---
+
+## ✅ Layers do not touch the paperwork — settled 2026-10-01
+
+Jerry, on reading §5:
+
+> It all brings up a good point. I dont think layers affect instrument schedules
+> and Channel hook ups in [the drafting package most of this industry uses]
+
+⭐ **That is the answer, and it comes from the right place.** This is settled
+practice in the tool every designer reading our paperwork already knows, and
+matching it costs nothing. A worksheet reports what matches its criteria; whether
+a layer happens to be switched on is a property of the VIEW, not of the rig.
+
+⚠ *Reported from Jerry's own use of it rather than verified in published
+documentation* — the vendor's help pages reachable from here describe generating
+schedules and recalculating them, and say nothing either way about visibility. It
+is recorded as his judgement, which on this is the better source.
+
+**So the rule, plainly:**
+
+> **Layer visibility is a property of the DRAWING. The schedule, the hookup, the
+> channel count and the circuit loads always report the whole rig.**
+
+🔴 **This is what keeps §5's trap shut.** A load computed without the units
+somebody switched off is the failure that trips a breaker on a Thursday, and it
+is now impossible by rule rather than by care.
+
+### ⭐ And it forces a clean separation that was half-argued in §3
+
+If layers cannot filter paperwork, then "give me a schedule of only my units, not
+the house rep plot" needs a **different mechanism** — and that mechanism is the
+`tag`-style field §3 proposed, read as criteria.
+
+| | filters the drawing | filters the paperwork |
+|---|---|---|
+| **Layer** | ✅ | ✗ never |
+| **A field on the unit** | — | ✅ |
+
+That is not a compromise between the two ideas in this document. It is both of
+them, each doing the half it is good at, and the line between them is now a rule
+rather than a judgement call.
+
+⚠ **One consequence to put in front of the reader rather than let them find it:**
+hide the rep plot, print a schedule, and the house units are still listed. That
+is correct and it will still surprise someone. The schedule should say what it is
+reporting — "all 47 units" — so the count is the hint.
