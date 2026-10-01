@@ -1,6 +1,7 @@
 # Layers — what they would mean here
 
-**Status: PLAN. Nothing here is built.** Written 2026-10-01 for #82, which asks:
+**Status: PLAN, DECIDED. Nothing here is built yet.** Written 2026-10-01 for #82,
+which asks:
 
 > If reasonable, design a system where different objects can live on layers and
 > a layers' visibility can be turned on/off
@@ -11,6 +12,92 @@ layers, in two incompatible schemes, and neither is the one #82 describes.**
 Deciding which of the three to keep is the actual design problem.
 
 ---
+
+## ⭐ Jerry's answers, 2026-10-01 — these settle §7
+
+> so the plot file needs to have the layers, because we would need to display
+> them when we bring it into the app. Can we merge the screen and DXF layer
+> together, and then store them in the JSON file? Also do PDF files have layers?
+> Eventually we would give the user the ability to add layers
+
+| | |
+|---|---|
+| **Where do layers live?** | **In the plot file.** A layer the file does not carry is a layer that is gone when the plot is reopened. |
+| **One scheme or two?** | **One.** The screen's four and the DXF's six merge into a single set. |
+| **Do PDFs have layers?** | **Yes — and the route is proven below.** |
+| **User-defined layers?** | **Eventually.** So the design has to allow them from the start, even if the first version ships only the built-in set. |
+
+⚠ **That changes §2's conclusion rather than deleting it.** The observation
+stands — the groupings a designer asks for are mostly about instruments — but it
+is now an argument about *which layers to offer*, not about whether to have them.
+
+---
+
+## ✅ PDFs do have layers, and this toolchain can write them
+
+PDF calls them **optional content groups**. A reader shows them as a Layers panel
+with a checkbox each, and switching one off removes it from the page and from
+printing.
+
+🔴 **But reportlab cannot make them.** It is what draws every plot PDF
+(`scaled_pdf.py`), and a search of the installed package for `OCProperties`,
+`OptionalContent`, `setOCG` and `OCG` returns **nothing at all**. So this is not
+a flag to switch on.
+
+⭐ **PyMuPDF can, and it is already a dependency.** It has `add_ocg`, an `oc`
+argument on `show_pdf_page`, and `set_layer_ui_config` to toggle one.
+
+**The route, built and measured rather than assumed:** reportlab draws each layer
+to its own one-page PDF, and PyMuPDF overlays them onto a single page, each
+tagged with its own group.
+
+```
+layers in the file : POSITIONS, UNITS
+reader's panel     : two checkboxes, both on
+dark pixels, both on   1701
+dark pixels, UNITS off 1453      ← 248 pixels of ink actually removed
+```
+
+⚠ **One trap found while proving it.** `get_layers()` returns the reader's
+*configurations* and came back empty, which looked like failure — the groups are
+in `get_ocgs()`. And `set_layer(-1, off=[…])` changed the stored state **without
+changing what rendered**; `set_layer_ui_config(n, action=2)` is the one that
+actually hides the ink. Both are easy to mistake for "it does not work".
+
+---
+
+## ⭐ The merged set — eight layers covering both schemes
+
+| Layer | What is on it | Screen today | DXF today |
+|---|---|---|---|
+| **Base plan** | the imported venue drawing | `plan` | `BASE` |
+| **Positions** | pipes, booms, their mounts | — | `POSITIONS` |
+| **Units** | the instrument symbols | — | `UNITS` |
+| **Labels** | unit numbers, channels, position names | `labels` | `TEXT` |
+| **Pools** | the light on the floor | `pools` | — |
+| **Focus** | leaders and focus points | `focus` | — |
+| **Dimensions** | rulers and dimension strings | `rulers` (print only) | `DIMS` |
+| **Notes** | the key and the notes block | — | `NOTES` |
+
+**What the merge buys, on each surface:**
+
+- **The screen gains four** it never had — Positions, Units, Dimensions, Notes.
+  ⭐ "Hide the units and read the pipes" is a thing designers do and the app
+  cannot currently do.
+- **The DXF gains two** it never had: Pools and Focus are **not written to the
+  DXF at all** today, so a CAD reader cannot switch off what was never there.
+- **The PDF gains all eight**, having had none.
+- **`rulers` stops being a special case.** It is print-only because the screen
+  has no Dimensions layer; once it does, it is just a layer that defaults off.
+
+### How user layers fit later, without a second system
+
+The file carries a `layers` array — name, visible, order — seeded with the eight.
+⚠ **The built-ins are assigned by KIND and cannot be deleted**, because nothing
+sensible happens to a pipe whose layer was removed. A user layer is assigned by
+the designer, and an object carries at most one. ⭐ So both models coexist: the
+built-ins answer "hide the text", user layers answer "hide the act 2 specials",
+and neither has to pretend to be the other.
 
 ## 0. The evidence — three surfaces, three different answers
 
@@ -155,39 +242,44 @@ starts.
 
 ---
 
-## 6. ➡ Recommendation, smallest first
+## 6. ➡ The build order, smallest first
 
-1. **A layered PDF, by kind, now.** Six optional-content groups matching the DXF's
-   six. No format change, no migration, no UI — and an electrician can switch
-   off everything but the positions and units on the ladder. The biggest return
-   on this page by a distance.
-2. **Reconcile the two existing schemes**, or write down why they differ. Four
-   names on screen and six in CAD, overlapping in two, is a thing to fix or a
-   thing to explain — currently it is neither.
-3. **Add `tag` to an instrument and a filter to the Schedule panel.** Answers most
-   of §2's real asks for one field and no migration.
-4. **Only then decide on assigned layers**, with §2's list in hand and whether
-   step 3 already covered them.
+Given the decisions above, the order changes: layers go in the file, so the file
+comes first and everything else reads it.
 
-⚠ **This is deliberately not "build what #82 says".** The issue asks "if
-reasonable", and the reasonable reading is that the valuable half — turning things
-off on paper, and grouping units the designer cares about — is reachable without
-a layer system, while the expensive half pays for itself only if the groupings
-are genuinely arbitrary.
+1. **The merged set, in the file, visible on screen.** The eight layers of the
+   table above as a `layers` array, plus the renderer reading it. The four
+   existing toggles become four of the eight, so nothing is lost and four new
+   ones appear. ⚠ **A plot saved before today has no `layers`** — the reader
+   must treat that as "all eight, all visible", never as "none", or an old file
+   opens blank.
+2. **The DXF follows**, writing the same eight names instead of its own six. Two
+   of them — Pools and Focus — reach the DXF for the first time.
+3. **The layered PDF**, by the proven route. ⭐ This is the one an electrician
+   feels: switch everything off but positions and units, on a ladder, in Acrobat.
+4. **User layers**, with a panel to add and reorder them, once the eight have
+   been lived with.
 
----
+⚠ **Step 3 does not depend on steps 1 and 2.** The PDF could be layered by kind
+tomorrow, with no format change at all — so if the file work stalls, that value
+is still reachable on its own.
 
-## 7. Open questions for Jerry
+## 7. What is still open
 
-1. **What do you actually want to switch off, and where?** On the screen while
-   drawing, on the PDF you hand the electrician, or in the DXF you hand a CAD
-   user? The three have different answers and §0 shows they already disagree.
-2. **Is the grouping you want derivable from what a unit already carries** —
-   purpose, position, colour, channel — or is it a thought that lives nowhere?
-   That is the whole by-kind-versus-by-assignment question, in one sentence.
-3. **The rep plot case.** When the Bluver hands you a rig that is already up, do
-   you want your units on a separate layer from theirs, or is "whose unit is
-   this" a field on the unit? ⭐ The second one also prints.
-4. **Should a hidden layer be hidden in the PAPERWORK?** §5 says it must not
-   change a load or a count. Should the schedule grey those rows, drop them, or
-   ignore layers entirely?
+The four questions this section used to hold are answered at the top. What is
+left is narrower, and none of it blocks step 1.
+
+1. **🔴 Does a hidden layer change the PAPERWORK?** §5 is unchanged and it is the
+   sharp one: a hidden unit is still in the plot, and the schedule, the hookup
+   and the **circuit loads** have to decide whether it exists. ⚠ The safe answer
+   is that visibility is a drawing concern and never touches a number — but then
+   a designer who hides a layer and prints a schedule gets rows they did not
+   expect, and that needs saying on the page rather than discovering.
+2. **Does a unit belong to exactly one layer?** One is simpler and is what CAD
+   does. More than one makes "the act 2 specials" and "the dance plot" both work
+   for a unit that is in both, and makes deleting a layer harder to reason about.
+3. **What happens to objects on a deleted user layer** — move to the default, or
+   refuse while it has members? The second is safer and more annoying.
+4. **Does the screen's layer panel replace the toggle group, or sit beside it?**
+   Eight checkboxes is a lot of toolbar; a panel is more room but one click
+   further from the drawing.
