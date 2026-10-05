@@ -10,9 +10,18 @@ name: CI
 # ⭐ Nothing is lost by skipping tags: .github/workflows/release.yml runs the
 # Python suites, verify_suites.py, tsc and `npm run test:all` itself before it
 # builds anything, and it will not publish a release if they fail.
+# ⚠ MAIN ONLY ON PUSH, because `push` and `pull_request` BOTH match when you
+# push a branch that has a pull request open — which ran the whole suite twice
+# for every commit under review. Six check runs where three were wanted, and it
+# had been written off as harmless for weeks.
+#
+# ⚠ A branch with no pull request now gets no CI. That is the trade, and it is
+# the right way round here: `main` is protected and nothing reaches it except
+# through a pull request, so the run that actually gates anything is the
+# pull_request one. Open the PR and the checks start.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 jobs:
