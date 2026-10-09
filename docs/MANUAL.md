@@ -330,8 +330,10 @@ candela not extracted
 ### When it cannot compute at all
 
 ```
-Not computed — needs a trim height and a focus point
+Not computed — needs a focus point
 ```
+
+It names only what is missing: **a trim height**, **a focus point**, or both.
 
 ⭐ **Both of those are the app working, not failing.** A number it cannot justify
 is a number it will not print.

@@ -242,8 +242,18 @@ def compute(req: ComputeRequest) -> Dict[str, Any]:
         if inst.type not in ph.FIXTURES:
             row["note"] = f"{inst.type} is not in the fixture table"
             results.append(row); continue
-        if inst.trim is None or inst.focus_x is None or inst.focus_y is None:
-            row["note"] = "needs a trim height and a focus point"
+        # ⭐ NAME WHAT IS MISSING, AND ONLY THAT. This said "needs a trim height
+        # and a focus point" whenever EITHER was absent, so a unit on a pipe
+        # trimmed at 30' with no focus yet was told it had no trim — Jerry,
+        # 2026.10.09, on a converted rep plot: "the electrics are saying they
+        # don't have a trim height — but they do."
+        missing = []
+        if inst.trim is None:
+            missing.append("a trim height")
+        if inst.focus_x is None or inst.focus_y is None:
+            missing.append("a focus point")
+        if missing:
+            row["note"] = "needs " + " and ".join(missing)
             results.append(row); continue
 
         a = ph.aim((inst.x, inst.y, inst.trim),
