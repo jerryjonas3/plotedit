@@ -22,7 +22,7 @@ import tempfile
 
 import fitz
 
-from plotedit.scaled_pdf import (LINE_STYLES, HEAVY, Sheet, resolve_styles,
+from plotedit.scaled_pdf import (LINE_STYLES, HEAVY, MEDIUM, Sheet, resolve_styles,
                                  _feet_label)
 from plot_to_pdf import render
 
@@ -59,20 +59,27 @@ def sheet_for(name, **plot_keys):
 
 
 print("the three RP-2 weights can be dialled, and mean the same afterwards")
-check("the standard puts a batten at 1.7pt", LINE_STYLES["batten"][0], HEAVY)
+# ⭐ 2025 USITT Lighting Documentation RP §2.2.3: instruments thick, positions
+# medium, the building gray. RP-2 had a batten as heavy as the units on it.
+check("a batten is medium (2025 RP)", LINE_STYLES["batten"][0], MEDIUM)
+check("a pipe is never heavier than the instruments on it",
+      LINE_STYLES["batten"][0] < LINE_STYLES["luminaire"][0], True)
 _t = resolve_styles({"heavy": 1.0})
-check("dialling heavy moves the batten", _t["batten"][0], 1.0)
-check("...and every other heavy line with it", _t["architecture"][0], 1.0)
+check("dialling heavy moves the luminaire", _t["luminaire"][0], 1.0)
+check("...and every other heavy line with it", _t["border"][0], 1.0)
+_m = resolve_styles({"medium": 0.7})
+check("dialling medium moves the pipes", _m["batten"][0], 0.7)
+check("...and the building with them", _m["architecture"][0], 0.7)
 check("...leaving light and medium alone", (_t["grid"][0], _t["masking"][0]),
       (LINE_STYLES["grid"][0], LINE_STYLES["masking"][0]))
 # ⚠ The dash patterns are not overridable and must survive. A chain-dash IS the
 # centre line; a plot that redefined it would be readable only by its author.
 check("the centre line keeps its chain-dash", _t["centerline"][1],
       LINE_STYLES["centerline"][1])
-check("the module table is not mutated", LINE_STYLES["batten"][0], HEAVY)
+check("the module table is not mutated", LINE_STYLES["batten"][0], MEDIUM)
 check("one named category can be moved alone",
-      (resolve_styles({"styles": {"batten": 0.9}})["batten"][0],
-       resolve_styles({"styles": {"batten": 0.9}})["architecture"][0]), (0.9, HEAVY))
+      (resolve_styles({"styles": {"batten": 0.6}})["batten"][0],
+       resolve_styles({"styles": {"batten": 0.6}})["architecture"][0]), (0.6, MEDIUM))
 
 
 def _refused(fn):
