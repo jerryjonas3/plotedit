@@ -33,6 +33,24 @@ FIXTURES = {
                    source="ETC Source Four 50° datasheet 7060L1010 (cosine table: 45,650 cd; fc table agrees: 457fc@10')"),
     "S4 90":  dict(field=86.6, beam=79.0, cd=None, ref_lamp="HPL 750", family="S4",
                    source="ETC Source Four 90° datasheet (angles); candela not extracted"),
+    # Altman SHAKESPEARE (S6) — the fixed-focus ellipsoidals a lot of older houses
+    # still hang. The lens set is 5/10/20/30/40/50, which is why a plot that says
+    # "30°" is not a Source Four. Measured with the GLC lamp, not an HPL: G9.5
+    # base. Each candela agrees with the datasheet's own footcandle table at 30'
+    # (S6-40: 109 fc x 30^2 = 98,100 cd). Added 2026.10.09 for the Zellerbach
+    # rep plot, where every unit is a Shakespeare.
+    "Altman Shakespeare 5":  dict(field=7.0, beam=5.0, cd=974900, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 5°, field 7°, 974,900 cd'),
+    "Altman Shakespeare 10": dict(field=10.0, beam=7.0, cd=791000, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 7°, field 10°, 791,000 cd'),
+    "Altman Shakespeare 20": dict(field=20.0, beam=13.0, cd=189700, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 13°, field 20°, 189,700 cd'),
+    "Altman Shakespeare 30": dict(field=28.0, beam=18.0, cd=149200, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 18°, field 28°, 149,200 cd'),
+    "Altman Shakespeare 40": dict(field=38.0, beam=20.0, cd=98100, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 20°, field 38°, 98,100 cd'),
+    "Altman Shakespeare 50": dict(field=50.0, beam=23.0, cd=46300, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 23°, field 50°, 46,300 cd'),
     # Standard lens tubes the modern US datasheets do not cover — from the ETC Europe
     # "Source Four Beam Spread Table", data issued 13-11-2000 (on file). Angles only;
     # that table carries no candela. Internally consistent: every published multiplier
@@ -238,6 +256,12 @@ LAMP_MF = {
                 # the candela was measured at, so every factor there is 1.00.
                 "S4 EA PAR VNSP": 1.00, "S4 EA PAR NSP": 1.00,
                 "S4 EA PAR MFL": 1.00, "S4 EA PAR WFL": 1.00},
+    # Altman Shakespeare: the GLC is the lamp the performance chart was MEASURED
+    # with, so every factor is 1.00 — the same arrangement as HPL 750 for the
+    # Source Four. The datasheet's lamp table lists correction factors for other
+    # lamps, but its columns do not line up cleanly enough to read them safely;
+    # left out until somebody checks them against a clean copy.
+    "GLC": {f"Altman Shakespeare {d}": 1.00 for d in (5, 10, 20, 30, 40, 50)},
     "HPL 575": {"S4 19": 0.85, "S4 26": 0.78, "S4 36": 0.67, "S4 50": 0.79,
                 # Same table, HPL 575/115 row. The factor differs per LENS —
                 # .92 to .75 — so one number for the family would be wrong for
@@ -378,6 +402,11 @@ FAMILY_WATTS = {
 }
 FAMILY_WATTS["ColorSource Zoom"] = FAMILY_WATTS["ColorSource"]
 # Jerry's own units. 350W each, from the model name and his own rig notes.
+# ⚠ THE LAMP IS AN ASSUMPTION. Altman measured the Shakespeare with a GLC
+# (575 W, G9.5) and the fixture is listed to 750 W; nothing on a rep plot says
+# which lamp is in it. 575 is what the chart was measured at.
+FAMILY_WATTS["Shakespeare"] = {"_typical": 575.0,
+                               "_source": "Altman Shakespeare datasheet: performance chart measured with the GLC (575 W); fixture listed to 750 W"}
 FAMILY_WATTS["SHEHDS"] = {"_typical": 350.0,
                           "_source": "SHEHDS 350W RGBW Profile — the model name, corroborated by Jerry's Without Consent rig notes"}
 

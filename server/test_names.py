@@ -141,6 +141,19 @@ check("'ETC Source4 19deg' draws what 'S4 19' draws",
       [p[0] for p in sym.for_type("ETC Source4 19deg")],
       [p[0] for p in sym.for_type("S4 19")])
 
+print("\nAltman Shakespeare — the Zellerbach rep plot, 2026.10.09")
+check("'Altman S6-30' is a Shakespeare 30, not a Source Four",
+      fn.resolve("Altman S6-30", ph.FIXTURES)[0], "Altman Shakespeare 30")
+check("'Shakespeare 10°' resolves", fn.resolve("Shakespeare 10°", ph.FIXTURES)[0], "Altman Shakespeare 10")
+_len = lambda k: round(max(a for p in sym.for_type(k) if p[0] == "poly" for a, _c in p[1])
+                       - min(a for p in sym.for_type(k) if p[0] == "poly" for a, _c in p[1]), 3)
+check("a Shakespeare 30 is drawn at its own length, 25 1/8\"", _len("Altman Shakespeare 30"),
+      round(25.125 / 12, 3))
+check("the 10° barrel is longer than the 30°",
+      _len("Altman Shakespeare 10") > _len("Altman Shakespeare 30"), True)
+check("a 30° carries RP-2's 26-30° diagonal",
+      [p[0] for p in sym.for_type("Altman Shakespeare 30")][1:], ["line"])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

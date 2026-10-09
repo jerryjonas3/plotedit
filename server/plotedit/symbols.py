@@ -112,6 +112,24 @@ def enhanced_ers(angle=26, length=1.667, width=0.625):
     return out
 
 
+# Altman Shakespeare (S6), from the datasheet's dimension drawings. The body is
+# 7 3/4" across on every lens; the length is the barrel's — 24"-26 1/4" for
+# 20-50°, 29 1/4"-31 1/2" for the 10°, 38 1/4"-40 1/2" for the 5° — so the middle
+# of each range is used. RP-2's shape grammar is kept: the 10° and 5° have a far
+# wider front in life (12" and 14" accessory frames), which this does not draw.
+# The house's own Vectorworks shapes were set aside on purpose (Jerry,
+# 2026.10.09: "RP-2 symbols at Shakespeare size").
+SHAKESPEARE_LENGTH_IN = {5: 39.375, 10: 30.375, 20: 25.125, 30: 25.125, 40: 25.125, 50: 25.125}
+SHAKESPEARE_WIDTH_IN = 7.75
+
+
+def shakespeare(angle=30):
+    """§6.1.6 enhanced ERS at Altman Shakespeare size."""
+    a = int(angle)
+    length = SHAKESPEARE_LENGTH_IN.get(a, SHAKESPEARE_LENGTH_IN[30]) / 12.0
+    return enhanced_ers(a, length=length, width=SHAKESPEARE_WIDTH_IN / 12.0)
+
+
 def ers_zoom(angle=30, **kw):
     """§6.1.11 variable focus — the same body carrying a Z."""
     out = enhanced_ers(angle, **kw)
@@ -806,6 +824,8 @@ def for_type(kind, lens_rotation=None, lamp=None):
         return striplight()
     if "mac" in low or "mover" in low or "moving" in low or "aura" in low:
         return moving_head("wash")
+    if "shakespeare" in low:
+        return _with_lamp(shakespeare(deg), lamp)
     if "zoom" in low:
         return _with_lamp(ers_zoom(deg), lamp)
     # default: an ellipsoidal at whatever angle the name carries
