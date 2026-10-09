@@ -238,7 +238,7 @@ FRAME = "frame"
 
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
-                 show="", venue="", sheet="", rev="A", designer="", studio="",
+                 show="", venue="", sheet="", rev="A", designer="", studio="", date="",
                  margin_in=0.5, dxf=None, weights=None, units=None, layered=True):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
@@ -302,7 +302,7 @@ class Sheet:
         # came out with his name on it — in the title block, in brown, as a
         # claim of authorship. Both now come from the plot file or stay blank.
         self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev,
-                         designer=designer, studio=studio)
+                         designer=designer, studio=studio, date=date)
         self.c.setLineJoin(1); self.c.setLineCap(1)
         self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
         self.warnings = []
@@ -1497,9 +1497,19 @@ class Sheet:
                 while stringWidth(t + "…", "Helvetica", 8) > tb_w - 12: t = t[:-1]
                 t += "…"
             c.drawString(x0 + 6, y0 + tb_h - 27 - 12 * i, t)
+        # ⭐ THE PLOT'S DATE, not today's. The title block carries "the date the
+        # plate was published" (2025 USITT RP §2.2.6; RP-2 §4.1 the same), and
+        # printing today's date made a reprint of an old plot claim to be new.
+        # Today's date only when the plot carries none.
         import datetime
+        when = str(self.meta.get("date") or "").strip()
+        try:
+            when = datetime.date.fromisoformat(when).strftime('%Y.%m.%d') if when else ""
+        except ValueError:
+            pass                    # not ISO: print it as the plot has it
+        when = when or datetime.date.today().strftime('%Y.%m.%d')
         c.drawString(x0 + 6, y0 + tb_h - 51, f"Scale {self.scale_label}   Rev {self.meta['rev']}   "
-                                              f"{datetime.date.today().strftime('%Y.%m.%d')}")
+                                              f"{when}")
         if self.meta["designer"]:
             c.setFillColor(BROWN); c.setFont("Helvetica-Bold", 8)
             c.drawString(x0 + 6, y0 + 6, self.meta["designer"])

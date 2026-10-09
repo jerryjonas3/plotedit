@@ -52,7 +52,12 @@ def _mirror(pts):
 ERS_MARKS = {
     90: "rings", 70: "rings", 50: "wedge", 40: None, 36: None,
     30: "diagonal", 26: "diagonal", 20: "cross", 19: "cross",
-    15: "long", 14: "long", 10: "long", 5: "long",
+    15: "long", 10: "long", 5: "long",
+    # ⭐ 2025 USITT Lighting Documentation RP, Figure 3.1.4.0.4: the 14° gets its
+    # own mark — three lines parallel to the beam, standing proud of the face —
+    # where RP-2 drew the narrow lenses by body length alone. The same mark RP-2
+    # already used for its 12° (6x22) and 3.5x12 units.
+    14: "lines",
 }
 
 
@@ -105,6 +110,10 @@ def enhanced_ers(angle=26, length=1.667, width=0.625):
         out += [("line", (flare_end, -neck_w), (face, face_w))]
     elif mark == "wedge":                                 # 50°
         out += [("poly", [(face, face_w), (flare_end, 0.0), (face, -face_w)], False)]
+    elif mark == "lines":                                 # 14° (2025 RP)
+        reach = 0.12 * length
+        for c in (0.6 * face_w, 0.0, -0.6 * face_w):
+            out += [("line", (face, c), (face - reach, c))]
     elif mark == "rings":                                 # 70°-90°
         for t in (0.34, 0.68):
             x = face + t * (flare_end - face)
