@@ -61,10 +61,16 @@ r = client.post("/compute", json={"instruments": [
      # publishes a transmission for those, so it is the one class that stays
      # missing until somebody reads a swatch book.
      "focus_x": 10, "focus_y": 10, "color": "R100", "lamp": "HPL 575"},  # unknown gel
+    {"unit": 5, "type": "S4 26", "x": 6, "y": 20, "trim": 30},           # trim, no focus
+    {"unit": 6, "type": "S4 26", "x": 6, "y": 20,
+     "focus_x": 10, "focus_y": 10},                                      # focus, no trim
 ]}).json()["instruments"]
 check("acting-area wash", r[0]["footcandles"], 169)
 check("throw", r[0]["throw_ft"], "13'-9\"")
 check("no trim -> refuses, explains", r[1]["note"], "needs a trim height and a focus point")
+# The note names only what is missing: a trimmed unit must not be told it has no trim.
+check("trim but no focus -> asks for the focus only", r[4]["note"], "needs a focus point")
+check("focus but no trim -> asks for the trim only", r[5]["note"], "needs a trim height")
 check("unknown fixture -> refuses", r[2]["computed"], False)
 check("unknown gel -> warns, does not guess", "open white" in r[3]["gel_warning"], True)
 check("unknown gel -> open-white level", r[3]["footcandles"], 729)
