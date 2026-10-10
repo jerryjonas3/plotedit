@@ -227,8 +227,21 @@ check("a sheet too small refuses", _sheet_inches("TABLOID"), 422)
 
 print("\nwhat shipped with it can be opened again")
 _s = client.get("/samples").json()["samples"]
-check("the demo is listed", [x["name"] for x in _s], ["demo.plot.json"])
-check("...with its show name", _s[0]["show"], "The Odd Couple")
+check("the samples are listed", sorted(x["name"] for x in _s),
+      ["Sample Big House.plot.json", "demo.plot.json"])
+check("...with their show names", {x["name"]: x["show"] for x in _s}["demo.plot.json"],
+      "The Odd Couple")
+# A large proscenium house, from a real rep plot with the name taken off
+# (Jerry, 2026.10.09). It ships in every download, so what identified the
+# source must stay off. ⚠ Checked WITHOUT naming it: a test that spells out the
+# real name puts it in the public repo, which is the leak it exists to stop.
+_big = client.get("/samples/Sample%20Big%20House.plot.json").json()["plot"]
+check("the big house reads back, 201 units", len(_big["instruments"]), 201)
+check("...with no conversion notes left on any unit",
+      [i["unit"] for i in _big["instruments"] if i.get("notes")], [])
+check("...and its sources described, not named", (_big["room"]["source"], _big["room"]["gridSource"]),
+      ("Read from a house repertory plot and section. Not measured.",
+       "House section: gridiron 88'-5\""))
 check("it reads back", client.get("/samples/demo.plot.json").json()["plot"]["show"],
       "The Odd Couple")
 check("an unknown sample is 404", client.get("/samples/nope.plot.json").status_code, 404)
