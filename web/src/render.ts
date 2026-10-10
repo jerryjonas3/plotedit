@@ -108,7 +108,13 @@ function el(name: string, attrs: Record<string, string | number>): SVGElement {
 /** Line widths and text sizes are in FEET, so they scale with the drawing.
  *  Divided by the view scale they would be constant on screen; we want them
  *  to grow with zoom, the way ink on paper does. */
-const W = { room: 0.25, position: 0.4, focus: 0.08, pool: 0.06, dim: 0.06 };
+// ⭐ 2025 USITT Lighting Documentation RP §2.2.3: instrument outlines thick,
+// positions medium, the building gray. A pipe was 0.4' wide on screen — over
+// five times an instrument's 0.075' outline — and Jerry, 2026.10.09: "the line
+// weights of the pipes are way too thick." Now a pipe is a little LIGHTER than
+// the units on it, as the RP asks, and the room is a thin gray line.
+const W = { room: 0.05, position: 0.06, focus: 0.08, pool: 0.06, dim: 0.06 };
+const ROOM_STROKE = "#9a9a9a";
 const TEXT = 1.0;      // feet — about 12" tall, legible at a whole-room zoom
 // Position names, and the width of one character at that size. The server fits
 // the names but cannot measure this font, so the estimate is sent to it.
@@ -179,7 +185,7 @@ export function render(
   // ---- the room
   gRoom.appendChild(el("rect", {
     x: 0, y: 0, width: plot.room.width, height: plot.room.depth,
-    fill: "none", stroke: "#333", "stroke-width": W.room,
+    fill: "none", stroke: ROOM_STROKE, "stroke-width": W.room,
   }));
   // a foot grid, faint, so distances are readable without measuring
   for (let x = 5; x < plot.room.width; x += 5)
@@ -200,9 +206,10 @@ export function render(
   // up. Until now they were loose lines in one bucket with nothing to say which
   // was which, which is why a position could not be selected at all.
   let gThis: SVGElement = gPos;
-  const bar = (x1: number, y1: number, x2: number, y2: number, w: number) =>
+  const bar = (x1: number, y1: number, x2: number, y2: number, w: number,
+               stroke = "#222") =>
     gThis.appendChild(el("line", {
-      x1, y1, x2, y2, stroke: "#222", "stroke-width": w, "stroke-linecap": "round",
+      x1, y1, x2, y2, stroke, "stroke-width": w, "stroke-linecap": "round",
     }));
 
   plot.positions.forEach((p, pi) => {
@@ -267,8 +274,10 @@ export function render(
     } else if (kind === "catwalk" || kind === "truss") {
       const half = (p.width ?? (kind === "catwalk" ? 3.0 : 1.5)) / 2;
       for (const side of [1, -1])
+        // A catwalk's edges are the BUILDING — gray, like the room (2025 RP).
         bar(p.x1, p.y1 + side * half, p.x2, p.y2 + side * half,
-            kind === "catwalk" ? W.room : W.position);
+            kind === "catwalk" ? W.room : W.position,
+            kind === "catwalk" ? ROOM_STROKE : "#222");
       if (kind === "catwalk") {
         // the pipe, INBOARD of the downstage rail — on the rail the two lines
         // coincide and the pipe disappears

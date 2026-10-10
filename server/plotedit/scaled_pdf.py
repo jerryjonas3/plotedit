@@ -83,7 +83,8 @@ SCALES = {"1/8": 0.125, "1/4": 0.25, "3/8": 0.375, "1/2": 0.5, "3/4": 0.75, "1":
 GREEN, BROWN = HexColor("#256948"), HexColor("#994C00")   # Twin Oaks palette
 
 # ---------------------------------------------------------------------------
-# §6.18 LINE WEIGHTS — three, and only three.
+# §6.18 LINE WEIGHTS — three, and only three. (Assignments updated to the 2025
+# USITT Lighting Documentation RP §2.2.3: see LINE_STYLES.)
 #
 # RP-2 assigns every element on a plot to one of three weights, and four of the
 # medium ones to a dash pattern. Drawing everything at one weight is legible but
@@ -107,13 +108,27 @@ LINE_STYLES = {
     "drop":         (MEDIUM, (8, 4)),
     "centerline":   (MEDIUM, (11, 3, 2.5, 3)),   # chain-dash
     "plasterline":  (MEDIUM, (5, 4)),
-    # heavy — the things that physically exist
-    "batten":       (HEAVY, None),
+    # heavy — the instruments, and the sheet's own frame
     "luminaire":    (HEAVY, None),
-    "architecture": (HEAVY, None),
     "border":       (HEAVY, None),
     "titleblock":   (HEAVY, None),
+    # ⭐ USITT LIGHTING DOCUMENTATION RP (2025) §2.2.3, which supersedes RP-2:
+    # "thick lines: perimeter of lighting instrument symbols ... medium lines:
+    # lighting positions ... reduced line opacity and/or gray: architectural
+    # information." Under RP-2 a pipe was as heavy as the units on it, and Jerry,
+    # 2026.10.09, on a 200-unit rep plot: "the line weights of the pipes are way
+    # too thick." So positions drop to MEDIUM and the building goes gray
+    # (ARCH_GREY below), leaving the instruments as the darkest thing on the page.
+    "batten":       (MEDIUM, None),
+    "architecture": (MEDIUM, None),
 }
+
+# The colour a category is drawn in when the caller does not say. Only the
+# building is here: the 2025 RP draws architecture gray "to focus visual
+# attention on lighting devices", and never by colour alone — it is also a
+# lighter weight than the instruments.
+ARCH_GREY = HexColor("#8c8c8c")
+STYLE_COLOURS = {"architecture": ARCH_GREY}
 
 
 # ⭐ Which line a POSITION is drawn with. Everything physical is heavy under
@@ -625,6 +640,8 @@ class Sheet:
             # staying in the same RP-2 category — and the default is None, so
             # nothing that does not ask for it is affected.
             width = sw if width_override is None else width_override
+            if color is black:
+                color = STYLE_COLOURS.get(style, black)
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
         if dash: c.setDash(list(dash))   # (array, phase) — pass the pattern as ONE list
         c.line(*self.P(x1, y1), *self.P(x2, y2)); c.restoreState()
@@ -633,6 +650,8 @@ class Sheet:
     def rect(self, x, y, w, h, width=1.0, label=None, fill=None, color=black, style=None):
         if style:
             width, dash = self.style(style)
+            if color is black:
+                color = STYLE_COLOURS.get(style, black)
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
         if style and self.style(style)[1]:
             c.setDash(list(self.style(style)[1]))
@@ -772,7 +791,7 @@ class Sheet:
 
     # ---- theatre objects ----------------------------------------------
     def pipe(self, x1, y, x2, label=None, width=2.0):
-        """A hanging position. §6.18: a batten is HEAVY."""
+        """A hanging position. A batten is MEDIUM (2025 RP §2.2.3; RP-2 had it HEAVY)."""
         self.layer("POSITIONS")
         self.line(x1, y, x2, y, style="batten")
         if label:
