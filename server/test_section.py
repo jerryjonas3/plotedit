@@ -104,8 +104,14 @@ check("and nothing is clipped off the sheet",
 print("\nthe sheet is honoured, like any other drawing")
 small = client.post("/export/section", json={"plot": PLOT, "page": "LETTER"})
 check("a different sheet is accepted", small.status_code, 200)
-check("...and produces a different file",
-      len(small.content) != len(r.content), True)
+# ⚠ This compared byte LENGTHS, and two different PDFs can be the same length —
+# it failed on main depending on what text happened to be in the plot. The sheet
+# is the thing that was asked for, so check the sheet.
+import fitz as _fz
+_big_w = _fz.open(stream=r.content, filetype="pdf")[0].rect.width
+_small_w = _fz.open(stream=small.content, filetype="pdf")[0].rect.width
+check("...and produces a different file", small.content != r.content, True)
+check("...on the smaller sheet that was asked for", _small_w < _big_w, True)
 
 print("\n🔴 an empty section is refused rather than drawn")
 # A plot export with nothing on it is still worth having. A section of a room

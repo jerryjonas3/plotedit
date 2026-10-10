@@ -186,18 +186,19 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
     pts("Light", w.light, "light",
         "RP-2's lightest weight — notation, leaders, dimensions, beam pools. Default 0.5."),
     pts("Medium", w.medium, "medium",
-        "Soft goods and reference lines — masking, drops, the centre and plaster lines. Default 0.9."),
+        "Positions — pipes, booms, catwalks — plus the building (drawn gray), soft goods "
+      + "and the centre and plaster lines. Default 0.9. Lower this if the pipes read heavy."),
     pts("Heavy", w.heavy, "heavy",
-        "Everything that physically exists — pipes, instruments, walls, the border. "
-      + "Default 1.7, which is what makes a plot read heavy. Lower this first."),
+        "The instruments, and the sheet border and title block. Default 1.7. "
+      + "The 2025 USITT RP makes the units the heaviest thing on the plot."),
     pts("Electrics", w.positions?.electric, "positions.electric",
-        "Overrides the heavy weight for electrics, pipes and grids only. Leave blank "
-      + "to follow Heavy."),
+        "Overrides the weight for electrics, pipes and grids only. Leave blank "
+      + "to follow Medium."),
     pts("Booms", w.positions?.boom, "positions.boom",
-        "Booms, box booms and ladders. Leave blank to follow Heavy."),
+        "Booms, box booms and ladders. Leave blank to follow Medium."),
     pts("Catwalks", w.positions?.catwalk, "positions.catwalk",
         "A catwalk is drawn as architecture, not as a pipe — this is its edges. "
-      + "Leave blank to follow Heavy."),
+      + "Leave blank to follow Medium."),
   ]);
 
   group("Where the figures came from", [

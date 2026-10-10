@@ -154,6 +154,13 @@ check("the 10° barrel is longer than the 30°",
 check("a 30° carries RP-2's 26-30° diagonal",
       [p[0] for p in sym.for_type("Altman Shakespeare 30")][1:], ["line"])
 
+print("\nthe 2025 USITT RP's 14° mark")
+_m14 = [p for p in sym.for_type("S4 14") if p[0] == "line"]
+check("a 14° carries three lines", len(_m14), 3)
+check("...parallel to the beam (each line is level in the symbol frame)",
+      all(abs(p[1][1] - p[2][1]) < 1e-9 for p in _m14), True)
+check("a 10° is unchanged: no mark", [p[0] for p in sym.for_type("S4 10")][1:], [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
