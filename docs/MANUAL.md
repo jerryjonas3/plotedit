@@ -426,7 +426,7 @@ back over the file that shipped. Pressing **New** does not lose them.
 | | |
 |---|---|
 | **The Odd Couple — demo.plot.json** | The demo: a black box, eighteen units. What the app opens when there is nothing else. |
-| **Rep — Sample Big House.plot.json** | A large proscenium house: 201 units on four electrics and a cyc electric, pro slots, ceiling catwalks and a balcony rail. Every unit is focused straight down as a stand-in. ⚠ It is big — at ¼" it needs ARCH E (36 × 48); on ARCH D, print it at ⅛". |
+| **Rep — Sample Big House.plot.json** | A large proscenium house: 201 units on four electrics and a cyc electric, pro slots, ceiling catwalks and a balcony rail. Every unit is focused straight down as a stand-in. ⚠ It is big — at ¼" it needs ARCH E (36 × 48); on ARCH D, print it at 1/8". |
 
 To keep them somewhere else — a show folder, or Dropbox — set `PLOTEDIT_PLOTS`
 to that path before starting.
