@@ -161,6 +161,21 @@ check("...parallel to the beam (each line is level in the symbol frame)",
       all(abs(p[1][1] - p[2][1]) < 1e-9 for p in _m14), True)
 check("a 10° is unchanged: no mark", [p[0] for p in sym.for_type("S4 10")][1:], [])
 
+print("\nthe beam angle written in the barrel (2025 RP)")
+_txt = lambda k, **kw: [p[2] for p in sym.for_type(k, **kw) if p[0] == "text"]
+check("a Shakespeare 40 writes 40", _txt("Altman Shakespeare 40", angle_in_barrel=True), ["40"])
+check("...and a 10° writes 10 — the two that both carried no mark",
+      _txt("Altman Shakespeare 10", angle_in_barrel=True), ["10"])
+check("the number REPLACES the mark: a 26° loses its diagonal",
+      [p[0] for p in sym.for_type("S4 26", angle_in_barrel=True)], ["poly", "text"])
+check("...and sits in the lens housing, ahead of the unit number in the body",
+      [p[1][0] < -0.4 for p in sym.for_type("S4 26", angle_in_barrel=True) if p[0] == "text"],
+      [True])
+check("off by default: the marks are unchanged", _txt("S4 26"), [])
+check("a zoom keeps its Z, not the one angle in its name",
+      _txt("S4 Zoom 25-50", angle_in_barrel=True), ["Z"])
+check("a PAR is not an ellipsoidal and ignores it", _txt("PAR64 MFL", angle_in_barrel=True), [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

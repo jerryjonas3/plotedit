@@ -61,8 +61,15 @@ ERS_MARKS = {
 }
 
 
-def enhanced_ers(angle=26, length=1.667, width=0.625):
+def enhanced_ers(angle=26, length=1.667, width=0.625, angle_in_barrel=False):
     """§6.1.6. Defaults are a Source Four: 20" long, 7.5" across the body.
+
+    ⭐ `angle_in_barrel` writes the beam angle in the lens housing INSTEAD of
+    the mark — the 2025 USITT RP's alternative (Figure 3.1.4.0.4, right-hand
+    column). One setting for the whole plot (Jerry, 2026.10.09). Asked for on
+    the Zellerbach rig, where every unit is a Shakespeare on the same body and
+    a 40° and a 10° both carry no mark: at plot size they could not be told
+    apart.
 
     Shape grammar traced from the plate. Reading from the FRONT backwards:
 
@@ -102,6 +109,10 @@ def enhanced_ers(angle=26, length=1.667, width=0.625):
     ]
     out = [("poly", _mirror(upper), True)]
 
+    if angle_in_barrel:
+        # Where the mark would go, so the number replaces it and nothing else
+        # moves: the unit number stays in the body behind it.
+        return out + [("text", ((face + flare_end) / 2, 0.0), f"{angle:g}", 0.26)]
     mark = ERS_MARKS.get(int(angle))
     if mark == "cross":                                   # 19°-20°
         out += [("line", (flare_end, neck_w), (face, -face_w)),
@@ -132,11 +143,12 @@ SHAKESPEARE_LENGTH_IN = {5: 39.375, 10: 30.375, 20: 25.125, 30: 25.125, 40: 25.1
 SHAKESPEARE_WIDTH_IN = 7.75
 
 
-def shakespeare(angle=30):
+def shakespeare(angle=30, angle_in_barrel=False):
     """§6.1.6 enhanced ERS at Altman Shakespeare size."""
     a = int(angle)
     length = SHAKESPEARE_LENGTH_IN.get(a, SHAKESPEARE_LENGTH_IN[30]) / 12.0
-    return enhanced_ers(a, length=length, width=SHAKESPEARE_WIDTH_IN / 12.0)
+    return enhanced_ers(a, length=length, width=SHAKESPEARE_WIDTH_IN / 12.0,
+                        angle_in_barrel=angle_in_barrel)
 
 
 def ers_zoom(angle=30, **kw):
@@ -779,7 +791,7 @@ def _black():
 
 # ------------------------------------------------------ §6.14 luminaire notation
 
-def for_type(kind, lens_rotation=None, lamp=None):
+def for_type(kind, lens_rotation=None, lamp=None, angle_in_barrel=False):
     """Pick a symbol from a fixture-table key like "S4 26" or "Lustr 26 EDLT".
 
     lens_rotation (degrees) is used by oval-beam units — a PARNel's lens turns,
@@ -790,6 +802,9 @@ def for_type(kind, lens_rotation=None, lamp=None):
     drop a 4WRD in, and the plot used to draw a tungsten unit — indistinguishable
     from the one beside it that still has an HPL. The barrel is the same; the
     source is not, and §6.16 has a way to say so.
+
+    `angle_in_barrel` is the plot's `angleInBarrel`: ellipsoidals write their
+    beam angle instead of carrying the mark. Every other family ignores it.
     """
     k = (kind or "").strip()
     # Resolve a paperwork name to a table key first — "ETC Source4 36deg" should
@@ -834,11 +849,13 @@ def for_type(kind, lens_rotation=None, lamp=None):
     if "mac" in low or "mover" in low or "moving" in low or "aura" in low:
         return moving_head("wash")
     if "shakespeare" in low:
-        return _with_lamp(shakespeare(deg), lamp)
+        return _with_lamp(shakespeare(deg, angle_in_barrel=angle_in_barrel), lamp)
     if "zoom" in low:
+        # ⚠ A zoom's angle is not fixed and it already carries its Z, so it
+        # keeps the Z rather than claiming the one angle in its name.
         return _with_lamp(ers_zoom(deg), lamp)
     # default: an ellipsoidal at whatever angle the name carries
-    return _with_lamp(enhanced_ers(deg), lamp)
+    return _with_lamp(enhanced_ers(deg, angle_in_barrel=angle_in_barrel), lamp)
 
 
 def _with_lamp(prims, lamp):

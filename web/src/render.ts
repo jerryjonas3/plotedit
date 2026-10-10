@@ -267,7 +267,7 @@ export function render(
         const st = el("g", {
           transform: `translate(${p.x1} ${p.y1}) rotate(${-bm.plan.rotation})`,
         });
-        paintPrims(st, bm.plan.prims);
+        paintPrims(st, bm.plan.prims, { turned: -bm.plan.rotation });
         paintPrims(st, bm.plan.hatch, { width: 0.45 });
         gThis.appendChild(st);
       }
@@ -473,7 +473,7 @@ export function render(
  * three at once.
  */
 function paintPrims(into: SVGElement, prims: SymbolPrim[] | undefined,
-                    o: { width?: number; solid?: boolean } = {}): void {
+                    o: { width?: number; solid?: boolean; turned?: number } = {}): void {
   const w = o.width ?? 1;
   for (const p of prims ?? []) {
     if (p.k === "poly") {
@@ -493,7 +493,11 @@ function paintPrims(into: SVGElement, prims: SymbolPrim[] | undefined,
       }));
     } else if (p.k === "text") {
       const t = el("text", {
-        transform: `translate(${p.c[1]} ${p.c[0]}) scale(1 -1)`,
+        // ⭐ UPRIGHT, as the paper prints it. `turned` is the rotation of the
+        // group this is drawn into, undone here: a beam angle written in the
+        // barrel (2025 RP) has to be READ, and a unit hung pointing stage left
+        // would otherwise show "30" on its side.
+        transform: `translate(${p.c[1]} ${p.c[0]}) rotate(${-(o.turned ?? 0)}) scale(1 -1)`,
         "font-size": p.size, "font-family": "system-ui, sans-serif",
         "font-weight": "700", fill: "#111", "text-anchor": "middle",
       });
@@ -539,7 +543,7 @@ function symbol(inst: Instrument, c: Computed | undefined,
     body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.42, fill: "#fff",
                                     stroke: "#111", "stroke-width": 0.07 }));
   }
-  paintPrims(body, prims);
+  paintPrims(body, prims, { turned: pan });
   // ⭐ NO YOKE DOT (Jerry, 2026.09.29: "I don't think I've seen them before").
   // RP-2 §2.2 says the SYMBOL is placed at the hanging point — "the symbol
   // should be placed so that its location reflects its exact hanging point" —
@@ -743,7 +747,7 @@ function elevation(b: BoomElevation, all: Instrument[],
       st.appendChild(el("circle", { cx: 0, cy: 0,
         r: symbolRadius(u.prims) + 0.28, class: "halo" }));
     }
-    paintPrims(st, u.prims);
+    paintPrims(st, u.prims, { turned: 90 });
     g.appendChild(st);
     if (idx >= 0) {
       g.appendChild(el("circle", {

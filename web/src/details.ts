@@ -28,11 +28,20 @@ export interface DetailDeps {
   onChange: () => void;
   /** The ROOM has changed — the numbers are stale until the server answers. */
   onGeometry: () => void;
+  /** How symbols are DRAWN has changed — the outlines held are stale. */
+  onSymbols: () => void;
 }
 
 const UNITS = [
   { value: "imperial", label: "Imperial — feet and inches" },
   { value: "metric", label: "Metric — metres" },
+];
+
+// ⭐ 2025 USITT RP, Figure 3.1.4.0.4: write the beam angle in the barrel
+// instead of the mark. One setting for the whole plot (Jerry, 2026.10.09).
+const BEAM_ANGLE = [
+  { value: "mark", label: "A mark in the lens (RP)" },
+  { value: "number", label: "The number in the barrel" },
 ];
 
 const CONTROL: { value: ControlModel; label: string }[] = [
@@ -122,7 +131,7 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
           { hint: "Printed along the bottom of the title block." }),
     field("Revision", p.revision, v => { store.setMeta({ revision: v }); deps.onChange(); }),
     field("Date", p.date, v => { store.setMeta({ date: v }); deps.onChange(); },
-          { hint: "The date on the plot. The sheet also stamps the day it was rendered." }),
+          { hint: "The date on the plot, printed in the title block. Blank prints the day it is exported." }),
   ]);
 
   // ⚠ The unit in the CAPTION has to follow the plot, or a metric plot shows
@@ -158,6 +167,13 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
             hint: "RP-2 6.14.1. This changes the NOTATION drawn, not just the data: "
                 + "with dimmer per circuit the circuit and dimmer are one number and "
                 + "one hexagon, because there is no patch to make." }),
+    field("Beam angle", p.angleInBarrel ? "number" : "mark",
+          v => { store.setMeta({ angleInBarrel: v === "number" || undefined });
+                 deps.onSymbols(); },
+          { wide: true, options: BEAM_ANGLE,
+            hint: "How an ellipsoidal shows its beam angle, on every unit in the plot. "
+                + "The 2025 USITT RP allows either. The number is plainer where many "
+                + "units share one body, and a 40° and a 10° both carry no mark." }),
   ]);
 
   // ⭐ Jerry, 2026.09.25, relaying a tester: "the lines are too thick for pipes."

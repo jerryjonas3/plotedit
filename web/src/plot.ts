@@ -210,6 +210,10 @@ export interface Plot {
    *  about where the light lands. test_agreement.py renders the same plot both
    *  ways and requires identical numbers. */
   symbolAngle?: "orthogonal" | "focus";
+  /** 2025 USITT RP, Figure 3.1.4.0.4: ellipsoidals WRITE their beam angle in
+   *  the lens housing instead of carrying the mark. One setting for the whole
+   *  plot (Jerry, 2026.10.09). Absent means the marks. */
+  angleInBarrel?: boolean;
   /** Bump when the shape changes incompatibly. */
   formatVersion: 1;
   show: string;

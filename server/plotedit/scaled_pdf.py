@@ -318,6 +318,10 @@ class Sheet:
         # claim of authorship. Both now come from the plot file or stay blank.
         self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev,
                          designer=designer, studio=studio, date=date)
+        # The plot's `angleInBarrel`, set by whoever builds the sheet from a
+        # plot. Every symbol this sheet draws asks for it, so the plan, the boom
+        # elevations and the key cannot disagree about how an angle is shown.
+        self.angle_in_barrel = False
         self.c.setLineJoin(1); self.c.setLineCap(1)
         self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
         self.warnings = []
@@ -932,7 +936,8 @@ class Sheet:
         if units:
             # One symbol, hatched, standing for the stack. Drawing four on top of
             # each other would just be a heavier blob.
-            prims = _sym.for_type(units[0].get("type", ""))
+            prims = _sym.for_type(units[0].get("type", ""),
+                                  angle_in_barrel=self.angle_in_barrel)
             _sym.draw(self, prims, x, y, rotate_deg=pos.get("rotation", 0.0))
             _sym.draw(self, _sym.hatch(prims), x, y,
                       rotate_deg=pos.get("rotation", 0.0), width=0.35)
@@ -1038,7 +1043,9 @@ class Sheet:
             uy = y + dy
             self.line(x, uy, x + unit_gap * 0.55, uy, style="leader")
             with self.on_layer("units"):
-                _sym.draw(self, _sym.for_type(u.get("type", "")), x + unit_gap, uy,
+                _sym.draw(self, _sym.for_type(u.get("type", ""),
+                                              angle_in_barrel=self.angle_in_barrel),
+                          x + unit_gap, uy,
                           rotate_deg=90)
             with self.on_layer("labels"):
                 # Ends 5" clear of the pipe, growing leftwards away from it.
@@ -1148,7 +1155,8 @@ class Sheet:
         # ⚠ THE LAMP IS PASSED. A retrofit draws §6.16 dots at the lamp
         # housing, and leaving it out here is how the paper would have gone
         # on drawing a tungsten unit while the screen drew an LED.
-        _base = _sym.for_type(kind, lens_rotation, lamp)
+        _base = _sym.for_type(kind, lens_rotation, lamp,
+                              angle_in_barrel=self.angle_in_barrel)
         # The centre comes from the BARE instrument. Accessories hang off the
         # nose, so measuring the accessorised symbol would drag the "centre"
         # forward out of the body and put the number on a barn door.
