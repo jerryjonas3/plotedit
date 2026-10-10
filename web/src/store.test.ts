@@ -6,7 +6,7 @@ import { plotFileName, newPlot, isPlot, resolveEnds, runOf, lengthOf, angleOf,
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
 import { deleteMessage, describeUnit, sharedNameMessage,
-         sharedNameRenumberNote } from "./confirm.js";
+         sharedNameRenumberNote, exportFailedMessage } from "./confirm.js";
 import { parseFeet } from "./feet.js";
 import { pickHandle } from "./interact.js";
 
@@ -1042,6 +1042,19 @@ console.log("\nselecting a position");
   const pipeRule = /svg g\.position\.selected line \{[^}]*\}/.exec(htmlP)?.[0] ?? "";
   check("...and so does the pipe", /stroke:var\(--primary\)/.test(pipeRule), true);
   check("...by weight as well as colour", /stroke-width/.test(pipeRule), true);
+}
+
+console.log("\na refused export says why, in a dialog (2026.10.09)");
+{
+  const m = exportFailedMessage("CLIPPED: 6.4' off the RIGHT. Largest standard scale that fits this sheet: 1/8\" = 1'-0\".");
+  check("it says the plot does not fit", m.startsWith("The plot does not fit on this sheet"), true);
+  check("...keeps the server's reason, without the CLIPPED tag",
+        m.includes("6.4' off the RIGHT") && !m.includes("CLIPPED"), true);
+  check("...and the scale that would fit", m.includes("1/8"), true);
+  check("...and where to change it", m.includes("Sheet or the Scale under Export"), true);
+  const o = exportFailedMessage("Is the Python service running?");
+  check("any other failure is passed on as it came",
+        o, "The export did not work.\n\nIs the Python service running?");
 }
 
 console.log("\nShift-drag reaches a focus hidden under its unit (2026.10.09)");

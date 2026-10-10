@@ -127,6 +127,24 @@ export function revertMessage(name: string | null): string {
   ].join("\n");
 }
 
+/** Why an export did not happen, as a dialog.
+ *
+ *  ⭐ Jerry, 2026.10.09: "I saw nothing." The commonest refusal is the sheet
+ *  declining to clip, and its reason — with the scale that WOULD fit — went to
+ *  the small status text in the title bar, nowhere near the Export menu he had
+ *  just used. It is a dialog now. The server's own words are kept: they name
+ *  the overrun and the fix.
+ */
+export function exportFailedMessage(detail: string): string {
+  const clipped = detail.startsWith("CLIPPED:");
+  return [
+    clipped ? "The plot does not fit on this sheet at this scale." : "The export did not work.",
+    "",
+    clipped ? detail.replace(/^CLIPPED:\s*/, "") : detail,
+    ...(clipped ? ["", "Change the Sheet or the Scale under Export, then export again."] : []),
+  ].join("\n");
+}
+
 /** Ask before reverting. True means go ahead. */
 export function confirmRevert(name: string | null): boolean {
   return window.confirm(revertMessage(name));
