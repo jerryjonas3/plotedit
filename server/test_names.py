@@ -141,6 +141,13 @@ check("'ETC Source4 19deg' draws what 'S4 19' draws",
       [p[0] for p in sym.for_type("ETC Source4 19deg")],
       [p[0] for p in sym.for_type("S4 19")])
 
+print("\nthe 2025 USITT RP's 14° mark")
+_m14 = [p for p in sym.for_type("S4 14") if p[0] == "line"]
+check("a 14° carries three lines", len(_m14), 3)
+check("...parallel to the beam (each line is level in the symbol frame)",
+      all(abs(p[1][1] - p[2][1]) < 1e-9 for p in _m14), True)
+check("a 10° is unchanged: no mark", [p[0] for p in sym.for_type("S4 10")][1:], [])
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

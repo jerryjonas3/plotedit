@@ -89,7 +89,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=plot.get("revision", ""), rev=plot.get("revision", "0")[:3],
               designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
-              studio=plot.get("studio", ""), dxf=dxf,
+              studio=plot.get("studio", ""), date=plot.get("date", ""), dxf=dxf,
               # ⭐ Line weights come off the PLOT, not off an export option.
               # "the pipes are too thick" is a property of the drawing, so it
               # belongs with the drawing and travels with the file.

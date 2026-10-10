@@ -377,6 +377,13 @@ def _knockout_vs_after():
 check("a knockout does NOT protect against what comes after it",
       _knockout_vs_after() > 50, True)
 
+print("\nthe title block prints the PLOT's date, not today's (2025 RP §2.2.6)")
+_dated, _dp = sheet_for("dated", date="2019-04-06")
+_txt = fitz.open(_dp)[0].get_text()
+check("an April 2019 plot says 2019.04.06", "2019.04.06" in _txt, True)
+import datetime as _dt
+check("...and not the day it was exported", _dt.date.today().strftime("%Y.%m.%d") in _txt, False)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
