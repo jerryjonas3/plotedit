@@ -25,6 +25,18 @@ export interface DragContext {
  *  draggable — that diagram's coordinates are not plan coordinates. */
 type Handle = "body" | "focus" | "elevation";
 
+/** Which handle a press grabs.
+ *
+ * ⭐ SHIFT on a unit's body grabs its FOCUS (Jerry, 2026.10.09). A unit
+ * focused straight down — a downlight — has its focus point under its own
+ * body, and the body is drawn on top, so the ring could not be grabbed at all.
+ * Shift reaches it wherever the focus is. Alt was taken (off-pipe placement).
+ */
+export function pickHandle(dataHandle: string | null, shiftKey: boolean): Handle {
+  const h = (dataHandle ?? "body") as Handle;
+  return h === "body" && shiftKey ? "focus" : h;
+}
+
 export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext): void {
   let dragging: { index: number; handle: Handle; dx: number; dy: number } | null = null;
 
@@ -53,7 +65,7 @@ export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext
     }
 
     const index = Number(hit.getAttribute("data-index"));
-    const handle = (hit.getAttribute("data-handle") ?? "body") as Handle;
+    const handle = pickHandle(hit.getAttribute("data-handle"), e.shiftKey);
     store.select(index);
 
     // ⚠ A unit in a BOOM ELEVATION can be selected but not dragged. The

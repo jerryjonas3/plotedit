@@ -362,6 +362,7 @@ does not cover a floor.
 | Drag the **body** | move it — snaps to the nearest pipe |
 | **Alt**-drag | move it without snapping |
 | Drag the **ring** | re-aim it |
+| **Shift**-drag the **body** | re-aim it — for a unit focused straight down, whose ring is hidden under it |
 | A unit in a **boom elevation** | selects, but does not drag — the elevation is a diagram beside the plot, and its height is compressed |
 
 ### Keyboard
