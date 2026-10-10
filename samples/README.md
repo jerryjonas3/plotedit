@@ -8,6 +8,13 @@ it.
 `demo.plot.json` is that file: the plot the app opens when there is nothing else
 to open.
 
+`Sample Big House.plot.json` is the other end of the scale: a large proscenium
+house, 201 units on electrics, pro slots, ceiling catwalks and a balcony rail
+(Jerry, 2026.10.09). It was built from a real house's repertory plot with the
+name taken off — "Big House" is invented — and `test_api.py` checks the real
+name stays off. Every unit is focused straight down as a stand-in. At 1/4" it
+needs ARCH E; on ARCH D it prints at 1/8".
+
 ⚠ **Test fixtures do NOT belong here.** They live in `server/testdata/`, which is
 not served. The renderer's fixture sat here until 2026.09.28 and went out in
 every download — and it described a real room, which is a second reason it does
