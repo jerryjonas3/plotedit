@@ -228,6 +228,24 @@ FIXTURES = {
                           "(46x73 goniometric); datasheet confirms 4,856 lm / 100 W. "
                           "ASYMMETRIC — angles are the vertical plane through the peak at 70°."),
 
+    # ⭐ Chroma-Q Color Force II Plus 72 — a 6' RGBA LED batten. The Zellerbach's
+    # cyc electric carries seven "Chroma-Q LED Cyc Units" (house tech spec, 2014),
+    # model not stated; Jerry, 2026.10.09: use the Color Force II Plus 72 data
+    # for now. Chroma-Q publish a measured table for EACH lens, so each lens is
+    # its own row rather than a guess. ⚠ The spec sheet calls the distribution
+    # "asymmetrical direct illumination" but the tables give ordinary beam and
+    # field angles and no peak angle, so it is computed symmetric, as published.
+    # Load: 800 W, the spec sheet's maximum; the table measured 641 W at Full On.
+    "Chroma-Q Color Force II Plus 72": dict(field=54.0, beam=26.0, cd=92600, ref_lamp="LED RGBA",
+                   family="Color Force", lumens=27000, watts=800.0, colors=4,
+                   source="Chroma-Q Color Force II Plus 72 photometric tables (standard lens, Full On, chroma-q.com, product page Photometric Table v2 p7 agrees); spec sheet v1.1: 1,759 x 165 x 191 mm, RGBA, 24 cells at 76 mm, 800 W max consumption. The table measured 641 W at Full On; 800 W is used for loads."),
+    "Chroma-Q Color Force II Plus 72 Border": dict(field=68.0, beam=38.0, cd=37900,
+                   ref_lamp="LED RGBA", family="Color Force", lumens=23600, watts=800.0,
+                   colors=4, source="Chroma-Q Color Force II Plus 72 photometric tables (border lens CHCFBL72, Full On, chroma-q.com, product page Photometric Table v2 p8 agrees); spec sheet v1.1: 1,759 x 165 x 191 mm, RGBA, 24 cells at 76 mm, 800 W max consumption. The table measured 641 W at Full On; 800 W is used for loads."),
+    "Chroma-Q Color Force II Plus 72 Cyc": dict(field=100.0, beam=44.0, cd=32000,
+                   ref_lamp="LED RGBA", family="Color Force", lumens=22700, watts=800.0,
+                   colors=4, source="Chroma-Q Color Force II Plus 72 photometric tables (cyc lens CHCFCL72, Full On, chroma-q.com, product page Photometric Table v2 p9 agrees); spec sheet v1.1: 1,759 x 165 x 191 mm, RGBA, 24 cells at 76 mm, 800 W max consumption. The table measured 641 W at Full On; 800 W is used for loads."),
+
     # Jerry's own two units. ⚠ Their CANDELA is unpublished and is staying that
     # way — Jerry, 2026.09.23: "forget the SHEHDS units, that was a one off."
     # Not an open task, not something to measure, not to be raised again. They go
@@ -407,6 +425,9 @@ FAMILY_WATTS["ColorSource Zoom"] = FAMILY_WATTS["ColorSource"]
 # which lamp is in it. 575 is what the chart was measured at.
 FAMILY_WATTS["Shakespeare"] = {"_typical": 575.0,
                                "_source": "Altman Shakespeare datasheet: performance chart measured with the GLC (575 W); fixture listed to 750 W"}
+FAMILY_WATTS["Color Force"] = {"_typical": 800.0,
+                               "_source": "Chroma-Q Color Force II Plus 72 spec sheet v1.1: "
+                                          "'Power Consumption: 800W @ 120V AC'"}
 FAMILY_WATTS["SHEHDS"] = {"_typical": 350.0,
                           "_source": "SHEHDS 350W RGBW Profile — the model name, corroborated by Jerry's Without Consent rig notes"}
 
