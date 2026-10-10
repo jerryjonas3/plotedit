@@ -67,7 +67,7 @@ def enhanced_ers(angle=26, length=1.667, width=0.625, angle_in_barrel=False):
     ⭐ `angle_in_barrel` writes the beam angle in the lens housing INSTEAD of
     the mark — the 2025 USITT RP's alternative (Figure 3.1.4.0.4, right-hand
     column). One setting for the whole plot (Jerry, 2026.10.09). Asked for on
-    the Zellerbach rig, where every unit is a Shakespeare on the same body and
+    a house rep rig, where every unit is a Shakespeare on the same body and
     a 40° and a 10° both carry no mark: at plot size they could not be told
     apart.
 

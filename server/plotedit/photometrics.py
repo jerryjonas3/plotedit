@@ -37,8 +37,8 @@ FIXTURES = {
     # still hang. The lens set is 5/10/20/30/40/50, which is why a plot that says
     # "30°" is not a Source Four. Measured with the GLC lamp, not an HPL: G9.5
     # base. Each candela agrees with the datasheet's own footcandle table at 30'
-    # (S6-40: 109 fc x 30^2 = 98,100 cd). Added 2026.10.09 for the Zellerbach
-    # rep plot, where every unit is a Shakespeare.
+    # (S6-40: 109 fc x 30^2 = 98,100 cd). Added 2026.10.09 for a house
+    # rep plot where every unit is a Shakespeare.
     "Altman Shakespeare 5":  dict(field=7.0, beam=5.0, cd=974900, ref_lamp="GLC", family="Shakespeare",
                    source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 5°, field 7°, 974,900 cd'),
     "Altman Shakespeare 10": dict(field=10.0, beam=7.0, cd=791000, ref_lamp="GLC", family="Shakespeare",
@@ -228,9 +228,9 @@ FIXTURES = {
                           "(46x73 goniometric); datasheet confirms 4,856 lm / 100 W. "
                           "ASYMMETRIC — angles are the vertical plane through the peak at 70°."),
 
-    # ⭐ Chroma-Q Color Force II Plus 72 — a 6' RGBA LED batten. The Zellerbach's
-    # cyc electric carries seven "Chroma-Q LED Cyc Units" (house tech spec, 2014),
-    # model not stated; Jerry, 2026.10.09: use the Color Force II Plus 72 data
+    # ⭐ Chroma-Q Color Force II Plus 72 — a 6' RGBA LED batten. A house rep
+    # plot's cyc electric carries seven Chroma-Q LED cyc units, model not stated
+    # in the house's spec; Jerry, 2026.10.09: use the Color Force II Plus 72 data
     # for now. Chroma-Q publish a measured table for EACH lens, so each lens is
     # its own row rather than a guess. ⚠ The spec sheet calls the distribution
     # "asymmetrical direct illumination" but the tables give ordinary beam and
