@@ -338,7 +338,9 @@ function drawInspector() {
     // numbers, not modes of one product, which is why there are three.
     lamps: ["HPL 750", "HPL 575", "HPL 575X", "HPL 375", "HPL 550/77",
             "Source 4WRD II", "Source 4WRD II Gallery",
-            "Source 4WRD II Daylight Gallery"],
+            "Source 4WRD II Daylight Gallery",
+            // Altman Shakespeare: the G9.5 lamp its chart was measured with.
+            "GLC"],
     modes: ["Boost Full", "Regulated Full", "Regulated 3200K", "Regulated 5600K"],
     onStatus: (msg, bad) => status(msg, bad),
     onPhotometricChange: () => { paint(); recompute(); },
