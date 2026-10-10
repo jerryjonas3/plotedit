@@ -176,6 +176,29 @@ check("a zoom keeps its Z, not the one angle in its name",
       _txt("S4 Zoom 25-50", angle_in_barrel=True), ["Z"])
 check("a PAR is not an ellipsoidal and ignores it", _txt("PAR64 MFL", angle_in_barrel=True), [])
 
+print("\nChroma-Q Color Force II Plus 72 — the 2025 RP's LED batten")
+check("'Color Force II Plus 72' resolves",
+      fn.resolve("Color Force II Plus 72", ph.FIXTURES)[0], "Chroma-Q Color Force II Plus 72")
+check("...its cyc lens is its own row", fn.resolve("Color Force II Plus 72 Cyc", ph.FIXTURES)[0],
+      "Chroma-Q Color Force II Plus 72 Cyc")
+check("the plain Color Force II 72 does NOT borrow the Plus figures",
+      fn.resolve("Color Force II 72", ph.FIXTURES)[0] == "Chroma-Q Color Force II Plus 72", False)
+_b = sym.for_type("Chroma-Q Color Force II Plus 72")
+_poly = [q for q in _b if q[0] == "poly"][0][1]
+check("drawn at its real length, 69 1/4\"",
+      round(max(c for _a, c in _poly) - min(c for _a, c in _poly), 3), round(69.25 / 12, 3))
+check("...and its real depth, 6 1/2\"",
+      round(max(a for a, _c in _poly) - min(a for a, _c in _poly), 3), round(6.5 / 12, 3))
+_dots = [q for q in _b if q[0] == "circle"]
+check("four dots for RGBA", len(_dots), 4)
+check("...all in one end", all(q[1][1] < -2.5 for q in _dots), True)
+check("the cyc LENS is still a batten, not a cyc cell",
+      [q[0] for q in sym.for_type("Chroma-Q Color Force II Plus 72 Cyc")],
+      [q[0] for q in _b])
+check("measured: 92,600 cd standard, 32,000 with the cyc lens",
+      (ph.FIXTURES["Chroma-Q Color Force II Plus 72"]["cd"],
+       ph.FIXTURES["Chroma-Q Color Force II Plus 72 Cyc"]["cd"]), (92600, 32000))
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
