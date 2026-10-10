@@ -30,6 +30,12 @@ the My AI Brain repo beside RP-2.) **What plotedit has taken from it so far:**
 fronts (a filled band? a curved face?) cannot be read with confidence. Check a
 printed copy before changing the rings.
 
+**The LED batten** (CYC LIGHTS column): a plain rectangle at the unit's real
+length and depth, with a cluster of §6.16 source dots in one end, one per colour.
+The RP also draws it divided into cells; plotedit draws the plain form, since a
+Color Force's 24 cells at 3" are under a point apiece at 1/4" scale. First used
+for the Chroma-Q Color Force II Plus 72 (Jerry, 2026.10.09).
+
 **The beam angle in the barrel.** The RP's other column: the number written in the
 lens housing instead of the mark. One setting for the whole plot, `angleInBarrel`
 ("Beam angle" under Show & Venue), marks by default (Jerry, 2026.10.09). Asked for

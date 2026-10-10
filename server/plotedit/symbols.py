@@ -157,6 +157,41 @@ def ers_zoom(angle=30, **kw):
     return out + [("text", (0.0, 0.0), "Z", 0.30)]
 
 
+# Chroma-Q Color Force II Plus 72, spec sheet v1.1: 1,759 x 165 mm in plan.
+COLOR_FORCE_72_IN = (69.25, 6.5)
+
+
+def led_batten(length=69.25 / 12, depth=6.5 / 12, colors=4):
+    """2025 USITT RP, Figure 3.1.4.0.4, CYC LIGHTS: "LED Batten".
+
+    A plain rectangle at the unit's real length and depth, with a small cluster
+    of §6.16 source dots in ONE END — the RP's mark that this is LED, the same
+    dots plotedit draws in an LED's lamp housing, so their count is the number
+    of colours (four for RGBA). The RP also shows the batten divided into its
+    cells; a Color Force has 24 at 3", which at 1/4" scale is under a point
+    apiece, so the plain form is drawn.
+
+    Like striplight(): the length runs ACROSS the symbol (along the pipe), the
+    front faces -a.
+    """
+    a, c = depth / 2, length / 2
+    out = [("poly", [(a, -c), (a, c), (-a, c), (-a, -c)], True)]
+    n = max(1, int(colors))
+    r = depth * 0.06
+    per_row = 1 if n == 1 else 2
+    rows = math.ceil(n / per_row)
+    end = -c + depth * 0.30                     # just inside the stage-left end
+    placed = 0
+    for row in range(rows):
+        k = min(per_row, n - placed)
+        aa = (row - (rows - 1) / 2) * r * 3.0
+        for i in range(k):
+            cc = end + (0 if k == 1 else (i - (k - 1) / 2) * r * 3.0)
+            out.append(("circle", (aa, cc), r, True))
+            placed += 1
+    return out
+
+
 # --------------------------------------------------------------- §6.2 Fresnel
 
 def fresnel(size_in=6):
@@ -826,6 +861,9 @@ def for_type(kind, lens_rotation=None, lamp=None, angle_in_barrel=False):
     n = _re.findall(r"(\d+(?:\.\d+)?)\s*(?:deg|°)?", cleaned)
     deg = float(n[0]) if n else 26.0
 
+    # ⚠ Before "cyc": the Color Force's cyc LENS row is still a batten.
+    if "color force" in low or "colorforce" in low:
+        return led_batten(COLOR_FORCE_72_IN[0] / 12, COLOR_FORCE_72_IN[1] / 12, colors=4)
     if "cyc" in low:
         return cyc_unit(3)
     if "lustr" in low or "colorsource" in low or "clrsrc" in low or "led" in low:

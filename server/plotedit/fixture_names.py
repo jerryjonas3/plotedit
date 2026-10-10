@@ -82,6 +82,13 @@ ALIASES = {
     "s4 led 50": "Lustr 50 LT",
     # ⚠ "spectra cyc 50" is NOT here — see CORRECTIONS below. Jerry's paperwork
     # calls the Wizard of Oz units 50s and they were 100s.
+    # Only the PLUS: the original Color Force II 72 is a dimmer unit, and its
+    # figures are not these.
+    "color force ii plus 72": "Chroma-Q Color Force II Plus 72",
+    "colorforce ii plus 72": "Chroma-Q Color Force II Plus 72",
+    "chroma-q color force ii plus 72": "Chroma-Q Color Force II Plus 72",
+    "color force ii plus 72 border": "Chroma-Q Color Force II Plus 72 Border",
+    "color force ii plus 72 cyc": "Chroma-Q Color Force II Plus 72 Cyc",
     "spectra cyc 100": "Altman Spectra Cyc 100 RGBA",
     "spectra cyc 100 rgba": "Altman Spectra Cyc 100 RGBA",
     "spectra cyc 100 rgbw": "Altman Spectra Cyc 100 RGBW",
