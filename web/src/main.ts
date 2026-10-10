@@ -24,7 +24,7 @@ import { startSeq, seqClick, clickLine, seqReport, runIndices,
          type Seq } from "./sequence.js";
 import { openMenu, type MenuGroup, type MenuItem } from "./menu.js";
 import { visibilityOf, SCREEN_LAYERS } from "./layers.js";
-import { confirmRevert } from "./confirm.js";
+import { confirmRevert, exportFailedMessage } from "./confirm.js";
 import { render, POS_CHAR_W, POS_TEXT, type Computed, type RenderOptions } from "./render.js";
 import { compute, fixtures, exportFile, dxfLayers, dxfPaths, symbols, booms,
          positionLabels, savePlot, listPlots, pickPlotsFolder, loadPlot, pdfPages, pdfPaths,
@@ -1179,8 +1179,11 @@ async function runExport(kind: ExportKind): Promise<void> {
       status("");
     } catch (err) {
       // The commonest failure is the sheet refusing to clip, and it says
-      // which scale would fit. That belongs in front of the user, not a console.
-      status(err instanceof Error ? err.message : String(err), true);
+      // which scale would fit. That belongs in front of the user, not a console
+      // — and not only in the title bar, where it went unseen (2026.10.09).
+      const msg = err instanceof Error ? err.message : String(err);
+      status(msg, true);
+      window.alert(exportFailedMessage(msg));
     }
 }
 
