@@ -112,7 +112,7 @@ def enhanced_ers(angle=26, length=1.667, width=0.625, angle_in_barrel=False):
     if angle_in_barrel:
         # Where the mark would go, so the number replaces it and nothing else
         # moves: the unit number stays in the body behind it.
-        return out + [("text", ((face + flare_end) / 2, 0.0), f"{angle:g}", 0.20)]
+        return out + [("text", ((face + flare_end) / 2, 0.0), f"{angle:g}", 0.26)]
     mark = ERS_MARKS.get(int(angle))
     if mark == "cross":                                   # 19°-20°
         out += [("line", (flare_end, neck_w), (face, -face_w)),
