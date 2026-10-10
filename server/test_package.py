@@ -118,9 +118,12 @@ print("\nline weights — RP-2 6.18, three and only three")
 from plotedit.scaled_pdf import LINE_STYLES, LIGHT, MEDIUM, HEAVY
 check("exactly three weights are used",
       sorted({w for w, _ in LINE_STYLES.values()}), [LIGHT, MEDIUM, HEAVY])
-check("a batten is heavy", LINE_STYLES["batten"][0], HEAVY)
+check("a batten is medium (2025 RP §2.2.3)", LINE_STYLES["batten"][0], MEDIUM)
 check("a luminaire is heavy", LINE_STYLES["luminaire"][0], HEAVY)
-check("architecture is heavy", LINE_STYLES["architecture"][0], HEAVY)
+check("architecture is medium (2025 RP §2.2.3)", LINE_STYLES["architecture"][0], MEDIUM)
+from plotedit.scaled_pdf import STYLE_COLOURS
+from reportlab.lib.colors import black as _black
+check("...and drawn gray, not black", STYLE_COLOURS["architecture"] != _black, True)
 check("scenery is light", LINE_STYLES["scenery"][0], LIGHT)
 check("a dimension is light", LINE_STYLES["dimension"][0], LIGHT)
 check("the center line is a 4-part chain dash", len(LINE_STYLES["centerline"][1]), 4)
