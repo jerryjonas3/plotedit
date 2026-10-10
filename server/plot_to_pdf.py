@@ -95,6 +95,9 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
               # belongs with the drawing and travels with the file.
               weights=plot.get("lineWeights"),
               units=_units.system_of(plot))
+    # 2025 USITT RP: the beam angle written in the barrel instead of the mark.
+    # One setting for the whole plot (Jerry, 2026.10.09).
+    s.angle_in_barrel = bool(plot.get("angleInBarrel"))
     # ⭐ FOH positions — catwalks — sit over the AUDIENCE, downstage of the
     # plaster line and outside the stage rectangle, at negative y. The origin has
     # to make room for them or they are clipped straight off the bottom of the

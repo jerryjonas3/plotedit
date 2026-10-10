@@ -238,12 +238,13 @@ export type SymbolPrim =
  *  The geometry lives once, in symbols.py, so the screen and the paper cannot
  *  drift apart the way the photometrics did before test_agreement.py existed. */
 export async function symbols(
-  types: string[], lensRotation?: number,
+  types: string[], lensRotation?: number, angleInBarrel = false,
 ): Promise<Record<string, SymbolPrim[]>> {
   const want = [...new Set(types)].filter(Boolean);
   if (!want.length) return {};
   const rot = lensRotation === undefined ? "" : `&lens_rotation=${lensRotation}`;
-  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}${rot}`);
+  const barrel = angleInBarrel ? "&angle_in_barrel=true" : "";
+  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}${rot}${barrel}`);
   if (!r.ok) throw new Error(`symbols failed: ${r.status}`);
   return (await r.json()).symbols as Record<string, SymbolPrim[]>;
 }
@@ -314,7 +315,7 @@ export async function booms(plot: Plot): Promise<{ booms: BoomElevation[]; space
     // the PDF said metres — screen and paper disagreeing about the same
     // number, which is the failure the shared layout exists to prevent.
     body: JSON.stringify({ positions: plot.positions, instruments: plot.instruments,
-                           units: plot.units }),
+                           units: plot.units, angleInBarrel: !!plot.angleInBarrel }),
   });
   if (!r.ok) throw new Error(`booms failed: ${r.status}`);
   const j = await r.json();

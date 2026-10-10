@@ -301,6 +301,9 @@ function drawInspector() {
   renderDetails($("details"), store, {
     onChange: () => { paintChrome(); draw(); },
     onGeometry: () => { paintChrome(); draw(); recompute(); },
+    // The SHAPES changed: every outline held is the old one. Booms too —
+    // recompute fetches both afresh.
+    onSymbols: () => { symbolCache = {}; draw(); recompute(); },
   });
   renderPositions($("positions"), store, {
     onChange: () => { draw(); recompute(); },
@@ -626,7 +629,7 @@ async function ensureSymbols() {
     .filter(t => t && !(t in symbolCache));
   if (!want.length) return;
   try {
-    Object.assign(symbolCache, await symbols(want));
+    Object.assign(symbolCache, await symbols(want, undefined, !!store.plot.angleInBarrel));
   } catch (e) {
     // Drawing the wrong shape is worse than drawing a plain ring, which is
     // what render() falls back to when a type is missing from the cache.

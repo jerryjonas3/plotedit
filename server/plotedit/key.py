@@ -130,7 +130,7 @@ def draw(sheet, plot, x, y, width=11.0, line=0.85, title="INSTRUMENT KEY"):
 
     # ── the luminaires themselves ──────────────────────────────────────────
     for r in types_used(plot):
-        prims = sym.for_type(r["name"])
+        prims = sym.for_type(r["name"], angle_in_barrel=bool(plot.get("angleInBarrel")))
         # ⚠ Space each row by the SYMBOL's own size, and lay the instruments
         # horizontally. Drawn nose-up on a fixed row height they overlapped each
         # other — a key whose symbols collide teaches the reader the wrong shape,

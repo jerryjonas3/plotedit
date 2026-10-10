@@ -28,8 +28,13 @@ the My AI Brain repo beside RP-2.) **What plotedit has taken from it so far:**
 
 **Not yet, and flagged:** the figure is a low-resolution image, and its 70° and 90°
 fronts (a filled band? a curved face?) cannot be read with confidence. Check a
-printed copy before changing the rings. The RP also offers writing the beam angle
-INSIDE the barrel in place of the mark — not built.
+printed copy before changing the rings.
+
+**The beam angle in the barrel.** The RP's other column: the number written in the
+lens housing instead of the mark. One setting for the whole plot, `angleInBarrel`
+("Beam angle" under Show & Venue), marks by default (Jerry, 2026.10.09). Asked for
+on the Zellerbach rig, where every unit shares one body and a 40° and a 10° both
+carry no mark. Ellipsoidals only; a zoom keeps its Z.
 
 The RP-2 plates below remain the geometry; the 2025 figure is the same family of
 shapes with these changes.

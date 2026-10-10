@@ -384,6 +384,17 @@ check("an April 2019 plot says 2019.04.06", "2019.04.06" in _txt, True)
 import datetime as _dt
 check("...and not the day it was exported", _dt.date.today().strftime("%Y.%m.%d") in _txt, False)
 
+print("\nthe beam angle written in the barrel (2025 RP), one setting for the plot")
+def _words(path, w):
+    return sum(1 for x in fitz.open(path)[0].get_text("words") if x[4] == w)
+_, _mk = sheet_for("marks")
+_, _nb = sheet_for("numbers", angleInBarrel=True)
+check("with the setting, every S4 26 on the plan writes 26 (9 more at least)",
+      _words(_nb, "26") - _words(_mk, "26") >= 9, True)
+check("...and every S4 36 writes 36", _words(_nb, "36") - _words(_mk, "36") >= 5, True)
+check("without it, the plan carries the marks and no extra numbers",
+      _words(sheet_for("marks2")[1], "26"), _words(_mk, "26"))
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

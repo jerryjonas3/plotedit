@@ -724,7 +724,8 @@ def _prims_json(shape) -> List[Dict[str, Any]]:
 
 
 @app.get("/symbols")
-def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[str, Any]:
+def symbol_geometry(types: str, lens_rotation: Optional[float] = None,
+                    angle_in_barrel: bool = False) -> Dict[str, Any]:
     """RP-2 symbol outlines for a comma-separated list of fixture types.
 
     ⭐ The geometry lives in ONE place — symbols.py — and both the PDF and the
@@ -756,7 +757,7 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
         base = parts[0].strip()
         acc = [a.strip() for a in (parts[1] if len(parts) > 1 else "").split("+") if a.strip()]
         lamp = parts[2].strip() if len(parts) > 2 else None
-        shape = sym.for_type(base, lens_rotation, lamp)
+        shape = sym.for_type(base, lens_rotation, lamp, angle_in_barrel=angle_in_barrel)
         if acc:
             shape, unknown = sym.with_accessories(shape, acc)
             warnings += [f"{base}: {u}" for u in unknown]
@@ -941,6 +942,8 @@ class BoomRequest(BaseModel):
     # LABEL beside each unit is written. Without it a metric plot showed its
     # boom heights in feet and inches on screen while the paper said metres.
     units: Optional[str] = None
+    # The plot's `angleInBarrel`, so the elevations agree with the plan.
+    angleInBarrel: bool = False
 
 
 @app.post("/booms")
@@ -966,7 +969,7 @@ def boom_layout(req: BoomRequest) -> Dict[str, Any]:
     for b in out:
         # §6.12: "hatch or shade acceptable for top view of boom." ONE symbol
         # standing for the stack — four drawn on top of each other is a blob.
-        shape = sym.for_type(b["plan"]["type"])
+        shape = sym.for_type(b["plan"]["type"], angle_in_barrel=req.angleInBarrel)
         b["plan"]["prims"] = _prims_json(shape)
         b["plan"]["hatch"] = _prims_json(sym.hatch(shape))
         # ⚠ Each unit carries its OWN outline, accessories included. The browser
@@ -974,7 +977,7 @@ def boom_layout(req: BoomRequest) -> Dict[str, Any]:
         # the bare type would quietly draw a unit without its top hat, or fall
         # back to a plain ring when the cache had no bare-type entry at all.
         for u in b["units"]:
-            us = sym.for_type(u["type"])
+            us = sym.for_type(u["type"], angle_in_barrel=req.angleInBarrel)
             if u.get("accessories"):
                 us, _ = sym.with_accessories(us, u["accessories"])
             u["prims"] = _prims_json(us)
