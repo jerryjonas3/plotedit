@@ -225,7 +225,7 @@ export function renderInspector(
   if (i === null || !inst) {
     const p = document.createElement("p");
     p.className = "muted";
-    p.textContent = "Click an instrument to edit it. Drag the body to move it, the ring to re-aim it. Alt-drag to place it off a pipe.";
+    p.textContent = "Click an instrument to edit it. Drag the body to move it, the ring to re-aim it. Shift-drag the body to re-aim it too, for a focus hidden under the unit. Alt-drag to place it off a pipe.";
     host.appendChild(p);
     return;
   }

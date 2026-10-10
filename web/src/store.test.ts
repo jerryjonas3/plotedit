@@ -8,6 +8,7 @@ import { nextBoomHeight } from "./positions.js";
 import { deleteMessage, describeUnit, sharedNameMessage,
          sharedNameRenumberNote } from "./confirm.js";
 import { parseFeet } from "./feet.js";
+import { pickHandle } from "./interact.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -1042,6 +1043,12 @@ console.log("\nselecting a position");
   check("...and so does the pipe", /stroke:var\(--primary\)/.test(pipeRule), true);
   check("...by weight as well as colour", /stroke-width/.test(pipeRule), true);
 }
+
+console.log("\nShift-drag reaches a focus hidden under its unit (2026.10.09)");
+check("a plain press on the body moves the unit", pickHandle(null, false), "body");
+check("Shift on the body grabs the focus", pickHandle(null, true), "focus");
+check("the ring is the focus either way", pickHandle("focus", false), "focus");
+check("Shift does not make a boom elevation draggable", pickHandle("elevation", true), "elevation");
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");
