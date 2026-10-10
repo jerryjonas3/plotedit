@@ -39,7 +39,7 @@ for the Chroma-Q Color Force II Plus 72 (Jerry, 2026.10.09).
 **The beam angle in the barrel.** The RP's other column: the number written in the
 lens housing instead of the mark. One setting for the whole plot, `angleInBarrel`
 ("Beam angle" under Show & Venue), marks by default (Jerry, 2026.10.09). Asked for
-on the Zellerbach rig, where every unit shares one body and a 40° and a 10° both
+on a house rep rig, where every unit shares one body and a 40° and a 10° both
 carry no mark. Ellipsoidals only; a zoom keeps its Z.
 
 The RP-2 plates below remain the geometry; the 2025 figure is the same family of

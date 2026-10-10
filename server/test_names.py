@@ -141,7 +141,7 @@ check("'ETC Source4 19deg' draws what 'S4 19' draws",
       [p[0] for p in sym.for_type("ETC Source4 19deg")],
       [p[0] for p in sym.for_type("S4 19")])
 
-print("\nAltman Shakespeare — the Zellerbach rep plot, 2026.10.09")
+print("\nAltman Shakespeare — a house rep plot, 2026.10.09")
 check("'Altman S6-30' is a Shakespeare 30, not a Source Four",
       fn.resolve("Altman S6-30", ph.FIXTURES)[0], "Altman Shakespeare 30")
 check("'Shakespeare 10°' resolves", fn.resolve("Shakespeare 10°", ph.FIXTURES)[0], "Altman Shakespeare 10")
