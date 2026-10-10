@@ -1,7 +1,8 @@
 # plotedit
 
 A light plot editor that draws to **USITT RP-2 (2006)** — the symbols, the
-notation, the line weights and the section checklist — and computes what the rig
+notation and the section checklist — with the line weights and marks of its 2025
+successor, the **Lighting Documentation Recommended Practice**, and computes what the rig
 actually does: throws, beam angles, the shape of each pool on the floor, and
 footcandles through gel.
 
@@ -86,9 +87,10 @@ to that path before starting.
 ## What it does
 
 - **Draws the plot** to RP-2: symbols by fixture family with the beam angle
-  marked in the lens, circuit/dimmer/channel in the right containers, accessories
-  at the gate or at the nose, and three line weights that mean what the standard
-  says they mean.
+  marked in the lens (or written in the barrel, as the 2025 RP allows),
+  circuit/dimmer/channel in the right containers, accessories at the gate or at
+  the nose, and line weights as the 2025 RP sets them — instruments thick, pipes
+  medium, the building gray.
 - **Booms in elevation** (§6.12), beside the plot, compressed with a break mark —
   and the labelled heights stay true, because the break says the paper is short,
   never that a number is approximate.

@@ -128,7 +128,9 @@ is yours rather than ours.
 ### Say where you are
 
 Open **Show & Venue** and fill in the show, venue, designer, revision and date.
-These go in the title block.
+These go in the title block. ⭐ **The date printed is the plot's own**, so a
+reprint of an old plot still carries the date it was issued; leave it blank and
+the sheet prints the day you export.
 
 Then **The Room**: width, depth, grid height, house ceiling, plaster line.
 
@@ -148,6 +150,14 @@ rather than just the data:
 | **Hard and soft patch** | Circuit, dimmer and channel all differ. All three containers. |
 | **No soft patch** | The console addresses dimmers directly. |
 | **Dimmer = address (ETC)** | A dimmer is one DMX address carrying intensity, so the dimmer number *is* the address. The hexagon carries the address, exactly as it does for an LED, and a mixed rig reads the same throughout. |
+
+**Beam angle** is how every ellipsoidal on the plot shows its angle — one setting
+for the whole plot, as the 2025 USITT RP allows either:
+
+| | |
+|---|---|
+| **A mark in the lens (RP)** | The default. An X for 19–20°, a diagonal for 26–30°, nothing for 36–40°, a wedge for 50°, three short lines for 14°. |
+| **The number in the barrel** | The angle written where the mark would go. Plainer on a rig where every unit shares one body — a 40° and a 10° both carry no mark, and at plot size they are hard to tell apart. A zoom keeps its Z. |
 
 ### Bring in the ground plan
 
@@ -409,9 +419,14 @@ disk*, which is the same as *as you opened it* until the first save.
 dialog opens and plotedit uses that folder for the rest of the session. For a
 folder that persists, set `PLOTEDIT_PLOTS` before starting.
 
-⭐ **The demo is at the bottom of Open…**, under *"Comes with plotedit"*. It opens
-as **a copy with no name**, so ⌘S asks where to put it rather than writing back
-over the file that shipped. Pressing **New** does not lose it.
+⭐ **The samples are at the bottom of Open…**, under *"Comes with plotedit"*. Each
+opens as **a copy with no name**, so ⌘S asks where to put it rather than writing
+back over the file that shipped. Pressing **New** does not lose them.
+
+| | |
+|---|---|
+| **The Odd Couple — demo.plot.json** | The demo: a black box, eighteen units. What the app opens when there is nothing else. |
+| **Rep — Sample Big House.plot.json** | A large proscenium house: 201 units on four electrics and a cyc electric, pro slots, ceiling catwalks and a balcony rail. Every unit is focused straight down as a stand-in. ⚠ It is big — at ¼" it needs ARCH E (36 × 48); on ARCH D, print it at ⅛". |
 
 To keep them somewhere else — a show folder, or Dropbox — set `PLOTEDIT_PLOTS`
 to that path before starting.
@@ -499,8 +514,15 @@ row always says where they stand.
 | **Channel hookup** | The same rig in channel order. |
 | **Eos patch** | ⚠ **Untested against a console.** Written to the USITT ASCII spec and nothing more. Treat it as a draft. |
 
-⚠ **Exports refuse rather than clip.** If a drawing will not fit the sheet it
-says which sheet to move to instead of quietly cropping it.
+⚠ **Exports refuse rather than clip.** If a drawing will not fit the sheet, a
+dialog says by how much, names the largest scale that fits, and names a sheet
+that holds it at the scale you chose — instead of quietly cropping it. Change
+**Sheet** or **Scale** and export again.
+
+**Line weights** follow the 2025 USITT RP: the instruments are the thickest line,
+the pipes medium, and the building gray, so the plot reads as the rig first and
+the room second. The three weights can still be changed under **Show & Venue →
+Line weights**, in points on paper.
 
 ---
 
