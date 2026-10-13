@@ -87,7 +87,8 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
               sheet=f"Section — cut {cut_desc}, looking stage left",
               rev=str(plot.get("revision", "0"))[:3],
               designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
-              studio=plot.get("studio", ""))
+              studio=plot.get("studio", ""), date=plot.get("date", ""))
+    s.angle_in_barrel = _barrel = bool(plot.get("angleInBarrel"))
     # ⚠ The left margin has to absorb what is drawn LEFT of the room: the deck
     # runs a foot past it, and the labels run further still. The guard reported
     # 5.4' off the left edge once the sight point moved back inside the room.
@@ -187,7 +188,7 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
                 h = u.get("height")
                 if h is None:
                     continue
-                prims = sym.for_type(u.get("type", ""))
+                prims = sym.for_type(u.get("type", ""), angle_in_barrel=_barrel)
                 sym.draw(s, prims, here, h, rotate_deg=90, width=1.0)
                 s.text(here - sym.radius(prims) - ft(0, 3), h, ph.fmt_ft(h),
                        size=5, align="right")
@@ -202,7 +203,8 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
         u = governing_unit(on, cut_at, axis)
         # Clear the labels by the SYMBOL's radius, not by a guess — the same
         # collision the plan had, for the same reason: symbols are not one size.
-        clear = (sym.radius(sym.for_type(u.get("type", ""))) if u else 0.0) + ft(0, 4)
+        clear = (sym.radius(sym.for_type(u.get("type", ""), angle_in_barrel=_barrel))
+                 if u else 0.0) + ft(0, 4)
         s.text(here, trim + clear + ft(0, 6), (pos.get("name") or "").upper(),
                size=6, bold=True, center=True)
         s.text(here, trim + clear, f"TRIM {ph.fmt_ft(trim)}", size=5.5, center=True)
@@ -225,7 +227,8 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
             # measured counter-clockwise, so the offset is +90 from the standard
             # atan2 angle.
             rot = math.degrees(math.atan2(head_h - trim, target - here)) + 90
-            sym.draw(s, sym.for_type(u.get("type", "")), here, trim, rotate_deg=rot, width=1.0)
+            sym.draw(s, sym.for_type(u.get("type", ""), angle_in_barrel=_barrel),
+                     here, trim, rotate_deg=rot, width=1.0)
             s.layer("NOTES")
             s.line(here, trim, target, head_h, style="leader")
             key, row, _ = ph.lookup(u.get("type"))
@@ -237,13 +240,33 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
                     if ang <= 0.02:
                         continue
                     end = here + d * trim / math.tan(ang)
-                    s.line(here, trim, end, 0, style="pool")
+                    # 🔴 CLIPPED TO THE DRAWN ROOM. A beam edge is projected to the
+                    # floor, and a SHALLOW one lands a very long way off: the
+                    # guard above only skips angles under 0.02 rad — 1.1° — so a
+                    # 2° edge from a 14' trim ran out to roughly 400 feet.
+                    #
+                    # ⚠ ONE such line stretched the whole drawing's extent to 93
+                    # feet for a 38-foot room, which pushed `fit` down a scale
+                    # step and left the section using 17% of an ARCH D sheet.
+                    # Found by exporting one and looking at it (#92).
+                    #
+                    # The segment is clipped rather than dropped, because the
+                    # near part of the edge is real and worth drawing — it is
+                    # only the far tail that is off the paper and meaningless.
+                    lo, hi = -house - 1, depth + house + 1
+                    ex, ey = end, 0.0
+                    if ex < lo or ex > hi:
+                        bound = lo if ex < lo else hi
+                        t = (bound - here) / (end - here) if end != here else 0.0
+                        ex, ey = bound, trim + t * (0.0 - trim)
+                    s.line(here, trim, ex, ey, style="pool")
             s.text(target, -ft(1, 10),
                    f"{u.get('type')} · {ph.fmt_ft(a['throw'])} @ {elev:.0f}°",
                    size=5, center=True)
             s.layer("POSITIONS")
         else:
-            sym.draw(s, sym.for_type(u.get("type", "")), here, trim, rotate_deg=90, width=1.0)
+            sym.draw(s, sym.for_type(u.get("type", ""), angle_in_barrel=_barrel),
+                     here, trim, rotate_deg=90, width=1.0)
         drawn.append((pos.get("name"), u.get("unit"), u.get("type")))
 
     # §3: a human figure, in scale.

@@ -9,6 +9,7 @@ import sys
 from fastapi.testclient import TestClient
 
 from plotedit import dmx
+from plotedit import photometrics as ph
 from plotedit.api import app
 
 client = TestClient(app)
@@ -221,6 +222,123 @@ check("...and the two ranges do not overlap",
       all(a[1] < b[0] for a, b in zip(_spans, _spans[1:])), True)
 
 print()
+print("the ColorSource CYC, whose datasheet publishes the SHAPE as well as the count")
+
+# ⭐ ETC write each mode as the letters it controls plus a bracketed count —
+# "IRGBS (5)". So the count can be checked against the shape, which is the one
+# thing the Series 2 table cannot do: its first draft had HSI Plus 7 as 13 and
+# the truth was 15, and no letter string existed to contradict it.
+_SHAPES = {"1 channel": "I", "RGB": "RGB", "5 channel": "IRGBS", "Direct": "IRGBILS"}
+for _prof, _letters in _SHAPES.items():
+    _n, _why = dmx.channels("ColorSource CYC", _prof)
+    check(f"   {_prof} is {len(_letters)} channels, as {_letters} says",
+          _n, len(_letters))
+    check("   ...and it cites the datasheet", "ColorSource CYC datasheet" in _why, True)
+
+_n, _why = dmx.channels("ColorSource CYC", None)
+check("no profile recorded gives no number", _n, None)
+check("...and says the range it could be", "1 to 7 channels" in _why, True)
+
+check("one channel is not 'channels'",
+      dmx.channels("ColorSource CYC", "1 channel")[1].startswith("1 channel, 1 channel —"),
+      True)
+
+print()
+print("the ColorSource Spot, published channel by channel")
+
+# ⭐ ETC give this one as an assignment list, not a letter string, so the shape
+# is on file rather than inferred. The counts below are the length of that list.
+_CS = {"1ch": 1, "RGB": 3, "5ch": 5, "Dir": 6}
+for _prof, _n in _CS.items():
+    check(f"   {_prof} is {_n}", dmx.channels("ColorSource Spot", _prof)[0], _n)
+check("   ...and cites the revision, not just the maker",
+      "Rev P 2021-09" in dmx.channels("ColorSource Spot", "5ch")[1], True)
+
+# ⚠ The zoom is the same light engine with a different lens tube, which is the
+# call photometrics already makes for wattage. If that is ever wrong it is wrong
+# in both places, and this is where it would be noticed.
+check("the zoom resolves to the same engine",
+      dmx.models_for("ColorSource Zoom"), ["ColorSource Spot"])
+check("...and the plain family does too",
+      dmx.models_for("ColorSource"), ["ColorSource Spot"])
+check("...and an unrecorded model says it is assuming",
+      "assuming" in (dmx.resolve_model("ColorSource Zoom", None)[1] or ""), True)
+
+# ETC label 5ch "(Default)", so this suggestion is the maker's, not a guess.
+check("the suggested profile is the one ETC call default",
+      dmx.SUGGESTED.get("ColorSource Spot"), "5ch")
+
+print()
+print("a maker who publishes no footprint at all")
+
+# ⚠ Altman refer to "user selected personalities" in the specification and never
+# list them. That is a different answer from "we have no table for this", and the
+# reader needs the second half of it: go and read the fixture's display.
+for _m in ("Altman Spectra Cyc 50", "Altman Spectra Cyc 100"):
+    _n, _why = dmx.channels(_m, "anything")
+    check(f"{_m} returns no count", _n, None)
+    check("   ...and says the maker publishes none",
+          "publishes no DMX footprint" in _why, True)
+
+check("a fixture nobody has looked up says only that",
+      "publishes no DMX footprint" in dmx.channels("Some Other Light", "x")[1], False)
+
+print()
+print("what goes in the hexagon on the drawing")
+
+# ⭐ Jerry, 2026.09.28: the hexagon carries what CONTROLS the unit. RP-2 assumed
+# circuit and dimmer were that path, which held until a fixture sat on a circuit
+# for power and an address for control.
+check("an address keeps its universe", dmx.plot_number("2/21", None), "2/21")
+# ⚠ THE WHOLE DISAMBIGUATION. A hexagon reading "45" is dimmer 45; one reading
+# "1/45" is an address. A one-universe house still gets the "1/" so the two can
+# never be confused on a mixed plot.
+check("a bare address is given one", dmx.plot_number("45", None), "1/45")
+check("a dimmer never gets a universe", dmx.plot_number(None, "7"), "7")
+check("nothing patched draws nothing", dmx.plot_number(None, None), None)
+# ⚠ A unit should never carry both. If the data says otherwise, this must agree
+# with whatever decides the schedule — the first draft let the dimmer win while
+# the schedule gave the address priority, which would have put one number on the
+# drawing and a different one on the paperwork for the same unit.
+check("the address wins, as it does everywhere else",
+      dmx.plot_number("2/21", "7"), "2/21")
+# ⭐ And the two functions are asserted against EACH OTHER, not merely against
+# the same expectation written twice. This is the pair that would put one number
+# on the drawing and a different one on the schedule.
+check("...and patch_cell agrees with it",
+      dmx.patch_cell(None, "whatever", "2/21", "7")[0], "2/21")
+
+print()
+
+# ⭐ Jerry, 2026.09.29: "in ETC world, a Dimmer is a DMX shape — basically one
+# address with the value of intensity." So it is a personality, and it belongs
+# to no model: the dimmer is not the fixture, it is what the fixture is plugged
+# into. See docs/DECISIONS.md.
+print("\na dimmer is a personality, not a model")
+check("one channel", dmx.channels(None, "Dimmer")[0], 1)
+check("...and it says why", "intensity" in dmx.channels(None, "Dimmer")[1], True)
+check("no model needed", dmx.channels(None, "Dimmer")[0],
+      dmx.channels("Source Four LED Series 2", "Dimmer")[0])
+# ⚠ The distinction it exists to make. Both of these are a footprint of one
+# address, but only one of them is a CHOICE — the other is the app assuming.
+check("an unrecorded profile is still not a dimmer", dmx.channels(None, None)[0], None)
+
+check("it occupies exactly its own address", dmx.span("1/45", 1), "1/45")
+check("...and so does a universe address", dmx.span("2/21", 1), "2/21")
+
+print("\nthe patch reads a dimmer the same way it always did")
+_s4 = ph.FIXTURES["S4 26"]
+_named = dmx.patch_cell(_s4, "S4 26", "1/45", None, None, "Dimmer")
+_fell_through = dmx.patch_cell(_s4, "S4 26", "1/45", None, None, None)
+check("named Dimmer gives one address", _named[2], 1)
+check("...and so did the old fallback", _fell_through[2], 1)
+# ⭐ The NUMBERS agree and the NOTES do not, which is the whole value of the
+# change: "a conventional fixture is one address" is the app assuming, and
+# "Dimmer, 1 channel" is the designer saying.
+check("the range is the same", _named[0], _fell_through[0])
+check("but the note now credits a decision",
+      "Dimmer" in _named[1] and "Dimmer" not in _fell_through[1], True)
+
 if FAILS:
     print(f"{len(FAILS)} FAILED")
     for f in FAILS:

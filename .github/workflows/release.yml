@@ -76,6 +76,12 @@ jobs:
           # does get committed, a release would quietly start redistributing it.
           # An exclusion in the packaging step is a fact; .gitignore is a hope.
           rsync -a --exclude 'reference/' docs/ out/plotedit/docs/
+          # ⭐ The manual as a PDF, at the top level where somebody who has just
+          # unzipped this will see it. GENERATED from docs/MANUAL.md at build
+          # time rather than committed, so it cannot drift from the Markdown —
+          # and it is the ONLY PDF allowed into the download (see the guard
+          # below, and the exclusion above for why that guard exists).
+          python3 server/make_manual.py out/plotedit/plotedit-manual.pdf
           # ⚠ Nothing only a developer needs: no node_modules, no .git.
           find out/plotedit -name '__pycache__' -type d -prune -exec rm -rf {} +
           cd out && zip -qr ../plotedit.zip plotedit
@@ -97,11 +103,26 @@ jobs:
         run: |
           # A guard, not a hope. If a PDF or an office document ever reaches the
           # download, stop — a release cannot be unsent once someone has it.
-          found=$(unzip -Z1 plotedit.zip | grep -iE '\.(pdf|docx?|xlsx?|pptx?)$' || true)
+          # What it is really protecting against is docs/reference/, which holds
+          # a bought copy of USITT RP-2 (2006) and now the 2025 practice.
+          #
+          # 🔴 ONE EXACT PATH IS ALLOWED, not a pattern. Our own manual is
+          # generated into plotedit/plotedit-manual.pdf and may ship; anything
+          # matching *manual*.pdf could one day match somebody else's, and the
+          # whole point of this step is that it cannot be argued with.
+          found=$(unzip -Z1 plotedit.zip \
+                    | grep -iE '\.(pdf|docx?|xlsx?|pptx?)$' \
+                    | grep -vx 'plotedit/plotedit-manual.pdf' || true)
           if [ -n "$found" ]; then
             echo "::error::Documents in the release zip:"; echo "$found"; exit 1
           fi
-          echo "no third-party documents in the download"
+          # And it must actually be there — a guard that passes because the file
+          # is missing is the LICENSE bug of v0.1.1 repeated.
+          if ! unzip -Z1 plotedit.zip | grep -qx 'plotedit/plotedit-manual.pdf'; then
+            echo "::error::the manual PDF was not generated into the download"
+            exit 1
+          fi
+          echo "no third-party documents in the download; the manual is"
 
       # ⚠ These two run ONLY on a tag, so a push to a branch never exercises
       # them — the first time they run for real is a release nobody can take
@@ -113,8 +134,50 @@ jobs:
           name: plotedit
           path: plotedit.zip
 
+      # 🔴 THE TAG MESSAGE IS THE RELEASE NOTES, and until now it reached nobody.
+      # Every release carries a written note — what a designer will notice, what
+      # is fixed, what is known and not fixed — and all of it lived in the git
+      # tag while the GitHub release published with an EMPTY description.
+      # Measured 2026-10-01: v0.1.25 and v0.1.26 both had a one-character body
+      # against 1,885 characters in the tag.
+      #
+      # ⚠ Somebody arriving from twinoaks.studio/plotedit therefore saw a version
+      # number, nothing explaining it, and a collapsed Assets list in which
+      # GitHub offers its own "Source code" archives beside the real download.
+      - name: Read the tag message, which is the release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # ⚠ The checkout is shallow and does not fetch tag OBJECTS, so the
+          # annotation is not present until it is asked for by name. Without
+          # this the body comes back empty and the release looks fine.
+          git fetch --force origin "+${GITHUB_REF}:${GITHUB_REF}"
+          git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > release-notes.md
+          echo "$(wc -c < release-notes.md) characters of notes"
+
+      # 🔴 A TAG MESSAGE IS PLAIN TEXT AND A RELEASE BODY IS MARKDOWN, and the
+      # step above copies one straight into the other. v0.1.26 shipped a sentence
+      # reading "a <button> never fires that event", and GitHub deletes the HTML
+      # tags it does not allow — so the release page published "a  never fires
+      # that event", subject removed, with nothing to show a word was missing.
+      #
+      # ⭐ It is caught here rather than left to whoever writes the next tag,
+      # because the trap is invisible: `test_*.py` publishes as `test_.py`, and
+      # nobody would think to check a glob. What each construct actually does was
+      # measured against GitHub's own renderer; the table is in the script.
+      #
+      # ⚠ This runs ONLY on a tag, so a pull request never exercises it. The
+      # rules themselves are covered by server/test_release_notes.py, which runs
+      # on every push — what is untested until a real release is this one line.
+      - name: Refuse to publish a note that Markdown would eat
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 server/check_release_notes.py release-notes.md
+
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
           files: plotedit.zip
+          # ⭐ body_path, not body. The heredoc into $GITHUB_OUTPUT worked, but a
+          # note that happened to contain the EOF delimiter would have ended the
+          # variable early and published half a release note.
+          body_path: release-notes.md

@@ -1,10 +1,14 @@
 /** Run: cd web && npm run test:store */
 import { Store, snapToPosition } from "./store.js";
-import { plotFileName, newPlot, isPlot, resolveEnds, runOf, type Plot } from "./plot.js";
+import { plotFileName, newPlot, isPlot, resolveEnds, runOf, lengthOf, angleOf,
+         endsFromLengthAngle, duplicateNames, duplicateUnits, nextPositionName,
+         type Plot } from "./plot.js";
 import { feet } from "./details.js";
 import { nextBoomHeight } from "./positions.js";
-import { deleteMessage, describeUnit } from "./confirm.js";
+import { deleteMessage, describeUnit, sharedNameMessage,
+         sharedNameRenumberNote, exportFailedMessage } from "./confirm.js";
 import { parseFeet } from "./feet.js";
+import { pickHandle } from "./interact.js";
 
 let fails = 0;
 function check(label: string, got: unknown, want: unknown) {
@@ -279,12 +283,22 @@ console.log("\nthe toolbar keeps its controls where they can be reached");
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const bars = html.split(/<div class="bar">/).slice(1);
   const barWith = (id: string) => bars.findIndex(b => b.includes(`id="${id}"`));
-  check("the rulers toggle is in the markup", /id="rulers"/.test(html), true);
-  check("...in the same bar as the display toggles",
-        barWith("rulers") === barWith("labels") && barWith("labels") >= 0, true);
+  // ⭐ RULERS IS NOW THE `dimensions` LAYER and has no checkbox of its own, so
+  // the original assertion cannot be made at all. What it was really guarding is
+  // that the control is REACHABLE, and that still has to hold — it now lives in
+  // the export menu, built in main.ts, so it is asserted there rather than here.
+  check("the rulers checkbox is gone, because it is a layer",
+        /id="rulers"/.test(html), false);
+  check("the layer chips are in the markup",
+        barWith("layer-labels") >= 0, true);
   check("...and NOT in the bar with Export and the scale menu",
-        barWith("rulers") === barWith("export"), false);
-  check("it says it only affects the print", /rulers\s*<span class="print-only"/.test(html), true);
+        barWith("layer-labels") === barWith("export"), false);
+  const mainSrc = fs.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  check("the export menu still offers Rulers",
+        /label: "Rulers"/.test(mainSrc), true);
+  check("...and it reads and writes the dimensions layer",
+        /checked: visibilityOf\(store\.plot\)\.dimensions/.test(mainSrc)
+        && /setLayerVisible\(\s*\n?\s*"dimensions"/.test(mainSrc), true);
 }
 
 console.log("\nunits are never hand-formatted outside the formatters");
@@ -358,6 +372,696 @@ console.log("\nthe splitter leaves the drawing the width it promises");
   check("...and reports its value to a screen reader",
         /aria-valuenow/.test(src), true);
 }
+
+// ⭐ "If someone selects a light and does nothing to it, should the plot be
+// considered changed?" — Jerry, 2026.09.29. No. And nor should an edit that
+// writes back the value already there. `dirty` means THE DOCUMENT DIFFERS FROM
+// DISK, not "the user touched something". docs/DECISIONS.md.
+console.log("\ndoing nothing is not a change");
+s = new Store(base());
+s.select(0);
+check("selecting a light leaves it clean", s.dirty, false);
+check("...and adds no undo step", s.canUndo, false);
+s.select(null);
+check("deselecting too", s.dirty, false);
+
+s.begin(null); s.update(0, { x: 5 });        // x is already 5
+check("writing back the same value is not an edit", s.dirty, false);
+check("...and pushes no dead undo step", s.canUndo, false);
+
+s.begin(null); s.update(0, { color: undefined });   // was never set
+check("clearing an already-empty field is not an edit", s.dirty, false);
+
+// ⚠ A drag that ends where it started. interact.ts coalesces on a key, so this
+// is the path a real mouse takes, not a synthetic one.
+s.begin("drag:0"); s.update(0, { x: 5, y: 20 });
+check("a drag that lands where it started", s.dirty, false);
+s.commit();
+
+console.log("\na real edit still counts");
+s.begin(null); s.update(0, { x: 9 });
+check("dirty", s.dirty, true);
+check("and undoable", s.canUndo, true);
+
+console.log("\nundo back to the saved state goes clean again");
+s = new Store(base());
+s.begin(null); s.update(0, { x: 7 });
+check("edited", s.dirty, true);
+s.undo();
+check("undone to what was loaded", s.dirty, false);
+s.redo();
+check("redone", s.dirty, true);
+
+s.markSaved();
+check("saved here", s.dirty, false);
+s.undo();
+check("stepping BACK from the save point is dirty", s.dirty, true);
+s.redo();
+check("...and returning to it is clean", s.dirty, false);
+
+// 🔴 The one that made `_redo = []` necessary instead of `.length = 0`.
+console.log("\na no-op does not eat the redo stack");
+s = new Store(base());
+s.begin(null); s.update(0, { x: 7 });
+s.undo();
+check("there is something to redo", s.canRedo, true);
+s.begin(null); s.update(0, { x: 5 });        // tabbing out of an unchanged field
+check("...and a no-op leaves it there", s.canRedo, true);
+s.redo();
+check("redo still works", s.plot.instruments[0]!.x, 7);
+
+
+// ------------------------------------------- a pipe by its length and angle
+// 🔴 The arithmetic a designer should not have to do. A position is two
+// endpoints, so an angled pipe was always possible — by working out the far end
+// yourself, and again every time you nudged the angle. #62, raised by a tester
+// hanging truss towers at a slight angle to follow a warehouse wall.
+console.log("\na pipe can be given a length and an angle");
+
+const R4 = (n: number) => Math.round(n * 1e4) / 1e4;
+const ends = (o: { x1: number; y1: number; x2: number; y2: number }) =>
+  ({ x1: R4(o.x1), y1: R4(o.y1), x2: R4(o.x2), y2: R4(o.y2) });
+
+check("0 degrees runs across", ends(endsFromLengthAngle(0, 10, 20, 0)),
+      { x1: 0, y1: 10, x2: 20, y2: 10 });
+check("...and runOf agrees", runOf(endsFromLengthAngle(0, 10, 20, 0)), "across");
+check("90 degrees runs up and downstage", ends(endsFromLengthAngle(5, 0, 20, 90)),
+      { x1: 5, y1: 0, x2: 5, y2: 20 });
+// ⚠ cos(90°) is 6e-17, not 0. Without rounding, x2 differs from x1 by a
+// hair and runOf calls a pipe up the deck "raked".
+check("...and is not called raked by a rounding error",
+      runOf(endsFromLengthAngle(5, 0, 20, 90)), "up-and-downstage");
+check("a slight rake", ends(endsFromLengthAngle(0, 0, 20, 12)),
+      { x1: 0, y1: 0, x2: R4(20 * Math.cos(12 * Math.PI / 180)),
+        y2: R4(20 * Math.sin(12 * Math.PI / 180)) });
+
+// ⭐ The pair must round-trip, because the panel shows both and writes both.
+for (const [len, ang] of [[20, 0], [20, 90], [20, 12], [33, -35], [12.5, 180]]) {
+  const e = endsFromLengthAngle(4, 7, len!, ang!);
+  check(`round-trips at ${len}' / ${ang}deg`,
+        [R4(lengthOf(e)), R4(((angleOf(e) - ang! + 540) % 360) - 180)], [R4(len!), 0]);
+}
+
+// ⚠ The near end does NOT move. Turning a pipe swings the far end about the
+// end you first placed — the one you measured off the wall.
+const _turned = endsFromLengthAngle(4, 7, 20, 40);
+check("the near end stays put", [_turned.x1, _turned.y1], [4, 7]);
+
+check("a position with no length has no angle, not NaN",
+      angleOf({ x1: 3, y1: 3, x2: 3, y2: 3 }), 0);
+check("length of a point is zero", lengthOf({ x1: 3, y1: 3, x2: 3, y2: 3 }), 0);
+check("a 3-4-5 pipe is 5 long", lengthOf({ x1: 0, y1: 0, x2: 3, y2: 4 }), 5);
+
+
+// ------------------------------------------------ two positions, one name
+// 🔴 A position's name is the JOIN KEY. Units say which position they are on by
+// name, so two positions called the same thing share their rig, merge in the
+// schedule and move each other's trim. Jerry, 2026.09.30: "I can see that
+// happening. Perhaps the position is a V for instance."
+console.log("\na duplicate position name is caught");
+
+const pos = (name: string) => ({ name });
+check("no clash on distinct names",
+      [...duplicateNames([pos("GRID B"), pos("GRID C")])], []);
+check("a repeat is caught",
+      [...duplicateNames([pos("V"), pos("GRID C"), pos("V")])], ["v"]);
+// ⚠ Compared the way the joins compare: trimmed and lower-cased. "Grid C" and
+// "GRID C " are the same position to every reader of the plot.
+check("case does not save you",
+      [...duplicateNames([pos("Grid C"), pos("GRID C")])], ["grid c"]);
+check("nor does a trailing space",
+      [...duplicateNames([pos("GRID C"), pos("GRID C ")])], ["grid c"]);
+check("three of a kind is still one clash",
+      [...duplicateNames([pos("V"), pos("V"), pos("V")])], ["v"]);
+// An unnamed position has its own problem; it is not this one, and reporting
+// every blank as a clash with every other blank would bury the real ones.
+check("blank names are not a clash",
+      [...duplicateNames([pos(""), pos(""), pos("GRID C")])], []);
+
+console.log("\ntwo units with the same number on one position");
+const u = (position: string, unit: number) => ({ position, unit });
+// ⭐ RP-2 numbers units PER POSITION, so unit 1 on two pipes is correct.
+check("the same number on two different pipes is fine",
+      duplicateUnits([u("GRID B", 1), u("GRID C", 1)], "GRID C"), []);
+check("...but twice on one pipe is not",
+      duplicateUnits([u("GRID C", 1), u("GRID C", 1)], "GRID C"), [1]);
+check("reported in order", duplicateUnits(
+      [u("GRID C", 3), u("GRID C", 1), u("GRID C", 3), u("GRID C", 1)], "GRID C"), [1, 3]);
+check("matched the way the joins match",
+      duplicateUnits([u("grid c", 2), u("GRID C ", 2)], "GRID C"), [2]);
+check("a unit with no number is not a duplicate",
+      duplicateUnits([{ position: "GRID C" }, { position: "GRID C" }], "GRID C"), []);
+
+
+// ------------------------------------------- sharing a name is allowed, not wrong
+// ⭐ Jerry, 2026.09.30: "let the user name the position... Then if its the same
+// name, say there is already a position with that name - let them use the same
+// name if they want." A V or an L is ONE position made of two straight
+// segments, and sharing the name is how you say so.
+console.log("\nsharing a name is offered, not refused");
+
+const _one = sharedNameMessage("V", 1);
+check("it names the position", _one.includes('"V"'), true);
+check("...and says how many already have it", _one.includes("another position"), true);
+check("two others are counted", sharedNameMessage("V", 2).includes("2 other positions"), true);
+// ⚠ The dialog must say what sharing MEANS, because that is the decision being
+// made. "Are you sure?" would ask the reader to work it out themselves.
+check("it explains the numbering", _one.includes("one run of unit numbers"), true);
+check("...and that the schedule merges them", _one.includes("schedule"), true);
+check("...and names the case it is for", /V or an L/.test(_one), true);
+// 🔴 It must not read as a refusal. This is a legitimate thing to want.
+check("it does not warn against it", /cannot|must not|error|invalid/i.test(_one), false);
+check("it ends with the question", _one.trim().endsWith("Use the same name?"), true);
+
+
+// ------------------------------------- the SUGGESTED name is one nobody is using
+// 🔴 The old button invented `Electric ${positions.length + 1}`, which is one
+// delete away from a collision: the demo ships seven positions, one called
+// "Electric 7", so deleting any of them and pressing add produced a second
+// "Electric 7" with no prompt and no warning. Reproduced in the app.
+//
+// ⚠ This is the SUGGESTION only. A clash the user types deliberately is still
+// allowed — see sharedNameMessage — because a V is a real thing to want.
+console.log("\nthe suggested position name is free");
+
+const P = (...names: string[]) => names.map(n => ({ name: n }));
+check("an empty plot starts at 1", nextPositionName(P()), "Electric 1");
+check("counts from the number of positions",
+      nextPositionName(P("a", "b", "c")), "Electric 4");
+check("skips a name already taken",
+      nextPositionName(P("Cat 1", "GRID C", "GRID D", "HR Boom", "HL Boom", "Electric 7")),
+      "Electric 8");
+check("...and keeps skipping",
+      nextPositionName(P("a", "b", "Electric 3", "Electric 4", "Electric 5")),
+      "Electric 6");
+check("case-insensitively, the way the joins compare",
+      nextPositionName(P("a", "b", "electric 3")), "Electric 4");
+
+// ⭐ The invariant, not the examples: what the button suggests is never what
+// duplicateNames flags.
+let _grow = P("Cat 1", "GRID C", "GRID D", "HR Boom", "HL Boom", "Electric 7");
+let _clean = true;
+for (let i = 0; i < 12; i++) {
+  _grow = [..._grow, { name: nextPositionName(_grow) }];
+  if (duplicateNames(_grow).size) _clean = false;
+}
+check("twelve in a row never suggests a duplicate", _clean, true);
+
+// ---------------------------------------------------------------- renumber
+// 🔴 Jerry, 2026.09.30: "you can't just renumber the units […] you can allow the
+// user to do it, but doing automatically is bad." So two things are tested: the
+// dialog SAYS what a shared name does to the order, and nothing in the UI tells
+// the reader to press the button.
+const _rn = sharedNameRenumberNote("Cove", 2);
+check("names the position", _rn.includes('"Cove"'), true);
+check("counts the legs", _rn.includes("2 positions"), true);
+check("says which leg set the order", _rn.includes("FIRST"), true);
+check("says they alternate", _rn.includes("alternate"), true);
+check("sends the reader to the moves, not to Apply",
+      _rn.includes("check the moves"), true);
+// ⚠ It must not read as a refusal — the reader is allowed to do this.
+check("does not refuse", /cannot|refus|not allowed/i.test(_rn), false);
+
+// ⭐ THE REAL REGRESSION, and the reason this block exists. The duplicate-unit
+// note used to end "Renumber fixes it across every segment of the name", which
+// pointed the reader at a button that rewrites every number on the run. It now
+// points at the one number that is wrong. Asserted against the SOURCE, because
+// the note is built inline in a DOM-rendering function.
+const _fsRn = await import("node:fs");
+const _srcRaw = _fsRn.readFileSync(new URL("./positions.ts", import.meta.url), "utf8");
+// ⚠ COMMENTS STRIPPED FIRST. The assertion is about what reaches the reader, and
+// the comments explaining this very change mention the old wording — a test that
+// failed on its own explanation would push the explanation out of the file.
+const _src = _srcRaw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+check("no note tells the reader to press renumber",
+      /press renumber|Renumber fixes/.test(_src), false);
+check("the duplicate-unit note offers the by-hand fix instead",
+      _src.includes("Give one of each pair a free number"), true);
+// And the button itself is still there — this was never about removing it.
+// ⚠ It moved from `textContent = "renumber"` to a `button({label: "Renumber"})`
+// call when the panels got their emphasis. This check CAUGHT that rather than
+// sleeping through it, which is the only reason to write it against the source.
+check("the renumber button survives", /label: "Renumber"/.test(_srcRaw), true);
+
+// ------------------------------------------------- every suite actually runs
+// 🔴 `test:all` LISTS THE SUITES BY HAND, so a new test file runs on the author's
+// machine and never in CI — which is the same failure `verify_suites.py` exists
+// for on the Python side, where `for t in test_*.py` at least globs. Nothing
+// checked the web side until `sequence.test.ts` was added and this was noticed.
+//
+// ⚠ Asserted from package.json, not from a list typed here. A list typed here
+// would be a THIRD place suites live.
+{
+  const fsS = await import("node:fs");
+  const pkg = JSON.parse(fsS.readFileSync(
+    new URL("../package.json", import.meta.url), "utf8")) as
+    { scripts: Record<string, string> };
+  const scripts = Object.values(pkg.scripts).join(" ");
+  const dirS = new URL("./", import.meta.url).pathname;
+  const suites = fsS.readdirSync(dirS).filter(f => f.endsWith(".test.ts")).sort();
+  check("there is more than one suite to check", suites.length > 1, true);
+  const unrun = suites.filter(f => !scripts.includes(f));
+  check("every *.test.ts is reachable from a script", unrun, []);
+  // And reachable from test:all specifically — a script nothing calls is not run.
+  const all = pkg.scripts["test:all"] ?? "";
+  const called = [...all.matchAll(/npm (?:run )?([\w:]+)/g)].map(m => m[1]!);
+  const reached = ["test:all", ...called]
+    .map(n => pkg.scripts[n] ?? "").join(" ");
+  check("...and from test:all", suites.filter(f => !reached.includes(f)), []);
+}
+
+// ------------------------------------------- labels must not eat the click
+// 🔴 A UNIT'S OWN NUMBER USED TO SWALLOW THE CLICK AIMED AT THE UNIT. §6.14.2
+// puts the number INSIDE the body, so the `text` sits exactly over the body
+// circle — and `interact.ts` resolves a click with `closest("[data-index]")`,
+// which the annotation layer is not inside. No hit means `store.select(null)`,
+// so clicking a light's number DESELECTED it.
+//
+// ⚠ Found only by opening the app — every suite passed throughout. It is
+// pinned here because the symptom is invisible in a diff and easy to reintroduce
+// by rebuilding the label group.
+{
+  const fsA = await import("node:fs");
+  const r = fsA.readFileSync(new URL("./render.ts", import.meta.url), "utf8");
+  const m = /el\("g", \{ class: "annot"([^}]*)\}\)/.exec(r);
+  check("the annotation group is still created here", !!m, true);
+  check("...and is not clickable",
+        (m?.[1] ?? "").includes('"pointer-events": "none"'), true);
+}
+
+// -------------------------------------------- Save is dead when nothing changed
+// Jerry, 2026.09.30: "make the UI save button inactive if there is nothing to
+// save." Asserted from the source, because the rule lives in `paint()` — a
+// DOM-painting function with no seam to call from here.
+{
+  const fsSv = await import("node:fs");
+  const m = fsSv.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  check("Save follows dirty", /saveBtn\.disabled = !store\.dirty/.test(m), true);
+  // ⚠ SAVE AS MUST STAY LIVE. Saving a copy under a new name is a real thing to
+  // want with nothing changed — and it is the ONLY way to write a plot that has
+  // never been saved, since a brand new plot is not dirty.
+  check("Save As is left alone", /\bsaveas\b[^\n]*disabled/.test(m), false);
+  // The shortcut follows the button, or a greyed Save still writes on ⌘S.
+  check("⌘S follows the same rule",
+        /if \(!store\.dirty\) \{ status\("No changes to save\."\); return; \}/.test(m), true);
+}
+
+// ------------------------------------------- every button states its emphasis
+// 🔴 The panels had seven buttons and no hierarchy: `+ unit`, `draw`,
+// `renumber`, `number by clicking` and `delete` were all the same weight, so
+// nothing said which was the ordinary thing to do. M3 publishes five emphases
+// for exactly that, and index.html already defined four of them.
+//
+// ⚠ The fix is not a stylesheet — it is that `button()` REQUIRES a variant. This
+// pins it: no panel may go back to raw createElement, which is how the emphasis
+// got skipped seven times without anyone deciding to skip it.
+{
+  const fsB = await import("node:fs");
+  const pathB = await import("node:path");
+  const dirB = new URL("./", import.meta.url).pathname;
+  const uiFiles = ["positions.ts", "inspector.ts", "details.ts"]
+    .filter(f => fsB.existsSync(pathB.join(dirB, f)));
+  check("the panel files are where we think", uiFiles.length >= 2, true);
+  const raw: string[] = [];
+  for (const f of uiFiles) {
+    const src = fsB.readFileSync(pathB.join(dirB, f), "utf8");
+    if (/createElement\("button"\)/.test(src)) raw.push(f);
+  }
+  check("no panel builds a button by hand", raw, []);
+
+  // 🔴 The action row must WRAP. Measured in the app: five buttons need 431px as
+  // main shipped them — with no icons at all — inside a 302px panel, so Renumber
+  // and Number by clicking were CLIPPED rather than merely tight, and the panel
+  // is resizable so no fixed width is safe.
+  const htmlB = fsB.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const posRule = /\.card-actions \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
+  check("the action row is a flex row", /display:flex/.test(posRule), true);
+  check("...that wraps rather than clipping", /flex-wrap:wrap/.test(posRule), true);
+
+  // ⭐ Jerry, 2026-10-01: "Can we do tool tips on the buttons?" Measured first:
+  // 29 controls in the two bars, 11 with none — and they were almost exactly the
+  // row he was pointing at. These are the ones that had none.
+  //
+  // ⚠ Looks at the control's line AND the two above it, because a title often
+  // sits on the wrapping <label> — which is where `zoom`'s lives, and the first
+  // version of this check failed on exactly that. It is a smoke test for
+  // "somebody added a control and forgot the tooltip", not proof of coverage;
+  // the real count was taken in the running browser.
+  const lines = htmlB.split("\n");
+  const needTip = ["layer-base", "layer-pools", "layer-focus", "layer-labels", "layer-positions", "layer-units", "poolplane",
+                   "bdx", "bdy", "bdw", "bdr", "bdo", "zoom"];
+  const untipped = needTip.filter(id => {
+    const i = lines.findIndex(l => l.includes(`id="${id}"`));
+    if (i < 0) return true;
+    return !lines.slice(Math.max(0, i - 2), i + 1).some(l => /title="/.test(l));
+  });
+  check("every control that had no tooltip now has one", untipped, []);
+
+  // ⭐ The six layer chips are one connected group, not six loose boxes.
+  check("the layer toggles are grouped", /class="toggles"/.test(htmlB), true);
+  check("...and announced as a group", /role="group" aria-label="Layers/.test(htmlB), true);
+  check("the zoom slider and its buttons are grouped",
+        /class="zoomgroup"/.test(htmlB), true);
+
+  // 🔴 THE TOOLBAR GROUP MUST WRAP. `.bar` wrapped; the `.group` inside it did
+  // not, so the row overflowed the window and the LAST control left the screen.
+  // Caught by Jerry — "I couldnt see ground plan" — after it was moved to the end
+  // of row one at his own request. At 1024px it sat at x=1212, a button that
+  // existed and could not be seen.
+  const groupRule = /\.group \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
+  check("the toolbar group wraps", /flex-wrap:wrap/.test(groupRule), true);
+
+  // ⚠ A <select> sizes itself to its WIDEST OPTION. Open's options are plot FILE
+  // NAMES, so it was 332px — a quarter of the row — and one long name pushed the
+  // whole toolbar wider. Open is a button now, so the names live in a menu and
+  // cannot reach the toolbar at all; what has to stay capped is the MENU, or a
+  // long name just moves the problem.
+  //
+  // 🔴 This check previously pinned `#open { max-width }`, and it FAILED when
+  // that rule was deleted — correctly. The rule went because the cause went.
+  const menuRule = /\.menu \{[^}]*\}/.exec(htmlB)?.[0] ?? "";
+  check("a long plot name cannot stretch the menu", /max-width:min\(/.test(menuRule), true);
+  check("...and a long item is clipped, not wrapped",
+        /\.menu-label \{[^}]*text-overflow:ellipsis/.test(htmlB), true);
+  // Sheet is still a select, and still sizes to "ARCH E1 (30 x 42 in)".
+  check("Sheet cannot be widened by a long paper name", /#page \{[^}]*max-width/.test(htmlB), true);
+
+  // ⭐ Jerry, 2026-10-01: "I think the export and open should be a button, just
+  // like save as, and ground plan." Both were <select>s whose change handler
+  // fired an action and then set `sel.value = ""` — a control that clears itself
+  // after every use was never holding a value.
+  check("Open is a button", /<button id="open"/.test(htmlB), true);
+  check("Export is a button", /<button id="export"/.test(htmlB), true);
+  check("neither is a select any more",
+        /<select id="(open|export)"/.test(htmlB), false);
+  // A button that opens a menu has to say so, or a screen reader announces a
+  // plain button and the menu arrives unannounced.
+  const openBtn = /<button id="open"[^>]*>/.exec(htmlB)?.[0] ?? "";
+  const expBtn = /<button id="export"[^>]*>/.exec(htmlB)?.[0] ?? "";
+  check("Open announces its menu", /aria-haspopup="menu"/.test(openBtn), true);
+  check("Export announces its menu", /aria-haspopup="menu"/.test(expBtn), true);
+
+  // ⚠ The menu is built on the Popover API — Baseline since April 2025 — which
+  // is what supplies the top layer, light dismiss and Escape. The fallback path
+  // must stay, because `serve.py` opens whatever browser the designer defaults
+  // to and this app cannot pick one.
+  const menuSrc = fsB.readFileSync(new URL("./menu.ts", import.meta.url), "utf8");
+  check("the menu uses popover", /setAttribute\("popover"/.test(menuSrc), true);
+  check("...and still works without it", /hasPopover/.test(menuSrc), true);
+  // M3: an item that does not currently apply is disabled, not removed.
+  check("menu items can be disabled rather than dropped",
+        /disabled\?: boolean/.test(menuSrc), true);
+
+  // 🔴 A SUBMENU MUST BE APPENDED INSIDE ITS PARENT. Showing an `auto` popover
+  // dismisses every other `auto` popover not NESTED inside it, and nesting is
+  // DOM ancestry. Appending to <body> made the browser close the parent —
+  // measured: the Export menu collapsed to 0x0 the moment Sheet was clicked,
+  // which took the submenu's own anchor with it and parked it in the corner.
+  check("a submenu lives inside its parent",
+        /\(parent \?\? document\.body\)\.appendChild/.test(menuSrc), true);
+  check("...and the stack closes children with the parent",
+        /function closeAbove/.test(menuSrc), true);
+  // And a corner case the arithmetic can still reach.
+  check("placement is clamped on screen",
+        /Math\.max\(pad, left\)/.test(menuSrc) && /Math\.max\(pad, top\)/.test(menuSrc), true);
+
+  // ⭐ Sheet, Scale and Rulers moved into Export — they change the exported PDF
+  // and nothing else, so in the toolbar they read as app state.
+  check("the export settings left the toolbar",
+        /id="export-settings" hidden/.test(htmlB), true);
+  const bars = htmlB.slice(htmlB.indexOf('<div class="bar">'), htmlB.indexOf('id="export-settings"'));
+  check("...so Sheet is no longer a toolbar control", /id="page"/.test(bars), false);
+  check("...nor Scale", /id="scale"/.test(bars), false);
+  // rulers left this div entirely — it is a layer in the plot now.
+  // ⚠ But they must still EXIST — they are the state the menu reads and writes,
+  // and `fillPageMenu`/`fillScaleMenu` still fill them.
+  check("Sheet still exists as state", /id="page"/.test(htmlB), true);
+  check("Scale still exists as state", /id="scale"/.test(htmlB), true);
+  check("rulers is no longer browser-only state", /id="rulers"/.test(htmlB), false);
+
+  // ⭐ Jerry, 2026-10-01: "where is the scale" — asked right after Sheet and
+  // Scale moved into Export, which is the question answering itself. Moving the
+  // CONTROLS was right; losing the READOUT was not. The toolbar used to display
+  // the scale at all times, so what the plot would print at was ambient.
+  check("the toolbar says what the PDF will print at",
+        /id="sheetinfo"/.test(htmlB), true);
+  const mainSrc = fsB.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  check("...kept in step when a menu choice is made",
+        /sel\.value = o\.value; syncSheetInfo\(\);/.test(mainSrc), true);
+  check("...and when the units change the lists",
+        /fillScaleMenu\(\); fillPageMenu\(\); syncSheetInfo\(\)/.test(mainSrc), true);
+  // ⚠ It opens the menu anchored to EXPORT, not to itself — a menu that lands in
+  // a different place depending on which of two controls you pressed is a menu
+  // you have to look for twice.
+  check("the readout opens the same menu, in the same place",
+        /\$\("sheetinfo"\)\.addEventListener\("click", \(\) => showExportMenu\(\)\)/.test(mainSrc), true);
+  check("...and says so for a screen reader", /id="sheetinfo"[^>]*aria-haspopup/.test(htmlB), true);
+  // ⚠ They must stay CHECKBOXES. Swapping in divs would buy the same look and
+  // lose the semantics and every `.checked` read in main.ts.
+  const togglesBlock = /class="toggles"[\s\S]*?<\/span>/.exec(htmlB)?.[0] ?? "";
+  check("the toggles are still checkboxes",
+        (togglesBlock.match(/type="checkbox"/g) || []).length, 6);
+
+  // And the helper itself cannot be called without an emphasis.
+  const bsrc = fsB.readFileSync(pathB.join(dirB, "button.ts"), "utf8");
+  check("variant is required, not optional", /\n  variant: Variant;/.test(bsrc), true);
+  check("...and danger is one of them", /"danger"/.test(bsrc), true);
+
+  // ⚠ M3: sentence case, first word capitalised. "+ unit" and "renumber" were
+  // neither. Checked on the labels actually passed to button().
+  // ⚠ NARROWED to labels passed to `button(`. A plain /label: "…"/ also matched
+  // the SELECT OPTION labels in details.ts — "Imperial — feet and inches",
+  // "Dimmer per circuit (most houses)" — which are prose for a dropdown and have
+  // no business being three words. The first version failed on those: the right
+  // failure for the wrong reason.
+  const labels: string[] = [];
+  for (const f of uiFiles) {
+    const src = fsB.readFileSync(pathB.join(dirB, f), "utf8");
+    for (const m of src.matchAll(/button\(\{[\s\S]*?label: "([^"]+)"/g)) labels.push(m[1]!);
+  }
+  check("there are labels to check", labels.length >= 6, true);
+  const badCase = labels.filter(l => !/^[A-Z]/.test(l));
+  check("every label is sentence case", badCase, []);
+  // M3 asks for one to three words, ideally.
+  const tooLong = labels.filter(l => l.split(/\s+/).length > 3);
+  check("no label runs past three words", tooLong, []);
+}
+
+// ------------------------------------------------------------------- revert
+// #56: "a revert to return the file to the way it was before we touched it in
+// this session - save the state before we open it."
+console.log("\nrevert goes back to the file on disk");
+{
+  const p0 = newPlot();
+  p0.show = "As opened";
+  const onDisk = structuredClone(p0);
+  const st = new Store(p0);
+  check("a freshly opened plot is clean", st.dirty, false);
+
+  st.addPosition({ name: "GRID Z", type: "electric", x1: 0, y1: 10, x2: 20, y2: 10 });
+  st.setMeta({ show: "Edited" });
+  check("editing makes it dirty", st.dirty, true);
+  check("...and the edits are there", st.plot.positions.length, 1);
+
+  st.revertTo(onDisk);
+  check("revert restores the plot", st.plot.show, "As opened");
+  check("...including what was added", st.plot.positions.length, 0);
+  // 🔴 ENDS CLEAN. The plot now matches the file, so claiming unsaved changes
+  // against a document just restored would make the word meaningless.
+  check("...and ends clean", st.dirty, false);
+
+  // ⚠ UNDOABLE. A revert that cannot be taken back is a second way to lose an
+  // afternoon, and this store already had the machinery.
+  check("revert can be undone", st.canUndo, true);
+  st.undo();
+  check("...bringing the work back", st.plot.show, "Edited");
+  check("...all of it", st.plot.positions.length, 1);
+  check("...and dirty with it", st.dirty, true);
+
+  // ⚠ A COPY, not a reference. The store mutates its plot in place, so handing
+  // it the same object would make the snapshot the live document.
+  st.revertTo(onDisk);
+  st.setMeta({ show: "Changed again" });
+  check("the snapshot is not the live plot", onDisk.show, "As opened");
+}
+{
+  const fsR = await import("node:fs");
+  const mainR = fsR.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  // 🔴 TWO places build a Store: adoptPlot, and startup. Only the first set
+  // `onDisk`, so Revert sat disabled all session on the plot the app opened
+  // with. Found by pressing it — the plot went dirty, Save lit up, Revert did
+  // not. Both call sites are pinned here because a third would do it again.
+  // ⚠ Counting both and comparing totals LOOKED like a check and was not: the
+  // snapshot taken on save made the numbers balance even with a store-creation
+  // site missing. Proved by deleting one and watching it pass. So each site is
+  // checked where it stands — within a few lines of its own `new Store(`.
+  const mainLines = mainR.split("\n");
+  const bornAt = mainLines
+    .map((l, i) => (/store = new Store\(/.test(l) ? i : -1))
+    .filter(i => i >= 0);
+  check("a Store is still born in two places", bornAt.length, 2);
+  const unsnapped = bornAt.filter(i =>
+    !mainLines.slice(i, i + 12).some(l => /onDisk = structuredClone\(/.test(l)));
+  check("every Store that is born records what is on disk", unsnapped, []);
+  check("...and saving moves that point", /onDisk = structuredClone\(store\.plot\)/.test(mainR), true);
+  check("Revert is disabled when there is nothing to go back from",
+        /revertBtn\.disabled = !store\.dirty \|\| !onDisk/.test(mainR), true);
+}
+
+// ------------------------------------------- the card classes say what they are
+// 🔴 They were `.pos-row`, `.pos-field`, `.pos-note`, `.pos-actions` — and they
+// are not about positions. `details.ts` renders Show & Venue with the same
+// classes, because the layout IS the same; the name described where the CSS was
+// first needed rather than what it is.
+//
+// ⚠ That cost three bugs in one day, all the same shape — "the first `.pos-row`"
+// is Show & Venue, not a position. One wrote 12'-6" into DESIGNER and the value
+// reached a file before anyone noticed.
+{
+  const fsC = await import("node:fs");
+  const pathC = await import("node:path");
+  const dirC = new URL("./", import.meta.url).pathname;
+  const files = ["index.html", "src/details.ts", "src/positions.ts", "src/main.ts"]
+    .map(f => pathC.join(dirC, "..", f))
+    .filter(f => fsC.existsSync(f));
+  check("the files to check are there", files.length, 4);
+  // ⚠ COMMENTS STRIPPED FIRST — HTML and TS both. The comment that explains this
+  // rename necessarily names the classes it renamed, and a check that failed on
+  // its own explanation would push the explanation out of the file. The same
+  // thing happened to the renumber check; the lesson stuck this time.
+  const strip = (t: string) => t
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+  const offenders = files.filter(f =>
+    /\bpos-(row|field|note|actions)\b/.test(strip(fsC.readFileSync(f, "utf8"))));
+  check("nothing is called pos-* any more", offenders.map(f => pathC.basename(f)), []);
+
+  // ⭐ THE REAL POINT: the class is SHARED, and the test says so. If a future
+  // reader believes `.card` means "a position", this is where they find out.
+  const det = fsC.readFileSync(pathC.join(dirC, "details.ts"), "utf8");
+  const pos = fsC.readFileSync(pathC.join(dirC, "positions.ts"), "utf8");
+  check("Show & Venue uses the card class", /className = "card"/.test(det), true);
+  check("...and so does a position row", /className = "card"/.test(pos), true);
+}
+
+// ------------------------------------------ Show & Venue starts out of the way
+// #56: "We can also have the show and venue tab close on start-up." It is the
+// panel you fill in once and rarely reopen, and it was the first thing between
+// the reader and the rig.
+{
+  const fsV = await import("node:fs");
+  const htmlV = fsV.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const openPanels = [...htmlV.matchAll(/<details class="panel [a-z]+" id="panel-([a-z]+)"( open)?>/g)]
+    .map(m => ({ name: m[1]!, open: !!m[2] }));
+  check("all four panels are still there", openPanels.length, 4);
+  check("Show & Venue starts closed",
+        openPanels.find(p => p.name === "details")?.open, false);
+  check("...and the working panels do not", 
+        openPanels.filter(p => p.name !== "details").every(p => p.open), true);
+
+  // ⚠ `newFile` PRINTS "set the room and the venue in Show & Venue". With the
+  // panel closed by default, that line would point at something collapsed — so
+  // New reopens it. An instruction aimed at a collapsed panel is worse than none.
+  const mainV = fsV.readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+  const newFn = /async function newFile\(\)[\s\S]*?\n\}/.exec(mainV)?.[0] ?? "";
+  check("New sends the reader to Show & Venue",
+        /set the room and the venue in Show & Venue/.test(newFn), true);
+  check("...and opens it first", /panel-details[\s\S]*?\.open = true/.test(newFn), true);
+
+  // 🔴 DEAD CODE from the select→button change: a <button> never fires `change`,
+  // so the old handler sat there reading as live. Found while doing this.
+  check("Open has no leftover change handler",
+        /\$\("open"\)\.addEventListener\("change"/.test(mainV), false);
+  check("...it listens for a click, as a button does",
+        /\$\("open"\)\.addEventListener\("click"/.test(mainV), true);
+}
+
+// ------------------------------------------------ a position can be selected
+// #78: "it's hard to tell when a position is selected." There was nothing to
+// tell — `selected` has always been an index into INSTRUMENTS, and a position
+// could not be selected, clicked or pointed at. This is the missing half.
+console.log("\nselecting a position");
+{
+  const pp = newPlot();
+  const st = new Store(pp);
+  st.addPosition({ name: "GRID A", type: "electric", x1: 0, y1: 10, x2: 20, y2: 10 });
+  st.addPosition({ name: "GRID B", type: "electric", x1: 0, y1: 16, x2: 20, y2: 16 });
+  st.addPosition({ name: "GRID C", type: "electric", x1: 0, y1: 20, x2: 20, y2: 20 });
+  check("nothing is selected to begin with", st.selectedPosition, null);
+
+  st.selectPosition(1);
+  check("a position can be made current", st.selectedPosition, 1);
+
+  // ⚠ ONE THING IS CURRENT AT A TIME. A unit and a pipe lit up together leaves
+  // two answers to "what am I looking at", and the inspector can only show one.
+  st.add({ unit: 1, x: 5, y: 16, position: "GRID B", type: "S4 26" });
+  st.select(0);
+  check("picking a unit clears the position", st.selectedPosition, null);
+  check("...and the unit is current", st.selected, 0);
+  st.selectPosition(2);
+  check("picking a position clears the unit", st.selected, null);
+  check("...and the position is current", st.selectedPosition, 2);
+
+  // 🔴 A STALE INDEX OUTLIVES THE THING IT POINTED AT. Deleting the selected
+  // position must clear it, and deleting one BELOW it must shift it — otherwise
+  // the highlight silently moves to a different pipe.
+  st.selectPosition(2);
+  st.removePosition(2);
+  check("deleting the selected position clears it", st.selectedPosition, null);
+
+  st.selectPosition(1);
+  st.removePosition(0);
+  check("deleting one below it shifts the index", st.selectedPosition, 0);
+  check("...and it is still the same pipe", st.plot.positions[st.selectedPosition!]?.name, "GRID B");
+}
+{
+  const fsP = await import("node:fs");
+  const dirP = new URL("./", import.meta.url).pathname;
+  const rend = fsP.readFileSync(dirP + "render.ts", "utf8");
+  // Each position is its own group, or nothing can be pointed at or lit up.
+  check("every position is drawn as its own group",
+        /class: "position"/.test(rend) && /"data-position"/.test(rend), true);
+  // 🔴 A pipe draws about 1.5px wide and nobody can click a 1.5px line — the
+  // same target problem the toolbar had, in a different place.
+  check("there is an invisible hit line to click",
+        /stroke: "transparent"/.test(rend), true);
+
+  const inter = fsP.readFileSync(dirP + "interact.ts", "utf8");
+  // ⚠ Asked AFTER the unit: a unit sits on its position, and clicking a light
+  // must never select the pipe it hangs from.
+  const iUnit = inter.indexOf('closest("[data-index]")');
+  const iPos = inter.indexOf('closest("[data-position]")');
+  check("a click can select a position", iPos > 0, true);
+  check("...but a unit is asked first", iUnit < iPos, true);
+
+  const htmlP = fsP.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  check("the card shows it is selected", /\.card\.selected \{[^}]*background/.test(htmlP), true);
+  // ⚠ Colour AND weight: the plan is black on white, and a designer may be
+  // printing it or may be colour-blind.
+  const pipeRule = /svg g\.position\.selected line \{[^}]*\}/.exec(htmlP)?.[0] ?? "";
+  check("...and so does the pipe", /stroke:var\(--primary\)/.test(pipeRule), true);
+  check("...by weight as well as colour", /stroke-width/.test(pipeRule), true);
+}
+
+console.log("\na refused export says why, in a dialog (2026.10.09)");
+{
+  const m = exportFailedMessage("CLIPPED: 6.4' off the RIGHT. Largest standard scale that fits this sheet: 1/8\" = 1'-0\".");
+  check("it says the plot does not fit", m.startsWith("The plot does not fit on this sheet"), true);
+  check("...keeps the server's reason, without the CLIPPED tag",
+        m.includes("6.4' off the RIGHT") && !m.includes("CLIPPED"), true);
+  check("...and the scale that would fit", m.includes("1/8"), true);
+  check("...and where to change it", m.includes("Sheet or the Scale under Export"), true);
+  const o = exportFailedMessage("Is the Python service running?");
+  check("any other failure is passed on as it came",
+        o, "The export did not work.\n\nIs the Python service running?");
+}
+
+console.log("\nShift-drag reaches a focus hidden under its unit (2026.10.09)");
+check("a plain press on the body moves the unit", pickHandle(null, false), "body");
+check("Shift on the body grabs the focus", pickHandle(null, true), "focus");
+check("the ring is the focus either way", pickHandle("focus", false), "focus");
+check("Shift does not make a boom elevation draggable", pickHandle("elevation", true), "elevation");
 
 if (fails) { console.log(`${fails} FAILED`); process.exit(1); }
 console.log("all passed");

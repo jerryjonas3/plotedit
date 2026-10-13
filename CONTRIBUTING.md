@@ -8,6 +8,21 @@ symbols mean something fixed. Every contribution is measured against it.
 Contributions are welcome. The most common one is a **new fixture symbol**, and
 that has its own standard below.
 
+## Where the work is
+
+**[Issues tagged `help wanted`](https://github.com/jerryjonas3/plotedit/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)**
+are the ones somebody could pick up today. They carry the measurements that found
+them, so you are not starting from "something looks wrong" — you are starting
+from a number and a repro.
+
+⭐ **Say so on the issue before you start.** Not to be given permission — to stop
+two people writing the same fix on a Saturday.
+
+⚠ **Some of them explain why they have NOT been fixed**, and that is the
+interesting part rather than an apology. A drawing bug that would take three
+lines to make disappear and a week to be sure about is worth reading before you
+make it disappear.
+
 ---
 
 ## Before anything else
@@ -65,6 +80,7 @@ works immediately, on your plots, tonight. The pull request is only how the
 fixture reaches everyone else. Nobody has to wait on review to get their show
 drafted.
 
+
 ### ⭐ First — check whether you need a symbol at all
 
 **Your fixture almost certainly draws already.** `symbols.for_type` falls back to
@@ -103,6 +119,24 @@ is safe. A borrowed number is not, and it looks exactly as authoritative.
 **3. Only then, a new symbol** — and only when the fixture genuinely looks
 different on paper: a moving light, a cyc unit, a striplight, something RP-2
 draws its own way. A 26° ERS from another maker does not; it is already right.
+
+### Two scripts that do the boring half
+
+**`python server/new_fixture.py "Maker Model 26"`** prints the stub for every
+table a fixture type has to appear in, with the required fields present and
+empty and a note saying what each one needs. It prints rather than edits, on
+purpose: pasting takes ten seconds and leaves you looking at the neighbouring
+entries, which is where you will notice that every one of them names a document.
+
+**`python server/validate_fixtures.py`** checks what a reviewer reading a diff
+cannot see — that every entry cites a source, that a field angle is not narrower
+than its beam, that an alias points at a fixture that still exists, that a DMX
+footprint is between 1 and 512, and that a profile is not listed as both
+published and unpublished. **It runs in CI**, so an entry pasted in and left
+unfinished fails the build instead of shipping as a guess.
+
+⚠ **Neither checks that the symbol is the right shape.** Nothing automatic can.
+Draw it on a plot, put it beside the RP-2 plate, and look at it.
 
 ### What happens after you open the pull request
 

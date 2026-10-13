@@ -44,6 +44,56 @@ export interface FixtureRow {
   reference_lamp: string; family: string; modes: string[] | null; source: string;
 }
 
+/** One sheet a plot can be issued on. */
+export interface PaperSize { name: string; w_in: number; h_in: number; label: string }
+
+/** The sheets, split by measuring system.
+ *
+ *  ⚠ ASKED FOR, never typed here. A second copy of the table in TypeScript is
+ *  exactly how the lamp dropdown ended a release behind LAMP_MF. */
+export async function paperSizes(): Promise<{
+  imperial: PaperSize[]; metric: PaperSize[]; default: string;
+}> {
+  const r = await fetch("/api/pages");
+  if (!r.ok) throw new Error(`cannot load the paper sizes: ${r.status}`);
+  return r.json();
+}
+
+/** The plots bundled with the program, kept apart from the designer's own. */
+export async function samples(): Promise<{ name: string; show: string }[]> {
+  const r = await fetch("/api/samples");
+  if (!r.ok) throw new Error(`cannot list the samples: ${r.status}`);
+  return (await r.json()).samples;
+}
+
+export async function readSample(name: string): Promise<Plot> {
+  const r = await fetch(`/api/samples/${encodeURIComponent(name)}`);
+  if (!r.ok) throw new Error(`cannot open ${name}: ${r.status}`);
+  return (await r.json()).plot as Plot;
+}
+
+/** One page of a PDF as a picture, for a plan with no vectors in it.
+ *
+ *  ⭐ A photograph of a room cannot be traced into geometry — tracing it would
+ *  invent walls. It CAN be a backdrop to draw over, which is what this is for.
+ *  🔴 The result is never a measurement. See the endpoint.
+ */
+export async function pdfRaster(
+  file: File, page: number,
+): Promise<{ href: string; wIn: number; hIn: number }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("page", String(page));
+  const r = await fetch("/api/import/pdf/raster", { method: "POST", body: fd });
+  if (!r.ok) throw new Error(await r.text() || `raster failed: ${r.status}`);
+  const blob = await r.blob();
+  return {
+    href: URL.createObjectURL(blob),
+    wIn: Number(r.headers.get("X-Page-Width-In") ?? 0),
+    hIn: Number(r.headers.get("X-Page-Height-In") ?? 0),
+  };
+}
+
 /** The fixture table, so the inspector can offer real types rather than free text. */
 export async function fixtures(): Promise<Record<string, FixtureRow>> {
   const r = await fetch("/api/fixtures");
@@ -51,13 +101,31 @@ export async function fixtures(): Promise<Record<string, FixtureRow>> {
   return (await r.json()).fixtures as Record<string, FixtureRow>;
 }
 
+/** Gel numbers and names, for the colour suggestions.
+ *
+ *  ⚠ Numbers only as the VALUE. The table is keyed on "R52", and a name in the
+ *  value would match nothing. The name is the label the browser shows beside
+ *  it. */
+export async function gelList(): Promise<{ gel: string; name: string }[]> {
+  const r = await fetch("/api/gels");
+  if (!r.ok) throw new Error(`gels failed: ${r.status}`);
+  const gels = (await r.json()).gels as Record<string, { name: string }>;
+  return Object.entries(gels)
+    .map(([gel, v]) => ({ gel, name: v.name }))
+    .sort((a, b) => a.gel.localeCompare(b.gel, undefined, { numeric: true }));
+}
+
 // ------------------------------------------------------------------ export
 
-export type ExportKind = "pdf" | "dxf" | "schedule" | "hookup" | "eos";
+export type ExportKind = "pdf" | "section" | "dxf" | "schedule" | "hookup" | "eos";
 
 /** Ask the server for a file and hand it to the browser as a download. */
 export interface ExportOptions {
   scale?: string;
+  /** The sheet, e.g. "ARCH_D" or "A1". Omitted means the server's default —
+   *  which is what every export did until a tester asked for something bigger
+   *  than ARCH D and found there was no way to say so. */
+  page?: string;
   landscape?: boolean;
   /** What the plan/pools/focus/labels checkboxes are showing. Sent so the
    *  print matches the screen; omitted entirely for the CSV and patch exports,
@@ -70,6 +138,11 @@ export interface ExportOptions {
   /** Print a dimension scale along the plan's edges. PDF only — the browser
    *  does not draw them. */
   rulers?: boolean;
+  /** The imported base plan, already placed in stage feet — `paths`, and an
+   *  `image` as base64 PNG with its rectangle. ⚠ Sent as DRAWN rather than as
+   *  imported, so the server does not redo the placement arithmetic. Two copies
+   *  of it is exactly how the screen and the paper drift apart. */
+  base?: Record<string, unknown>;
 }
 
 export async function exportFile(
@@ -84,12 +157,14 @@ export async function exportFile(
     body: JSON.stringify({
       plot,
       ...(opts.scale ? { scale: opts.scale } : {}),
+      ...(opts.page ? { page: opts.page } : {}),
       ...(opts.landscape === undefined ? {} : { landscape: opts.landscape }),
       ...(opts.showPools === undefined ? {} : { showPools: opts.showPools }),
       ...(opts.showFocus === undefined ? {} : { showFocus: opts.showFocus }),
       ...(opts.showLabels === undefined ? {} : { showLabels: opts.showLabels }),
       ...(opts.poolPlane === undefined ? {} : { poolPlane: opts.poolPlane }),
       ...(opts.rulers ? { rulers: true } : {}),
+      ...(opts.base ? { base: opts.base } : {}),
     }),
   });
   if (!r.ok) {
@@ -162,15 +237,26 @@ export type SymbolPrim =
 /** RP-2 symbol outlines, fetched rather than reimplemented.
  *  The geometry lives once, in symbols.py, so the screen and the paper cannot
  *  drift apart the way the photometrics did before test_agreement.py existed. */
+export interface SymbolReply {
+  prims: Record<string, SymbolPrim[]>;
+  /** Keys that are hung at TWO points and therefore cannot pan — strips,
+   *  battens, cyc units. #113. The server decides, next to the dispatch that
+   *  already picks the shape, so there is no second list to keep in step. */
+  twoPoint: string[];
+}
+
 export async function symbols(
-  types: string[], lensRotation?: number,
-): Promise<Record<string, SymbolPrim[]>> {
+  types: string[], lensRotation?: number, angleInBarrel = false,
+): Promise<SymbolReply> {
   const want = [...new Set(types)].filter(Boolean);
-  if (!want.length) return {};
+  if (!want.length) return { prims: {}, twoPoint: [] };
   const rot = lensRotation === undefined ? "" : `&lens_rotation=${lensRotation}`;
-  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}${rot}`);
+  const barrel = angleInBarrel ? "&angle_in_barrel=true" : "";
+  const r = await fetch(`/api/symbols?types=${encodeURIComponent(want.join(","))}${rot}${barrel}`);
   if (!r.ok) throw new Error(`symbols failed: ${r.status}`);
-  return (await r.json()).symbols as Record<string, SymbolPrim[]>;
+  const j = await r.json();
+  return { prims: j.symbols as Record<string, SymbolPrim[]>,
+           twoPoint: (j.twoPoint ?? []) as string[] };
 }
 
 /** Renumber the units on one position, per RP-2 §2.3.2.
@@ -239,7 +325,7 @@ export async function booms(plot: Plot): Promise<{ booms: BoomElevation[]; space
     // the PDF said metres — screen and paper disagreeing about the same
     // number, which is the failure the shared layout exists to prevent.
     body: JSON.stringify({ positions: plot.positions, instruments: plot.instruments,
-                           units: plot.units }),
+                           units: plot.units, angleInBarrel: !!plot.angleInBarrel }),
   });
   if (!r.ok) throw new Error(`booms failed: ${r.status}`);
   const j = await r.json();
@@ -281,9 +367,27 @@ export async function positionLabels(
 /** A plot on disk, as GET /plots lists it. */
 export interface PlotFile { name: string; show: string; bytes: number; modified: number }
 
-export async function listPlots(): Promise<{ plots: PlotFile[]; folder: string }> {
+export async function listPlots(): Promise<
+  { plots: PlotFile[]; folder: string; canPickFolder?: boolean }> {
   const r = await fetch("/api/plots");
   if (!r.ok) throw new Error(`could not list plots: ${r.status}`);
+  return r.json();
+}
+
+/** Ask the SERVER to ask the person where plots should live.
+ *
+ *  🔴 SENDS NOTHING. A browser will not tell a page a real folder path — checked
+ *  in the running app, `"path" in File.prototype` is false — so the page cannot
+ *  pick the folder even if it wanted to. The server opens the operating system's
+ *  own dialog instead, and the only string that reaches the filesystem is one
+ *  the person chose there.
+ *
+ *  `changed` is false when the dialog was cancelled, which is not an error.
+ */
+export async function pickPlotsFolder(): Promise<
+  { changed: boolean; folder: string }> {
+  const r = await fetch("/api/plots/folder", { method: "POST" });
+  if (!r.ok) throw new Error(await detailOf(r));
   return r.json();
 }
 
@@ -367,6 +471,9 @@ export async function serverVersion(): Promise<string> {
  *  the channel counts live in dmx.py so they cannot drift from the exporter. */
 export interface DmxTable {
   family_models: Record<string, string[]>;
+  /** Personalities that belong to no model — "Dimmer" — so they can be offered
+   *  to a unit with no model to look up. */
+  universal?: string[];
   profiles: Record<string, string[]>;
   /** Personalities the fixture has but whose channel count nobody published. */
   unpublished: Record<string, string[]>;

@@ -9,6 +9,7 @@
  * Field names follow the Vectorworks/Lightwright exchange so paperwork.py can
  * import old shows with no translation layer.
  */
+import { defaultLayers, type PlotLayer } from "./layers.js";
 
 export interface Instrument {
   /** Unit number, unique within a position. */
@@ -160,8 +161,14 @@ export interface Room {
  *  hard-wired to its own dimmer, so circuit and dimmer are ONE number and RP-2
  *  draws a single hexagon labelled "Circuit & Dimmer". Drawing two containers
  *  there is not harmlessly redundant — it tells the electrician there is a patch
- *  to make, and there is not. */
-export type ControlModel = "dimmer-per-circuit" | "hard-and-soft-patch" | "no-soft-patch";
+ *  to make, and there is not.
+ *
+ *  ⭐ "dimmer-is-address" is the ETC reading (Jerry, 2026.09.29): a dimmer is a
+ *  DMX shape, one address carrying intensity. The dimmer number stops being a
+ *  separate fact, so the hexagon carries the address for a conventional unit
+ *  exactly as it does for an LED, and a mixed plot reads the same throughout. */
+export type ControlModel = "dimmer-per-circuit" | "hard-and-soft-patch"
+  | "no-soft-patch" | "dimmer-is-address";
 
 /** Line weights, in POINTS ON PAPER — the same on the sheet whatever the
  *  drawing scale. Everything is optional; what is left out keeps RP-2's value.
@@ -203,6 +210,10 @@ export interface Plot {
    *  about where the light lands. test_agreement.py renders the same plot both
    *  ways and requires identical numbers. */
   symbolAngle?: "orthogonal" | "focus";
+  /** 2025 USITT RP, Figure 3.1.4.0.4: ellipsoidals WRITE their beam angle in
+   *  the lens housing instead of carrying the mark. One setting for the whole
+   *  plot (Jerry, 2026.10.09). Absent means the marks. */
+  angleInBarrel?: boolean;
   /** Bump when the shape changes incompatibly. */
   formatVersion: 1;
   show: string;
@@ -224,6 +235,22 @@ export interface Plot {
   instruments: Instrument[];
   /** Anything true about this plot that the fields cannot hold. */
   notes?: string[];
+  /** Which layers this plot has, in draw order, and which are switched on.
+   *
+   * ⭐ Jerry, 2026-10-01: "the plot file needs to have the layers, because we
+   * would need to display them when we bring it into the app." A layer state
+   * the file does not carry is a layer state that is gone when the plot is
+   * reopened, which is what every CAD package stores and what a designer
+   * expects.
+   *
+   * ⚠ OPTIONAL, AND formatVersion STAYS 1. The plan assumed this needed a
+   * format bump and a migration; it does not, because the field is purely
+   * additive in both directions. An older file has no `layers` and
+   * `visibilityOf` gives every layer its default; a file written here opens in
+   * an older build, which ignores the field and draws by its own toggles.
+   * Nothing is lost either way, and bumping the version would have made every
+   * existing plot unopenable to buy nothing. */
+  layers?: PlotLayer[];
 }
 
 export function isPlot(x: unknown): x is Plot {
@@ -231,17 +258,29 @@ export function isPlot(x: unknown): x is Plot {
   return !!p && p.formatVersion === 1 && !!p.room && Array.isArray(p.instruments);
 }
 
-/** The symbol cache key for one instrument: its type, plus its accessories.
+/** The symbol cache key for one instrument: type, accessories, lamp.
  *
  * Two units of the same type with different accessories are different SHAPES,
  * so they cannot share a cache entry keyed on type alone. Built in one place
  * because main.ts asks the server for these keys and render.ts looks them up —
  * if the two ever spelled a key differently the symbol would silently fall back
  * to a plain ring and nobody would know why.
+ *
+ * ⭐ THE LAMP IS IN THE KEY because a retrofit changes the shape: a Source Four
+ * with a 4WRD gains §6.16 source dots. Without it the first S4 asked for would
+ * answer for every other S4 on the plot, retrofitted or not.
+ *
+ * ⚠ WHICH lamps change the symbol is the SERVER's business, not this file's.
+ * The lamp is sent whenever there is one and the answer comes back identical
+ * for a tungsten unit — a wasted cache slot, against keeping a second copy of
+ * "a 4WRD is an LED" in the browser to go stale. That copy is exactly what put
+ * the lamp dropdown a whole release behind LAMP_MF.
  */
 export function symbolKey(inst: Instrument): string {
   const acc = (inst.accessories ?? []).map(a => a.trim()).filter(Boolean);
-  return acc.length ? `${inst.type}|${acc.join("+")}` : inst.type;
+  const lamp = (inst.lamp ?? "").trim();
+  if (!acc.length && !lamp) return inst.type;
+  return `${inst.type}|${acc.join("+")}|${lamp}`;
 }
 
 /** Is this position a pipe that STANDS UP — a boom, box boom, ladder, torm?
@@ -322,6 +361,11 @@ export function newPlot(show = "Untitled"): Plot {
     },
     positions: [],
     instruments: [],
+    // ⭐ Seeded explicitly rather than left to the migration. A NEW plot that
+    // says nothing about layers would still draw correctly, but the reader
+    // could not switch one off and have it persist, and the file would not
+    // show a designer that layers exist at all.
+    layers: defaultLayers(),
   };
 }
 
@@ -387,4 +431,124 @@ export function runOf(p: { x1: number; y1: number; x2: number; y2: number }):
   if (dy < 0.01) return "across";
   if (dx < 0.01) return "up-and-downstage";
   return "raked";
+}
+
+/** How long a position is, in feet. */
+export function lengthOf(p: Ends): number {
+  return Math.hypot(p.x2 - p.x1, p.y2 - p.y1);
+}
+
+/** Which way a position runs, in degrees.
+ *
+ *  ⭐ 0° RUNS ACROSS and 90° runs up and downstage, which is the same fact
+ *  `runOf` names in words. Measured anticlockwise from stage right to stage
+ *  left, so a pipe raked upstage at its stage-left end has a positive angle.
+ *
+ *  ⚠ A position with no length has no angle, and returns 0 rather than the
+ *  NaN `atan2(0, 0)` would give — a NaN here would reach an input box.
+ */
+export function angleOf(p: Ends): number {
+  const dx = p.x2 - p.x1, dy = p.y2 - p.y1;
+  if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return 0;
+  return Math.atan2(dy, dx) * 180 / Math.PI;
+}
+
+/** The far end of a pipe, from its near end, a length and an angle.
+ *
+ *  🔴 THIS IS THE ARITHMETIC A DESIGNER SHOULD NOT HAVE TO DO. A position is
+ *  stored as two endpoints, so an angled pipe was always possible — but only by
+ *  working out the far end yourself, and again every time you nudged the angle.
+ *  From a beta tester, 2026-09-30, on a corporate show in a warehouse:
+ *
+ *      "My towers are set at a slight angle to follow the walls. I was trying
+ *      to draw the pipes at an angle, but there is no way to enter an angle for
+ *      that, without doing some math to get the pipe length correct."
+ *
+ *  ⚠ The near end does NOT move. Turning a pipe swings its far end about the
+ *  end you first placed, which is the one you measured from the wall.
+ */
+export function endsFromLengthAngle(
+  x1: number, y1: number, length: number, angleDeg: number,
+): Ends {
+  const a = angleDeg * Math.PI / 180;
+  // Rounded so that a right angle is exactly a right angle. cos(90°) is 6e-17
+  // in floating point, and an x2 that differs from x1 by 6e-17 makes runOf say
+  // "raked" about a pipe that runs straight up the deck.
+  const r = (v: number) => Math.abs(v) < 1e-9 ? 0 : Math.round(v * 1e6) / 1e6;
+  return { x1, y1, x2: r(x1 + length * Math.cos(a)), y2: r(y1 + length * Math.sin(a)) };
+}
+
+/** Position names used more than once, lower-cased.
+ *
+ *  🔴 A POSITION'S NAME IS THE JOIN KEY, not a label. A unit says which position
+ *  it is on by NAME, and every consumer resolves it the same way — positions.py,
+ *  circuits.py, booms.py, labels.py, exports.py, and five places in the browser.
+ *  So two positions called the same thing is not an untidy plot, it is a broken
+ *  one:
+ *
+ *    - every unit on the name belongs to BOTH
+ *    - the schedule and the hookup merge them under one heading
+ *    - changing the trim on one moves the units hanging on the other
+ *    - renumbering renumbers across both
+ *
+ *  ⚠ Trimmed and lower-cased, because that is exactly how the joins compare
+ *  them. "Grid C" and "GRID C " are the same position to every reader of this
+ *  plot, so they must be the same clash here.
+ *
+ *  Jerry, 2026.09.30, on why it is worth catching rather than documenting:
+ *  "I can see that happening. Perhaps the position is a V for instance."
+ */
+export function duplicateNames(
+  positions: readonly { name: string }[],
+): Set<string> {
+  const seen = new Set<string>(), twice = new Set<string>();
+  for (const p of positions) {
+    const k = (p.name ?? "").trim().toLowerCase();
+    if (!k) continue;                       // an unnamed position is its own problem
+    if (seen.has(k)) twice.add(k); else seen.add(k);
+  }
+  return twice;
+}
+
+/** Unit numbers used more than once ON ONE POSITION.
+ *
+ *  ⭐ RP-2 §2.3.2 numbers units per position, so unit 1 on GRID C and unit 1 on
+ *  GRID D are two different lights and that is correct. Two unit 1s on the SAME
+ *  pipe is not — the schedule, the hookup and the focus chart all address a unit
+ *  as "position, number", and a repeat makes two lights indistinguishable in the
+ *  paperwork an electrician is holding.
+ */
+export function duplicateUnits(
+  instruments: readonly { position?: string; unit?: number }[],
+  positionName: string,
+): number[] {
+  const key = (positionName ?? "").trim().toLowerCase();
+  const seen = new Set<number>(), twice = new Set<number>();
+  for (const i of instruments) {
+    if ((i.position ?? "").trim().toLowerCase() !== key) continue;
+    if (i.unit === undefined) continue;
+    if (seen.has(i.unit)) twice.add(i.unit); else seen.add(i.unit);
+  }
+  return [...twice].sort((a, b) => a - b);
+}
+
+/** A position name not already in use: Electric 8, or 9, or 10...
+ *
+ *  🔴 `Electric ${positions.length + 1}` COLLIDES, and it is one delete away.
+ *  The demo ships seven positions, one of them called "Electric 7". Delete any
+ *  position and press add: six positions, so the new one is named "Electric 7"
+ *  and the plot now has two. Every unit on that name then belongs to both —
+ *  see `duplicateNames`.
+ *
+ *  ⚠ Counts from the number of positions, not from 1, so a plot with eight
+ *  pipes offers "Electric 9" rather than walking up from the bottom every time.
+ */
+export function nextPositionName(
+  positions: readonly { name: string }[], stem = "Electric",
+): string {
+  const taken = new Set(positions.map(p => (p.name ?? "").trim().toLowerCase()));
+  for (let n = positions.length + 1; ; n++) {
+    const candidate = `${stem} ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
 }

@@ -118,3 +118,129 @@ Revisit if a standards-correct symbol library ever exists in a form worth
 importing wholesale. Arbitrary user artwork in an RP-2 plot is what is refused
 here, not interchange.
 
+
+## 2026.09.29 — "Changed" means it differs from disk, not that you touched it
+
+Jerry asked it as a philosophical question: *"if someone selects a light and does
+nothing to it, should the plot be considered changed?"*
+
+**No — and the test is simple: if it isn't saved, it can't be unsaved.** Selection
+is not in the `.plot.json` at all, so there is no state on disk for it to differ
+from. Nothing you do that the file cannot record may set the dirty flag.
+
+Selecting was already clean. The same test applied one layer down was not:
+
+- **Writing a field back the way it was marked the plot changed.** Type `R5` into
+  the colour box, type `R52+R119` back, and the badge came on for a net change of
+  nothing. (Found on 2026.09.29 while testing the gel combo.)
+- **It also pushed a dead undo step** — press undo, nothing moves, press again —
+  and **threw away the redo stack** on the way past.
+- **Undoing back to the saved state stayed dirty.** You could return the document
+  to exactly what was on disk and still be warned you had something to lose.
+
+So `_dirty` was a flag for *activity*. It is now a comparison: `_seq` counts real
+changes, `_savedSeq` remembers where the file was written, and `dirty` is
+`_seq !== _savedSeq`. Undo and redo carry the revision back with the plot, which
+is what makes stepping back to the save point go clean. `update()` compares its
+patch first and, if nothing is new, unwinds the `begin()` that preceded it.
+
+**⚠ Why this is worth the code rather than a shrug.** A false "unsaved changes"
+is not cosmetic — it teaches you the discard prompt is noise, and you start
+clicking through it. The one evening it is real, you lose a tech session. The
+badge is worth exactly as much as its false-positive rate.
+
+**⭐ The precedent is dimmer-versus-address** (2026.09.28): the rule was enforced
+once, in one reader, with the tie-break written down, and nothing was hidden from
+the user. Same shape here — the store decides, and no caller has to remember.
+
+Selection remains view state everywhere except `snapshot()`, which captures it on
+purpose so undo puts your eye back on the unit that changed. That is a kindness,
+not a claim that selection is document state.
+
+## 2026.09.29 — A dimmer is a DMX personality, and a house can say so
+
+Jerry: *"in ETC world, a Dimmer is a DMX shape — basically one address with the
+value of intensity."*
+
+So it is a **personality**, not a model — the dimmer is not the fixture, it is
+what the fixture is plugged into. `dmx.UNIVERSAL` holds it, it belongs to no
+entry in `MODELS`, and it is offered to any unit.
+
+**This was already the behaviour; what changed is that it can now be said.**
+`patch_cell` has always fallen through to *"a conventional fixture is one
+address"* with a footprint of 1. 🔴 But that sentence was also what a unit got
+when **nobody had recorded a profile at all** — same number, same words, for a
+decision and for a silence. Naming the personality separates them, and
+`patch_cell` now answers a recorded `Dimmer` before it looks anything up.
+
+A fourth control model, **`dimmer-is-address`**, says the house works this way.
+In it:
+
+- The **personality list offers `Dimmer`** — which is also what finally fills the
+  gap in `MUTUALLY-EXCLUSIVE-FIELDS.md` §1.3, where a Source Four's personality
+  dropdown was permanently empty.
+- The **hexagon carries the address** and the rectangle the circuit, exactly as
+  for an LED. ⭐ A mixed rig then reads the same throughout: the reader stops
+  having to know which kind of unit they are looking at to read the number.
+- `circuits.check` gains the matching contradiction — a dimmer and an address
+  that disagree. ⚠ Compared on the bare number, because `45` and `1/45` are the
+  same fact written two ways.
+
+**⚠ A unit with a dimmer and no address still draws its dimmer.** The house being
+addressable does not mean every unit's address was recorded.
+
+## 2026.09.29 — Fields that do not apply go inert, not hidden
+
+Jerry: *"lets try having unused fields greyed-out (inert)"* — answering the open
+question in `MUTUALLY-EXCLUSIVE-FIELDS.md`.
+
+A row that vanishes takes its explanation with it and changes the panel's shape
+under the cursor. A greyed row **keeps its place, keeps its value, and says why
+on hover**. Six rules, all reading the server's tables rather than a list of
+names typed into the browser:
+
+| Field | Inert when |
+|---|---|
+| Lamp | the fixture has output modes — it is an LED engine |
+| LED mode | it has none — it takes a lamp |
+| Dimmer | the unit is patched as `Dimmer`, or the house is dimmer-is-address and it has an address |
+| Lens angle | it is not an oval-beam unit |
+| Model | no models are on file for the type |
+| DMX personality | no personalities are published for it |
+
+**🔴 Inert disables input; it does not filter data.** A unit already carrying a
+contradictory value still shows it, greyed — `sample.plot.json`'s `Lustr 26 EDLT`
+displays its stray `HPL 575` rather than swallowing it. **Hiding a wrong value is
+how it survives to the load-in.** Same reasoning as the dirty flag above: a
+hidden field holding a live value is the worst of the three options.
+
+⭐ **And the arithmetic was already safe, checked rather than assumed:** a Lustr
+computes the same footcandles with or without a stray lamp, and a Source Four the
+same with or without a stray mode. The value that does not apply is ignored in
+both directions, so nothing had to be cleared to make this safe.
+
+## 2026.09.29 — The Lustr's dots stay at the lens end
+
+The 4WRD symbol puts its §6.16 source dot at the **lamp housing**, because that is
+where USITT's February 2025 practice draws an LED ERS's dots and because it is
+where the retrofit physically goes. `led()` has always put a Lustr's seven dots
+in the **front half**, at the lens.
+
+So a plot with both now has source dots at opposite ends of the body.
+
+**Jerry, 2026.09.29: "lets keep the lustr dots where they are for now."** Left
+alone deliberately, not overlooked.
+
+⚠ **Do not "fix" this without asking.** Moving them is one line, and that is
+exactly the problem — it silently changes how **every Lustr on every existing
+plot** draws, including sheets already issued to a shop. A drawing convention is
+not a bug just because it is inconsistent with a newer one.
+
+⭐ **And the inconsistency is visible rather than hidden**, which is the part that
+makes it safe to live with: on a mixed plot the Lustr's cluster of seven reads as
+"LED fixture" and the retrofit's single dot at the back reads as "LED lamp in a
+conventional body". Nobody mistakes one for the other; they are only untidy
+against each other.
+
+Revisit when there is a reason to redraw the archive anyway — a symbol-library
+pass, or adopting the 2025 practice wholesale.

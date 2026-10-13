@@ -67,6 +67,10 @@ ALIASES = {
     "colorsource spot 26": "ColorSource Spot 26 EDLT",
     "colorsource spot 36": "ColorSource Spot 36 EDLT",
     "colorsource cyc": "ColorSource CYC",
+    # Altman Shakespeare: catalogue numbers S6-5 ... S6-50. "Altman" is stripped
+    # by normalise(), so "Altman S6-30" arrives here as "s6 30".
+    **{f"s6 {d}": f"Altman Shakespeare {d}" for d in (5, 10, 20, 30, 40, 50)},
+    **{f"shakespeare s6 {d}": f"Altman Shakespeare {d}" for d in (5, 10, 20, 30, 40, 50)},
     # Source Four LED. Jerry confirmed 2026.09.23 that the eight on Wizard of Oz
     # (2022) were Lustrs — the 140w load distinguishes them from the 166w
     # ColorSource units in the same rig.
@@ -78,6 +82,13 @@ ALIASES = {
     "s4 led 50": "Lustr 50 LT",
     # ⚠ "spectra cyc 50" is NOT here — see CORRECTIONS below. Jerry's paperwork
     # calls the Wizard of Oz units 50s and they were 100s.
+    # Only the PLUS: the original Color Force II 72 is a dimmer unit, and its
+    # figures are not these.
+    "color force ii plus 72": "Chroma-Q Color Force II Plus 72",
+    "colorforce ii plus 72": "Chroma-Q Color Force II Plus 72",
+    "chroma-q color force ii plus 72": "Chroma-Q Color Force II Plus 72",
+    "color force ii plus 72 border": "Chroma-Q Color Force II Plus 72 Border",
+    "color force ii plus 72 cyc": "Chroma-Q Color Force II Plus 72 Cyc",
     "spectra cyc 100": "Altman Spectra Cyc 100 RGBA",
     "spectra cyc 100 rgba": "Altman Spectra Cyc 100 RGBA",
     "spectra cyc 100 rgbw": "Altman Spectra Cyc 100 RGBW",

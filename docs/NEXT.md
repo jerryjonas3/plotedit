@@ -2,6 +2,18 @@
 
 In order. Each step should leave something that runs.
 
+➡ **Layers have their own plan:** [`LAYERS.md`](LAYERS.md), written for #82. ⚠ Its
+finding is that the app **already has layers, in two incompatible schemes**, and
+neither is the one #82 describes — so the work is choosing between three answers,
+not adding a missing one. Nothing in it is built.
+
+➡ **The menus and toolbars had their own plan, and most of it is built:**
+[`MENUS-AND-MATERIAL.md`](MENUS-AND-MATERIAL.md), written for #56 and delivered
+in #77 the same day. It measures what was inconsistent, works out what Material
+Design 3 actually requires, and records why each control ended up the shape it
+is. ⚠ Kept as reasoning rather than as a to-do — but **two of its eight steps
+did not land**, and they are named at the top of it along with the open questions.
+
 ## 1. Make the Python importable as a package ✅ done 2026.09.23
 
 - `scaled_pdf.py` now uses relative imports for `photometrics` and `dxf_bridge`.
@@ -185,6 +197,206 @@ dash — *"Without Consent — Plot.pdf"*. Every download raised
 ---
 
 ## Next, in no particular order
+
+
+- **➡ THREE DRAWING BUGS MOVED TO ISSUES, 2026.09.30**, with their measurements
+  intact. They were the kind that need numbers next to them, so they were written
+  up here first and then moved once the repository started using issues.
+
+  - **✅ [#57](https://github.com/jerryjonas3/plotedit/issues/57) — DONE
+    2026.09.30.** `_fits` compared a SPAN against a sheet while the renderer
+    placed by ORIGIN. What closed it was not `_fits` but the PLACEMENT: the
+    centring added the same day made a span that fits actually fit, so the
+    comparison became true. **A2, A1 and A0 are in.**
+  - **[#58](https://github.com/jerryjonas3/plotedit/issues/58)** — plan labels
+    are spaced in stage FEET while the text is 7pt on PAPER, so they collide as
+    the scale shrinks. 0 pairs at 1/2", 1 at 1/4", 3 at 1/8".
+  - **[#59](https://github.com/jerryjonas3/plotedit/issues/59)** — the clipping
+    guard reserves 1.3" at the top of every sheet and nothing is ever drawn
+    there. It is the whole of the remaining top gap.
+
+  ⚠ **What stays in this file** is the reasoning that belongs beside the code —
+  the notes inside `PAGES`, `slack_above()` and `plot_to_pdf` still say why, and
+  they point at the same three problems. **An issue is where you decide to fix
+  something; a comment is where you find out you shouldn't have removed it.**
+
+- **🔴 NOTATING DIMMER DOUBLERS — raised by Jerry 2026.09.29, deliberately
+  deferred.** The `HPL 550/77` lamp went in the same day, so a doubled rig can
+  now be described *at the lamp*. **It cannot be described at the circuit**, and
+  that is the half that matters.
+
+  ETC Dimmer Doubling runs **two fixtures off one dimmer** on opposite
+  half-cycles. So a doubled dimmer is a property of the CIRCUIT, not the
+  instrument: two units, one dimmer, two separate control channels.
+
+  ⚠ **Until it is notated, the paperwork is quietly wrong in three places:**
+
+  - **The load table.** `circuits.py` totals watts per dimmer. Two doubled units
+    read as 1100 W on one dimmer, which is the arithmetic but not the situation
+    — and a doubler has its own capacity limit that nothing here knows about.
+  - **The hookup.** Two channels sharing a dimmer is exactly the thing a hookup
+    exists to show, and there is no column that can say it.
+  - **The plot.** RP-2 has no symbol for it that we have found, so the notation
+    may have to be Jerry's own. Worth checking §6.14 before inventing one.
+
+  ⭐ **And the reverse mistake is the dangerous one:** a `HPL 550/77` picked on
+  an ORDINARY dimmer computes perfectly reasonable footcandles and hangs a rig
+  that comes out dim. Nothing can catch that until the circuit can say whether
+  it is doubled.
+
+- **✅ THE GEL LIBRARY — done 2026.09.29, except the diffusions.** 11 gels became
+  **498**: 239 Roscolux and 259 LEE, each row citing the maker's own page.
+
+  ⚠ **What is still missing is one class, and it is the same class from both
+  makers: DIFFUSION.** 29 Roscolux (the R100 series — frosts, silks, spuns,
+  Rolux) and 43 LEE. **Neither publishes a transmission for them on the web.**
+
+  ⭐ **But Rosco's myColor app does.** R119, R114 and R132 are already on file at
+  0.893, 0.888 and 0.901, read off that app by Jerry on 2026.09.22 — figures the
+  product pages do not carry. **That is where the rest of the diffusions come
+  from**, and it is a hand job rather than a fetch.
+
+  **➡ Still open: whether a diffusion's transmission is the right number at
+  all** — see the measurement below. Entering 43 more of them does not answer it.
+
+- ~~**THE GEL LIBRARY — the cheapest large win on this list.**~~ *(Jerry,
+  2026.09.28: the rest of Roscolux plus the Lee Designer's Edition "would take
+  care of about 95% of the colour use I bet".)*
+
+  **There are eleven gels on file.** Eight colours and three Hamburg frosts, in
+  `server/plotedit/gels.csv`. Every footcandle through anything else refuses.
+
+  **⭐ The work is data entry, not code.** The format is already right: one row
+  per gel — number, name, transmission, **source**, date — and `parse_gel` is
+  prefix-agnostic, so `L201+R119` reads correctly today without a change.
+
+  **➡ One wording fix comes with it.** An unknown gel says *"add it with Rosco's
+  transmission figure"*, which will be wrong the moment there are Lee numbers in
+  the file.
+
+  **❓ And one question worth settling while the data is in front of you: is a
+  frost's transmission enough?** A colour filter absorbs, so its transmission
+  scales candela uniformly and multiplying is exactly right. **A diffusion
+  scatters** — it widens the field and drops the peak by more than the
+  transmission figure alone implies. The three frosts already in the table are
+  multiplied like colours, which is the best available and may be understating
+  the effect at the centre of a beam. ⚠ Worth knowing before a plot promises a
+  level through a heavy frost.
+
+  **⭐ AND IT IS MEASURABLE, in about fifteen minutes, with a meter.** No
+  manufacturer publishes this because it depends on the beam the diffusion is
+  sitting in, so a real reading beats any amount of reading around it:
+
+  1. Point a Source Four at a wall and note the **centre-beam footcandles**.
+  2. Drop an **R119** in the frame and read it again.
+  3. **If the ratio is about 0.89** — the transmission on file — then absorption
+     is the whole story and multiplying is right.
+  4. **If it is materially lower**, say 0.75, the scatter is costing more at the
+     centre than the number implies, and every level through a frost is
+     currently overstated.
+
+  ⚠ **Change nothing on one reading.** Do it at two throws and on two lens
+  tubes: if scatter is the cause, the loss should grow with the width of the
+  beam, and if it does not then something else is going on. **Jerry has an R119
+  to hand** *(2026.09.28)*; what is not confirmed is a light meter.
+
+- **❓ THE SOURCE 4WRD II PHOTOMETRY GUIDE — the one document that would finish
+  it.** *(2026.09.28.)* The 4WRD II is a retrofit burner: pull the HPL out of a
+  Source Four, put this in, and the fixture is an LED. **Same lens tube, same
+  field and beam angles, same symbol** — so it is a LAMP in this codebase, not a
+  fixture, and it now sits in `LAMP_WATTS` at 150 W.
+
+  **⚠ What the datasheet does NOT let us do is compute levels**, and the reason
+  is worth writing down because the arithmetic looks so available. Page 5 gives
+  **lumens per lens** for the 4WRD beside the HPL 575 and 750 — a whole table,
+  same document, same measurement. It is tempting to divide one column by the
+  other and call it a lamp multiplier.
+
+  **🔴 `LAMP_MF` is a CANDELA multiplier** — ETC's own "Cd MF" columns — and a
+  lumen ratio is not that number. An LED source and a filament do not fill a lens
+  the same way, and the table proves it: the ratio to HPL 575 runs **1.17 at the
+  26° and 1.62 at the 90°**. If it were one property of the lamp it would be one
+  number. It is not, so a derived multiplier would be wrong by up to a third at
+  the ends, in a figure someone would point a dimmer check at.
+
+  ⭐ **A real fact fell out of it anyway:** the 4WRD does relatively better in
+  WIDE lenses than narrow ones. That is source geometry, and it is the kind of
+  thing a designer choosing between a retrofit and a new fixture would want to
+  know.
+
+  **➡ The datasheet points at a "Source 4WRD II Photometry Guide" at
+  etcconnect.com.** That is where the candela lives. Same shape as the
+  ColorSource Spot: the guide on file had output modes and the DMX profiles were
+  in a different document entirely. **Until it is fetched, an S4 with a 4WRD
+  gives a load figure and refuses to give a level** — which is the right answer,
+  but only half of one.
+
+- **❓ A LABEL DEFINITION — what goes in which container, editable.** *(Jerry,
+  2026.09.28.)* **A popular drafting package lets you define a label legend**: an
+  editor where any field can be assigned to almost any position around the
+  symbol, saved as a definition and applied to a plot.
+
+  **⭐ Everything about notation is currently a decision in code.** Colour and
+  focus in front across the lens, the stack behind, the unit number in the body,
+  the hexagon carrying the address when there is no dimmer — each was argued out
+  once and then frozen into `symbols.notation`. **They are good defaults and
+  they are not universal**: a designer whose house patches differently, or who
+  simply wants the wattage shown, has no way to say so.
+
+  ⚠ **This is not "make the notation configurable" as a tidy-up.** Three things
+  make it hard, and they are the reason to write the item down rather than start
+  it:
+
+  - **A definition has to survive the geometry.** Positions are not slots on a
+    page — the stack follows the symbol as it rotates, the colour label steps
+    further out when it would touch a neighbour, and containers clear the symbol
+    by its own radius. An editor that offers "top left" would be lying.
+  - **The shapes carry meaning.** RP-2 §6.14.1 puts the sense in the container,
+    not the position, so letting a user draw a circuit in a circle would produce
+    a plot that reads wrong to anyone who knows the standard. Whatever the editor
+    allows, **the key has to explain what the plot actually did** — which is
+    already true for the address in the hexagon.
+  - **Screen and paper both have to obey it.** `symbols.notation` draws the
+    paper and `render.ts` draws the screen, and they already differ on purpose:
+    the screen draws only the channel. A definition would have to say what it
+    means for a view that deliberately shows less.
+
+  **➡ The cheap first step is not an editor.** It is naming the current
+  arrangement as *a* definition — the default one — so there is something for a
+  second one to differ from. Until that exists, "configurable" has no shape.
+
+- **❓ SPEAKER PLACEMENT.** *(2026.09.28.)* A tester asked whether the plot
+  should carry audio and video as well as light — her shows are not
+  fixture-heavy and everything shares the same air. **Jerry has a sound designer
+  he works with, and they had already discussed adding speaker positions**, so
+  this is a considered direction rather than a request from outside.
+
+  **⭐ What makes it tractable is what it does NOT have to do.** A speaker has a
+  position, a trim, an aim and a footprint on the drawing. It does not need
+  photometrics, and **nothing here should attempt coverage prediction** — that is
+  a different discipline with its own physics, and the rule this project lives by
+  is that every figure names the document it came from. There is no datasheet
+  that makes a guessed dispersion pattern true.
+
+  ⚠ **So the line is: positions and clearance, not coverage.** Draw where it
+  hangs and what it occupies. Say nothing about what it sounds like.
+
+  **➡ And it is the same job as the clearance item already on this list.** The
+  app does not know about masking, scenery or rigging points, so it accepts a
+  trim that hangs a unit into a border. **Adding "what else is in the air" is one
+  piece of work whether the obstruction is a leg, a projector or a line array** —
+  which is an argument for building the general thing once rather than a speaker
+  feature on its own.
+
+  **❓ Still open:** whether a speaker is an instrument with a different symbol
+  or a different kind of object entirely. The schedule, the hookup and the patch
+  are all lighting paperwork, and a speaker that appears in a channel hookup
+  would be wrong.
+
+- **❓ Adding a fixture type — open discussion in `docs/FIXTURE-TYPES.md`.**
+  Address shapes instead of bare channel counts, whether a type could arrive as
+  a package rather than as code, and a four-rung ladder for making it easier.
+  **Nothing decided.** Opened 2026.09.28.
 
 - **⚠ Before printing a `_source` string anywhere, read it first.**
   The photometric tables carry a `_source` beside every figure, and it is
@@ -793,7 +1005,7 @@ pins that for every existing scale.
    Generalise to points-per-foot, add a metric list to the fit-to-sheet chooser,
    and a scale bar that reads 0–10 m. **Give this its own pass** — it is where
    the risk is.
-4. **Paper.** A3 and A4 exist; metric drafting wants **A2, A1, A0**.
+4. **✅ Paper — done 2026.09.30.** A4, A3, A2, A1 and A0 are all offered on a metric plot.
 
 **🔴 The one judgement call, and it is Jerry's: defaults must be IDIOMATIC, not
 converted.** Head height is 5'-6" imperial; a metric designer says **1.7 m**, not
@@ -825,13 +1037,35 @@ at the moment they export.
 
 ⚠ **An address and a dimmer are alternatives, not a pair.** A conventional unit
 in a dimmer-per-circuit house has a dimmer and no DMX address of its own; an LED
-unit has an address and no dimmer. Either is a complete answer. Warn only when
-there is neither. `_patch_target` in `exports.py` already encodes this rule and
-is the one place it should live.
+unit has an address and no dimmer. Either is a complete answer.
 
-Open question: where does the warning go? Candidates are the instrument
-inspector, a count in the status line, and the schedule. Probably all three
-eventually, but the schedule is where an ME would look.
+### 🔴 REVISED 2026.09.28 — warn on the CHANNEL, not on the patch
+
+**Jerry: the LD may not know the address the electrician wants to put the
+instrument into.** So the warning above, as written, is wrong, and it was never
+built — which is lucky.
+
+**A channel number is the designer's.** It is how the board is laid out, it is
+theirs to decide, and a mounted instrument without one is an omission only they
+can fix. **⭐ That is worth warning about while drawing.**
+
+**An address is the electrician's.** On most jobs the designer hands over a plot
+and the ME decides what goes where in the patch — so a plot full of blank
+addresses is not an unfinished plot, it is **the normal state of a finished
+design.** A warning there would fire on every honest drawing and be trained away
+within a day, which is worse than no warning: it teaches people to ignore the
+place warnings appear.
+
+**✅ What stays.** The export refusal, which fires when a patch file would be
+empty. That is not a drawing-time nag — it is the moment a file is about to go
+to a console, where the address genuinely has to exist by then.
+
+**➡ So the item is: warn on a mounted instrument with no channel number.** There
+is no such warning today; the memory of one is this roadmap entry, not code.
+
+Open question: where does it go? Candidates are the instrument inspector, a count
+in the status line, and the schedule. Probably all three eventually, but the
+schedule is where an ME would look.
 
 **2. Instrument types in the patch.** *Deferred deliberately — keep it simple
 for now.* The patch exports `channel<address` and nothing else, so every unit
@@ -922,3 +1156,76 @@ implementation list, written by the author of LightPort) and
 khroma.eu/digimedia/htmlhelp/html/hs155.htm (v3.0, 1992, purpose and scope).
 **The official document is USITT's and costs about $25** — worth buying before
 changing the header on reasoning alone.
+---
+
+## How a multi-leg position should number — PARTLY ANSWERED, 2026.09.30
+
+A V or an L is one position made of two straight segments sharing one name, and
+the app now lets you make one on purpose. **Renumbering it produces an order
+nobody could hang.**
+
+Measured, not inferred — a `>` shaped cove, four units on each leg, no two at the
+same coordinate:
+
+```
+leg A   x = 0, 4, 8, 12    →  units 1, 3, 5, 7
+leg B   x = 14, 10, 6, 2   →  units 8, 6, 4, 2
+```
+
+Odds down one leg and evens back up the other, **with no warning**. The cause is
+in `positions.order`: one sort key is worked out from ONE leg's geometry — stage
+left to stage right, per RP-2 §2.3.2 — and applied to every unit on the name.
+When the legs cover the same ground along that axis, they interleave. The
+existing guard in `positions.number` misses it because it only fires when two
+units share a coordinate *exactly*, which happens at the apex and nowhere else.
+
+A V that runs one way across both legs numbers correctly (verified: 1..10), so
+this is not always wrong — which is why the browser now states the risk in the
+renumber dialog above the moves and lets the designer judge, rather than
+refusing.
+
+### 🔴 The rule not to break while fixing it
+
+Jerry, 2026.09.30: *"you can't just renumber the units"* and *"you can allow the
+user to do it, but doing automatically is bad."*
+
+A unit number is not a label the file owns. It is spiked on the pipe, written in
+the hookup the electrician is holding, and called out in the dark. Renumbering
+rewrites every one of them in the file and none of them in the room. So the fix
+here is **a better order when the designer asks for one**, never a tidy-up that
+runs by itself. Nothing calls `number()` automatically today and nothing should
+start.
+
+### The question
+
+Should a shared name number **along the run** — walk leg 1 end to end, then leg 2
+— instead of sorting the whole name on one axis? That is how you would number it
+walking the pipe with a pencil, and it needs two things the app does not have:
+
+1. **Which leg comes first.** The segments are a list in file order, which is the
+   order they were drawn, not the order they hang.
+2. **Which end of each leg is the start.** Two legs meeting at an apex means one
+   of them runs "backwards" relative to §2.3.2's stage-left rule.
+
+⚠ Both are answerable from the geometry — the legs share an endpoint, so the run
+can be walked from whichever free end is furthest stage left. But it is a
+convention decision, not a derivation, and RP-2 §2.3.2 does not cover a bent
+position. **Jerry's call.**
+
+### ⭐ And there is now a way round it, which may be the whole answer
+
+**number by clicking** (#74) numbers a run in the order the units are clicked.
+Jerry, 2026.09.30: *"One cool feature Vectorworks has is the ability to pick a
+starting sequence number and then letting the user fix the sequence by selecting
+units."*
+
+That does not answer the question above — it **removes the need to**. The order is
+whatever order the designer walks the pipe in, so no convention has to be derived
+for which leg comes first or which end starts. It works on a V, an L, a curved
+cove and a rig somebody else hung.
+
+**What is still open** is only whether `renumber` — the one-press, geometry-sorted
+path — should learn to walk a bent run, or whether a shared name should simply
+send the reader to click instead. Today it warns: the dialog says the order came
+from the first leg and may alternate, and leaves the choice there. ⚠ That warning
+is the thing to revisit, not the interleave itself, which is now avoidable.

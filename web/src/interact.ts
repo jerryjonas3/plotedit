@@ -19,14 +19,48 @@ export interface DragContext {
   onChange: () => void;
   /** Called once when a drag ends, so the caller can recompute against the server. */
   onSettled: () => void;
+  onPanStart?: () => void;
+  onPan?: (dx: number, dy: number) => void;
 }
 
 /** "elevation" is a unit drawn in a §6.12 boom elevation: selectable, but not
  *  draggable — that diagram's coordinates are not plan coordinates. */
 type Handle = "body" | "focus" | "elevation";
 
+/** Which handle a press grabs.
+ *
+ * ⭐ SHIFT on a unit's body grabs its FOCUS (Jerry, 2026.10.09). A unit
+ * focused straight down — a downlight — has its focus point under its own
+ * body, and the body is drawn on top, so the ring could not be grabbed at all.
+ * Shift reaches it wherever the focus is. Alt was taken (off-pipe placement).
+ */
+export function pickHandle(dataHandle: string | null, shiftKey: boolean): Handle {
+  const h = (dataHandle ?? "body") as Handle;
+  return h === "body" && shiftKey ? "focus" : h;
+}
+
+const pointerControllers = new WeakMap<SVGSVGElement, AbortController>();
+
 export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext): void {
-  let dragging: { index: number; handle: Handle; dx: number; dy: number } | null = null;
+  pointerControllers.get(svg)?.abort();
+  const controller = new AbortController();
+  pointerControllers.set(svg, controller);
+  const options = { signal: controller.signal };
+  let panning: { id: number; x: number; y: number; cursor: string; moved: boolean } | null = null;
+  let dragging: { id: number; index: number; handle: Handle; dx: number; dy: number } | null = null;
+
+  controller.signal.addEventListener("abort", () => {
+    if (panning) {
+      svg.style.cursor = panning.cursor;
+      try { svg.releasePointerCapture(panning.id); } catch { /* already gone */ }
+      panning = null;
+    }
+    if (dragging) {
+      store.commit();
+      try { svg.releasePointerCapture(dragging.id); } catch { /* already gone */ }
+      dragging = null;
+    }
+  });
 
   const plotPointFromEvent = (e: PointerEvent) => {
     const r = svg.getBoundingClientRect();
@@ -34,12 +68,35 @@ export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext
   };
 
   svg.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || panning || dragging) return;
     const target = e.target as Element | null;
     const hit = target?.closest("[data-index]") as SVGElement | null;
-    if (!hit) { store.select(null); return; }
+    if (!hit) {
+      // ⭐ #78. A pipe is a thing you can point at now. Asked AFTER the unit,
+      // because a unit sits on top of its position and the one under the
+      // pointer is the one meant — clicking a light should never select the
+      // pipe it hangs from.
+      const pos = target?.closest("[data-position]") as SVGElement | null;
+      if (pos) {
+        store.selectPosition(Number(pos.getAttribute("data-position")));
+        e.preventDefault();
+        return;
+      }
+      if (ctx.onPan) {
+        ctx.onPanStart?.();
+        panning = { id: e.pointerId, x: e.clientX, y: e.clientY, cursor: svg.style.cursor, moved: false };
+        svg.style.cursor = "grabbing";
+        svg.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      } else {
+        store.select(null);
+        store.selectPosition(null);
+      }
+      return;
+    }
 
     const index = Number(hit.getAttribute("data-index"));
-    const handle = (hit.getAttribute("data-handle") ?? "body") as Handle;
+    const handle = pickHandle(hit.getAttribute("data-handle"), e.shiftKey);
     store.select(index);
 
     // ⚠ A unit in a BOOM ELEVATION can be selected but not dragged. The
@@ -53,14 +110,21 @@ export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext
     const p = plotPointFromEvent(e);
     // Keep the grab offset so the symbol does not jump to the cursor.
     dragging = handle === "focus"
-      ? { index, handle, dx: (inst.focusX ?? p.x) - p.x, dy: (inst.focusY ?? p.y) - p.y }
-      : { index, handle, dx: inst.x - p.x, dy: inst.y - p.y };
+      ? { id: e.pointerId, index, handle, dx: (inst.focusX ?? p.x) - p.x, dy: (inst.focusY ?? p.y) - p.y }
+      : { id: e.pointerId, index, handle, dx: inst.x - p.x, dy: inst.y - p.y };
     svg.setPointerCapture(e.pointerId);
     e.preventDefault();
-  });
+  }, options);
 
   svg.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
+    if (panning) {
+      if (e.pointerId !== panning.id) return;
+      panning.moved ||= e.clientX !== panning.x || e.clientY !== panning.y;
+      ctx.onPan?.(e.clientX - panning.x, e.clientY - panning.y);
+      e.preventDefault();
+      return;
+    }
+    if (!dragging || e.pointerId !== dragging.id) return;
     const p = plotPointFromEvent(e);
     const { index, handle, dx, dy } = dragging;
     let x = p.x + dx, y = p.y + dy;
@@ -78,17 +142,27 @@ export function attachPointer(svg: SVGSVGElement, store: Store, ctx: DragContext
       store.update(index, { x: round(x), y: round(y) });
     }
     ctx.onChange();
-  });
+  }, options);
 
   const end = (e: PointerEvent) => {
-    if (!dragging) return;
+    if (panning) {
+      if (e.pointerId !== panning.id) return;
+      svg.style.cursor = panning.cursor;
+      const deselect = !panning.moved && e.type === "pointerup";
+      panning = null;
+      if (deselect) { store.select(null); store.selectPosition(null); }
+      try { svg.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
+      return;
+    }
+    if (!dragging || e.pointerId !== dragging.id) return;
     dragging = null;
     store.commit();
     try { svg.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
     ctx.onSettled();
   };
-  svg.addEventListener("pointerup", end);
-  svg.addEventListener("pointercancel", end);
+  svg.addEventListener("pointerup", end, options);
+  svg.addEventListener("pointercancel", end, options);
+  svg.addEventListener("lostpointercapture", end, options);
 }
 
 /** Feet to the nearest inch. Sub-inch precision on a light plot is a lie. */

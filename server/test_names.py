@@ -141,6 +141,64 @@ check("'ETC Source4 19deg' draws what 'S4 19' draws",
       [p[0] for p in sym.for_type("ETC Source4 19deg")],
       [p[0] for p in sym.for_type("S4 19")])
 
+print("\nAltman Shakespeare — a house rep plot, 2026.10.09")
+check("'Altman S6-30' is a Shakespeare 30, not a Source Four",
+      fn.resolve("Altman S6-30", ph.FIXTURES)[0], "Altman Shakespeare 30")
+check("'Shakespeare 10°' resolves", fn.resolve("Shakespeare 10°", ph.FIXTURES)[0], "Altman Shakespeare 10")
+_len = lambda k: round(max(a for p in sym.for_type(k) if p[0] == "poly" for a, _c in p[1])
+                       - min(a for p in sym.for_type(k) if p[0] == "poly" for a, _c in p[1]), 3)
+check("a Shakespeare 30 is drawn at its own length, 25 1/8\"", _len("Altman Shakespeare 30"),
+      round(25.125 / 12, 3))
+check("the 10° barrel is longer than the 30°",
+      _len("Altman Shakespeare 10") > _len("Altman Shakespeare 30"), True)
+check("a 30° carries RP-2's 26-30° diagonal",
+      [p[0] for p in sym.for_type("Altman Shakespeare 30")][1:], ["line"])
+
+print("\nthe 2025 USITT RP's 14° mark")
+_m14 = [p for p in sym.for_type("S4 14") if p[0] == "line"]
+check("a 14° carries three lines", len(_m14), 3)
+check("...parallel to the beam (each line is level in the symbol frame)",
+      all(abs(p[1][1] - p[2][1]) < 1e-9 for p in _m14), True)
+check("a 10° is unchanged: no mark", [p[0] for p in sym.for_type("S4 10")][1:], [])
+
+print("\nthe beam angle written in the barrel (2025 RP)")
+_txt = lambda k, **kw: [p[2] for p in sym.for_type(k, **kw) if p[0] == "text"]
+check("a Shakespeare 40 writes 40", _txt("Altman Shakespeare 40", angle_in_barrel=True), ["40"])
+check("...and a 10° writes 10 — the two that both carried no mark",
+      _txt("Altman Shakespeare 10", angle_in_barrel=True), ["10"])
+check("the number REPLACES the mark: a 26° loses its diagonal",
+      [p[0] for p in sym.for_type("S4 26", angle_in_barrel=True)], ["poly", "text"])
+check("...and sits in the lens housing, ahead of the unit number in the body",
+      [p[1][0] < -0.4 for p in sym.for_type("S4 26", angle_in_barrel=True) if p[0] == "text"],
+      [True])
+check("off by default: the marks are unchanged", _txt("S4 26"), [])
+check("a zoom keeps its Z, not the one angle in its name",
+      _txt("S4 Zoom 25-50", angle_in_barrel=True), ["Z"])
+check("a PAR is not an ellipsoidal and ignores it", _txt("PAR64 MFL", angle_in_barrel=True), [])
+
+print("\nChroma-Q Color Force II Plus 72 — the 2025 RP's LED batten")
+check("'Color Force II Plus 72' resolves",
+      fn.resolve("Color Force II Plus 72", ph.FIXTURES)[0], "Chroma-Q Color Force II Plus 72")
+check("...its cyc lens is its own row", fn.resolve("Color Force II Plus 72 Cyc", ph.FIXTURES)[0],
+      "Chroma-Q Color Force II Plus 72 Cyc")
+check("the plain Color Force II 72 does NOT borrow the Plus figures",
+      fn.resolve("Color Force II 72", ph.FIXTURES)[0] == "Chroma-Q Color Force II Plus 72", False)
+_b = sym.for_type("Chroma-Q Color Force II Plus 72")
+_poly = [q for q in _b if q[0] == "poly"][0][1]
+check("drawn at its real length, 69 1/4\"",
+      round(max(c for _a, c in _poly) - min(c for _a, c in _poly), 3), round(69.25 / 12, 3))
+check("...and its real depth, 6 1/2\"",
+      round(max(a for a, _c in _poly) - min(a for a, _c in _poly), 3), round(6.5 / 12, 3))
+_dots = [q for q in _b if q[0] == "circle"]
+check("four dots for RGBA", len(_dots), 4)
+check("...all in one end", all(q[1][1] < -2.5 for q in _dots), True)
+check("the cyc LENS is still a batten, not a cyc cell",
+      [q[0] for q in sym.for_type("Chroma-Q Color Force II Plus 72 Cyc")],
+      [q[0] for q in _b])
+check("measured: 92,600 cd standard, 32,000 with the cyc lens",
+      (ph.FIXTURES["Chroma-Q Color Force II Plus 72"]["cd"],
+       ph.FIXTURES["Chroma-Q Color Force II Plus 72 Cyc"]["cd"]), (92600, 32000))
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")

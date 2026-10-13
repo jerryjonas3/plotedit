@@ -280,6 +280,48 @@ else:
 # The suite's verdict comes LAST, so anything added after it still counts. It
 # used to sit in the middle, which meant an appended check could fail while the
 # suite exited 0 — the same defect found in test_package.py the same day.
+# --- the patch, on the screen and on the paperwork -------------------------
+#
+# 🔴 THE DEFECT THIS EXISTS FOR. The screen showed "2/40-2/54" and the exported
+# schedule wrote "2/40", because schedule_csv read the raw address and never
+# asked dmx how wide the fixture was. The designer saw the truth and the
+# electrician got a start address with nothing to say anything followed it —
+# which is how the next unit gets patched into the tail of this one.
+import csv as _csv_mod
+from io import StringIO as _SIO
+from plotedit import exports as _ex
+
+print()
+print("the patch agrees between the screen and the paperwork")
+
+_patch_plot = dict(plot)
+_api = client.post("/compute", json={"instruments": plot["instruments"]}).json()["instruments"]
+_screen = {r["channel"]: r["patch"] for r in _api}
+
+for _name, _csv_text, _acol, _tcol in (
+        ("schedule", _ex.schedule_csv(_patch_plot), "Address", "Thru"),
+        ("hookup", _ex.hookup_csv(_patch_plot), "Address", "Thru")):
+    _rows = list(_csv_mod.reader(_SIO(_csv_text)))
+    _hdr = next(r for r in _rows if _acol in r)
+    _ai, _ti, _ci = _hdr.index(_acol), _hdr.index(_tcol), _hdr.index("Channel")
+    for _r in _rows[_rows.index(_hdr) + 1:]:
+        if len(_r) <= _ti or not _r[_ci].strip().isdigit():
+            continue
+        _ch = int(_r[_ci])
+        if _ch not in _screen:
+            continue
+        # The two columns must reconstruct exactly what the screen prints, with
+        # ONE deliberate exception. An unpatched unit reads "—" on screen, where
+        # a blank field looks broken, and is left EMPTY on the sheet, where an
+        # em dash is not a value: it would sort, filter and import as text in a
+        # column of numbers. Same fact, two audiences.
+        _paper = f"{_r[_ai]}-{_r[_ti]}" if _r[_ti] else _r[_ai]
+        _want = "" if _screen[_ch] == "—" else _screen[_ch]
+        if _paper != _want:
+            fails.append(f"{_name} ch{_ch}: paper says {_paper!r}, screen says "
+                         f"{_screen[_ch]!r}")
+    print(f"  ok   {_name} agrees with the screen on every channel")
+
 print()
 if fails:
     print(f"{len(fails)} DISAGREEMENTS")
@@ -287,3 +329,106 @@ if fails:
         print("   ", f)
     sys.exit(1)
 print("all agree")
+
+
+# --------------------------------------------------------------- the base plan
+# 🔴 Until v0.1.23 this had no test because it had no code. `exports.plot_pdf`
+# accepted a base plan from the beginning and no endpoint ever passed it one, so
+# an imported venue drawing appeared on screen, survived every check a designer
+# could make, and then was simply absent from the print.
+#
+# The browser sends the base ALREADY PLACED in stage feet — see `baseForExport`
+# in main.ts. That is deliberate: the alternative is the browser sending the
+# import plus a transform and the server applying it again, which is two copies
+# of the same arithmetic and exactly how the screen and the paper drift apart.
+# This file is the record of the last time they did.
+
+def _count(base):
+    """Export the sample and count the marks on the page."""
+    body = {"plot": plot, "scale": "3/8"}
+    if base is not None:
+        body["base"] = base
+    r = client.post("/export/pdf", json=body)
+    assert r.status_code == 200, r.text
+    pdf = r.content
+    return pdf.count(b"/Subtype /Image") + pdf.count(b"/Subtype/Image"), len(pdf)
+
+
+def _png():
+    """A 2x2 red PNG, written by hand so the test needs no image library."""
+    import base64
+    import struct
+    import zlib
+
+    def chunk(tag, payload):
+        body = tag + payload
+        return struct.pack(">I", len(payload)) + body + struct.pack(
+            ">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    raw = b"".join(b"\x00" + b"\xff\x00\x00" * 2 for _ in range(2))
+    png = (b"\x89PNG\r\n\x1a\n"
+           + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(raw))
+           + chunk(b"IEND", b""))
+    return base64.b64encode(png).decode()
+
+
+SQUARE = [{"layer": "WALL",
+           "points": [[10, 4], [43, 4], [43, 42], [10, 42], [10, 4]]}]
+
+plain_imgs, plain_len = _count(None)
+vec_imgs, vec_len = _count({"paths": SQUARE})
+img_imgs, img_len = _count({"image": _png(), "x": 10, "y": 4,
+                            "wide": 33, "tall": 38, "rotate": 0,
+                            "opacity": 0.45})
+
+print()
+print("the base plan reaches the paper")
+ok = True
+
+
+def check(label, got, want):
+    """`want` is a value to equal, or a predicate to satisfy.
+
+    🔴 CALLABLE, not "is it a bool". Asking `isinstance(want, bool)` meant every
+    other plain value — an int, a string — was CALLED, so `check(..., 1, 2)`
+    raised TypeError instead of failing. That matters beyond the tidiness:
+    verify_suites.py proves each suite really fails by injecting exactly that
+    call, and a traceback goes to STDERR, so the failure was never named on
+    stdout and this file was reported as "REPORTS SUCCESS WHILE FAILING".
+    """
+    global ok
+    good = want(got) if callable(want) else got == want
+    ok = ok and good
+    print(f"  {'ok  ' if good else 'FAIL'} {label:<48} {got}")
+    if not good:
+        print(f"       wanted {want!r}")
+
+
+check("a plot with no base has no image on the page", plain_imgs, lambda n: n == 0)
+check("vector paths make the file bigger", vec_len, lambda n: n > plain_len)
+check("...and are drawn as lines, not an image", vec_imgs, lambda n: n == 0)
+check("a backdrop puts exactly one image on the page", img_imgs, lambda n: n == 1)
+
+# ⚠ The transform is the browser's, so what this can check is that the server
+# HONOURS a placement rather than ignoring it: the same paths at a different
+# offset must not produce an identical file.
+moved_len = _count({"paths": [{"layer": "WALL",
+                              "points": [[p[0] + 7, p[1]] for p in SQUARE[0]["points"]]}]})[1]
+check("moving the paths changes the page", vec_len != moved_len, True)
+
+# ⭐ #63 — "an imported base plan can land off the sheet and read as nothing
+# imported." It no longer can, and the fix is one the guard was already doing
+# for everything else: a base plan counts toward the drawing's extent, so a
+# plan at 900 feet is REFUSED by name rather than clipped in silence.
+r = client.post("/export/pdf", json={
+    "plot": plot, "scale": "3/8",
+    "base": {"paths": [{"layer": "WALL", "points": [[900, 900], [901, 901]]}]}})
+check("a base 900' away is refused, not silently clipped",
+      r.status_code == 422, True)
+check("...and the refusal says how far off it is",
+      "CLIPPED" in r.json().get("detail", ""), True)
+
+if not ok:
+    sys.exit("base plan checks failed")
+print("all passed")

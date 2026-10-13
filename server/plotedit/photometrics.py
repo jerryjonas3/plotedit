@@ -33,6 +33,24 @@ FIXTURES = {
                    source="ETC Source Four 50° datasheet 7060L1010 (cosine table: 45,650 cd; fc table agrees: 457fc@10')"),
     "S4 90":  dict(field=86.6, beam=79.0, cd=None, ref_lamp="HPL 750", family="S4",
                    source="ETC Source Four 90° datasheet (angles); candela not extracted"),
+    # Altman SHAKESPEARE (S6) — the fixed-focus ellipsoidals a lot of older houses
+    # still hang. The lens set is 5/10/20/30/40/50, which is why a plot that says
+    # "30°" is not a Source Four. Measured with the GLC lamp, not an HPL: G9.5
+    # base. Each candela agrees with the datasheet's own footcandle table at 30'
+    # (S6-40: 109 fc x 30^2 = 98,100 cd). Added 2026.10.09 for a house
+    # rep plot where every unit is a Shakespeare.
+    "Altman Shakespeare 5":  dict(field=7.0, beam=5.0, cd=974900, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 5°, field 7°, 974,900 cd'),
+    "Altman Shakespeare 10": dict(field=10.0, beam=7.0, cd=791000, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 7°, field 10°, 791,000 cd'),
+    "Altman Shakespeare 20": dict(field=20.0, beam=13.0, cd=189700, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 13°, field 20°, 189,700 cd'),
+    "Altman Shakespeare 30": dict(field=28.0, beam=18.0, cd=149200, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 18°, field 28°, 149,200 cd'),
+    "Altman Shakespeare 40": dict(field=38.0, beam=20.0, cd=98100, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 20°, field 38°, 98,100 cd'),
+    "Altman Shakespeare 50": dict(field=50.0, beam=23.0, cd=46300, ref_lamp="GLC", family="Shakespeare",
+                   source='Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, shakespeare_datasheet.pdf), "Shakespeare performance chart with GLC lamp": beam 23°, field 50°, 46,300 cd'),
     # Standard lens tubes the modern US datasheets do not cover — from the ETC Europe
     # "Source Four Beam Spread Table", data issued 13-11-2000 (on file). Angles only;
     # that table carries no candela. Internally consistent: every published multiplier
@@ -210,6 +228,24 @@ FIXTURES = {
                           "(46x73 goniometric); datasheet confirms 4,856 lm / 100 W. "
                           "ASYMMETRIC — angles are the vertical plane through the peak at 70°."),
 
+    # ⭐ Chroma-Q Color Force II Plus 72 — a 6' RGBA LED batten. A house rep
+    # plot's cyc electric carries seven Chroma-Q LED cyc units, model not stated
+    # in the house's spec; Jerry, 2026.10.09: use the Color Force II Plus 72 data
+    # for now. Chroma-Q publish a measured table for EACH lens, so each lens is
+    # its own row rather than a guess. ⚠ The spec sheet calls the distribution
+    # "asymmetrical direct illumination" but the tables give ordinary beam and
+    # field angles and no peak angle, so it is computed symmetric, as published.
+    # Load: 800 W, the spec sheet's maximum; the table measured 641 W at Full On.
+    "Chroma-Q Color Force II Plus 72": dict(field=54.0, beam=26.0, cd=92600, ref_lamp="LED RGBA",
+                   family="Color Force", lumens=27000, watts=800.0, colors=4,
+                   source="Chroma-Q Color Force II Plus 72 photometric tables (standard lens, Full On, chroma-q.com, product page Photometric Table v2 p7 agrees); spec sheet v1.1: 1,759 x 165 x 191 mm, RGBA, 24 cells at 76 mm, 800 W max consumption. The table measured 641 W at Full On; 800 W is used for loads."),
+    "Chroma-Q Color Force II Plus 72 Border": dict(field=68.0, beam=38.0, cd=37900,
+                   ref_lamp="LED RGBA", family="Color Force", lumens=23600, watts=800.0,
+                   colors=4, source="Chroma-Q Color Force II Plus 72 photometric tables (border lens CHCFBL72, Full On, chroma-q.com, product page Photometric Table v2 p8 agrees); spec sheet v1.1: 1,759 x 165 x 191 mm, RGBA, 24 cells at 76 mm, 800 W max consumption. The table measured 641 W at Full On; 800 W is used for loads."),
+    "Chroma-Q Color Force II Plus 72 Cyc": dict(field=100.0, beam=44.0, cd=32000,
+                   ref_lamp="LED RGBA", family="Color Force", lumens=22700, watts=800.0,
+                   colors=4, source="Chroma-Q Color Force II Plus 72 photometric tables (cyc lens CHCFCL72, Full On, chroma-q.com, product page Photometric Table v2 p9 agrees); spec sheet v1.1: 1,759 x 165 x 191 mm, RGBA, 24 cells at 76 mm, 800 W max consumption. The table measured 641 W at Full On; 800 W is used for loads."),
+
     # Jerry's own two units. ⚠ Their CANDELA is unpublished and is staying that
     # way — Jerry, 2026.09.23: "forget the SHEHDS units, that was a one off."
     # Not an open task, not something to measure, not to be raised again. They go
@@ -238,17 +274,123 @@ LAMP_MF = {
                 # the candela was measured at, so every factor there is 1.00.
                 "S4 EA PAR VNSP": 1.00, "S4 EA PAR NSP": 1.00,
                 "S4 EA PAR MFL": 1.00, "S4 EA PAR WFL": 1.00},
+    # Altman Shakespeare: the GLC is the lamp the performance chart was MEASURED
+    # with, so every factor is 1.00 — the same arrangement as HPL 750 for the
+    # Source Four. The datasheet's lamp table lists correction factors for other
+    # lamps, but its columns do not line up cleanly enough to read them safely;
+    # left out until somebody checks them against a clean copy.
+    "GLC": {f"Altman Shakespeare {d}": 1.00 for d in (5, 10, 20, 30, 40, 50)},
     "HPL 575": {"S4 19": 0.85, "S4 26": 0.78, "S4 36": 0.67, "S4 50": 0.79,
                 # Same table, HPL 575/115 row. The factor differs per LENS —
                 # .92 to .75 — so one number for the family would be wrong for
                 # three of the four.
                 "S4 EA PAR VNSP": 0.92, "S4 EA PAR NSP": 0.88,
                 "S4 EA PAR MFL": 0.80, "S4 EA PAR WFL": 0.75},
+    # ⭐ THE LOW-WATTAGE BURNER (Jerry, 2026.09.29). An ordinary 115 V lamp —
+    # no doubler, no special dimmer. You put one in to halve the load and get
+    # more units on a circuit, and you pay about a third of the light for it.
+    #
+    # 🔴 NOT THE DIMMER DOUBLING LAMP, which is the 550/77 below. The two get
+    # confused because both are ways of fitting more rig onto less dimmer, but
+    # they are different techniques: this one just draws less.
+    "HPL 375": {"S4 19": 0.71, "S4 26": 0.66, "S4 36": 0.56, "S4 50": 0.66,
+                # ETC Source Four 19/26/36/50 datasheets, "Lamps" table, row
+                # HPL 375/115 (ETC part RT142), Cd MF column — and the same four
+                # confirmed by the EDLT 19-26-36-50 datasheet p4.
+                #
+                # ⚠ NO PAR FIGURES, for the same reason as the 550/77: the PAR
+                # EA datasheet is not on file.
+                },
+    # ⭐ THE DIMMER DOUBLING LAMP (Jerry, 2026.09.29). 550 W at SEVENTY-SEVEN
+    # VOLTS — the low voltage is the whole point, not a typo. ETC Dimmer
+    # Doubling runs two fixtures off one dimmer on opposite half-cycles, and a
+    # 77 V burner is what makes full output from the halved RMS voltage.
+    #
+    # 🔴 IT IS NOT THE 375. Both are ways of getting more rig out of less
+    # dimmer, which is why they get mixed up, but a 375 simply draws less on an
+    # ordinary 115 V circuit. ETC's own table marks the difference: the asterisk
+    # sits on the 77 V lamps and the footnote reads "77 Volt HPL lamps are for
+    # use with ETC Dimmer Doubling technology only."
+    #
+    # ⚠ PUT ONE OF THESE ON AN ORDINARY DIMMER AND THE PAPERWORK LIES. The
+    # footcandles below come out right, the rig comes out dim, and nothing here
+    # can tell the difference — a doubled dimmer is a property of the CIRCUIT,
+    # which the plot has no way to say yet. Noting doublers is on NEXT.md.
+    "HPL 550/77": {"S4 19": 0.87, "S4 26": 0.77, "S4 36": 0.68, "S4 50": 0.81,
+                   # ETC Source Four 19/26/36/50 datasheets, "Lamps" table, row
+                   # HPL 550/77* (ETC part RT112), Cd MF column — and the same
+                   # four confirmed independently by the Source Four EDLT
+                   # 19-26-36-50 datasheet p4, which prints all four lenses in
+                   # one row. Both agree to the digit.
+                   #
+                   # ⚠ NO PAR FIGURES. The PAR EA datasheet is not on file, so
+                   # an EA PAR on a 550/77 computes nothing rather than guessing
+                   # — see the warning above this table.
+                   },
     "HPL 575X": {"S4 36": 0.56,          # long-life; other S4 tubes not extracted
                  # Same table, HPL 575/115X row: .56 across all four lenses.
                  "S4 EA PAR VNSP": 0.56, "S4 EA PAR NSP": 0.56,
                  "S4 EA PAR MFL": 0.56, "S4 EA PAR WFL": 0.56},
+
+    # ⭐ THE RETROFIT BURNERS. Pull the HPL, drop a 4WRD in, and the same Source
+    # Four is an LED — same tube, same angles — so it is a LAMP, and these are
+    # its multipliers against the HPL 750 the candela was measured at.
+    #
+    # ⭐ COMPUTED FROM CANDELA, NOT LUMENS, WHICH IS THE WHOLE POINT. The 4WRD
+    # datasheet publishes lumens per lens beside the HPL's, and dividing those
+    # two columns looks like exactly this table. It is not: the lumen ratio and
+    # the candela ratio differ by 13–16% here, because an LED array and a
+    # filament do not fill a lens the same way. These are from ETC's own IES.
+    #
+    # ⚠ TWO ETC SOURCES DIVIDED BY EACH OTHER. The numerator is a Light Lab IES
+    # file; the denominator is the candela already in FIXTURES, off ETC's
+    # published tables. Both are ETC's figures for the same lens, which is the
+    # best available — but it is a ratio ACROSS documents, not a multiplier ETC
+    # printed, and that is worth knowing before quoting it to two decimals.
+    #
+    # ⚠ 120 V ONLY; the 230 V unit was not computed. Gallery and Daylight
+    # Gallery draw the same 150 W and are dimmer — the 90+ CRI costs about 15%
+    # of the light, which is the trade a designer is actually making.
+    "Source 4WRD II": {
+        "S4 19": 0.61, "S4 26": 0.56, "S4 36": 0.64, "S4 50": 0.69,
+        "S4 26 EDLT": 0.63, "S4 36 EDLT": 0.64},
+    "Source 4WRD II Gallery": {
+        "S4 19": 0.52, "S4 26": 0.48, "S4 36": 0.54, "S4 50": 0.59,
+        "S4 26 EDLT": 0.50, "S4 36 EDLT": 0.54},
+    "Source 4WRD II Daylight Gallery": {
+        "S4 19": 0.55, "S4 26": 0.51, "S4 36": 0.57, "S4 50": 0.62,
+        "S4 26 EDLT": 0.58, "S4 36 EDLT": 0.58},
 }
+
+# ⭐ HOW MANY COLOURS A RETROFIT BURNER MAKES — which is what gets DRAWN.
+#
+# USITT's Lighting Documentation Recommended Practice (February 2025) draws an
+# LED ellipsoidal as the ordinary ERS body with dots at the lamp housing, which
+# is RP-2 §6.16's rule — "number of dots represent the number of different
+# colors" — carried onto the ERS. Its own key reads "LED ERS 26-DEGREE
+# (10-CHANNEL)".
+#
+# A 4WRD is fixed white, so it is ONE colour and one dot. Not zero: the dot is
+# what says the barrel is an LED at all, and that is the whole reason to draw it.
+#
+# ⚠ THIS IS A LAMP FACT, NOT A DRAWING FACT, which is why it lives here beside
+# LAMP_WATTS rather than in symbols.py. What symbols.py decides is where the
+# dots go; how many there are is a property of the burner.
+LAMP_COLORS = {
+    "Source 4WRD II": 1,
+    "Source 4WRD II Gallery": 1,
+    "Source 4WRD II Daylight Gallery": 1,
+}
+
+
+def lamp_colors(lamp):
+    """Colours this lamp makes, or None when it is not an LED source at all.
+
+    None and 0 are different answers: None is "this is a tungsten lamp, draw
+    nothing", and there is no lamp that makes zero colours.
+    """
+    return LAMP_COLORS.get(str(lamp or "").strip())
+
 
 # ---------------------------------------------------------------- wattage
 #
@@ -278,6 +420,14 @@ FAMILY_WATTS = {
 }
 FAMILY_WATTS["ColorSource Zoom"] = FAMILY_WATTS["ColorSource"]
 # Jerry's own units. 350W each, from the model name and his own rig notes.
+# ⚠ THE LAMP IS AN ASSUMPTION. Altman measured the Shakespeare with a GLC
+# (575 W, G9.5) and the fixture is listed to 750 W; nothing on a rep plot says
+# which lamp is in it. 575 is what the chart was measured at.
+FAMILY_WATTS["Shakespeare"] = {"_typical": 575.0,
+                               "_source": "Altman Shakespeare datasheet: performance chart measured with the GLC (575 W); fixture listed to 750 W"}
+FAMILY_WATTS["Color Force"] = {"_typical": 800.0,
+                               "_source": "Chroma-Q Color Force II Plus 72 spec sheet v1.1: "
+                                          "'Power Consumption: 800W @ 120V AC'"}
 FAMILY_WATTS["SHEHDS"] = {"_typical": 350.0,
                           "_source": "SHEHDS 350W RGBW Profile — the model name, corroborated by Jerry's Without Consent rig notes"}
 
@@ -333,6 +483,28 @@ def watts_for(kind, lamp=None, mode=None):
                f"for a capacity check use the highest mode. {table['_source']}")
 
 
+# ⭐ LAMPS WHOSE WATTAGE IS PUBLISHED RATHER THAN NAMED. Every tungsten lamp
+# carries its wattage in its name — HPL 575, FEL 1000 — which is why lamp_watts
+# can read it. A retrofit LED burner does not: "Source 4WRD II" says nothing, and
+# the number is in a datasheet like any other figure.
+#
+# ⚠ THIS IS A LAMP, NOT A FIXTURE. A Source Four with a 4WRD in it is still an
+# S4 26 — same lens tube, same field and beam angles, same symbol. What changed
+# is the source inside it. So it belongs here and NOT in FIXTURES, and the load
+# table is the only place it changes the answer.
+LAMP_WATTS = {
+    "Source 4WRD II Gallery": (150.0, "Same body and driver as the standard "
+        "unit — the datasheet gives one wattage for all three variants. The "
+        "90+ CRI array is dimmer, not thriftier."),
+    "Source 4WRD II Daylight Gallery": (150.0, "As the Gallery: same draw, "
+        "5900 K array."),
+    "Source 4WRD II": (150.0,
+        "ETC Source 4WRD II datasheet p.2: '150 W/1.2 W (120 V)'. ⚠ The 230 V "
+        "version is 175 W. Gallery and Daylight Gallery draw the same as the "
+        "standard unit; they differ in CRI and output, not in draw."),
+}
+
+
 def lamp_watts(lamp):
     """Watts from a lamp name — "HPL 575" is 575W, and that is exact.
 
@@ -353,6 +525,10 @@ def lamp_watts(lamp):
     """
     import re as _re
     t = str(lamp or "").strip()
+    # A published figure beats reading the name, and is the only way a retrofit
+    # LED burner can answer at all — nothing in "Source 4WRD II" is a wattage.
+    if t in LAMP_WATTS:
+        return LAMP_WATTS[t][0]
     if not t or _re.search(r"\d\s*K\b", t, _re.I):
         return None
     m = _re.match(r"^[A-Za-z]{2,4}[\s-]*(\d{2,4})", t)
@@ -409,6 +585,26 @@ def pool(kind, throw, elevation=None):
     return out
 
 
+def gel_key(gel):
+    """A gel code reduced to what identifies it: letters and digits, uppercased.
+
+    🔴 "R-33" AND "R33" ARE THE SAME FILTER. gels.csv keys all 498 rows without
+    punctuation — R33, L142 — while plots and imported paperwork commonly write
+    the dashed form. A house rep plot read into plotedit came in as R-37, L-142,
+    R-54 and R-05, and every one of them missed the table: no transmission, so no
+    footcandle figure anywhere on the plot. It failed honestly, with a note, which
+    is why nobody noticed for a fortnight.
+
+    ⭐ NORMALISED ON BOTH SIDES — on load and on lookup — so the table cannot drift
+    from the plots either way.
+
+    ⚠ It does NOT invent a maker. A bare "33" normalises to "33" and still misses,
+    which is right: R33 and L33 are different filters and guessing a house's
+    preferred maker is how a plot promises light it will not deliver.
+    """
+    return re.sub(r"[^A-Z0-9]", "", str(gel or "").upper())
+
+
 def load_gels(path=None):
     """gels.csv beside this file: gel, name, transmission (0-1), source, added. Add rows as gels come up."""
     import csv, os
@@ -416,7 +612,7 @@ def load_gels(path=None):
     out = {}
     with open(path) as fh:
         for row in csv.DictReader(fh):
-            out[row["gel"].upper()] = dict(name=row["name"], t=float(row["transmission"]), source=row["source"])
+            out[gel_key(row["gel"])] = dict(name=row["name"], t=float(row["transmission"]), source=row["source"])
     return out
 
 GELS = load_gels()
@@ -453,9 +649,18 @@ def gel_factor(gel):
     kind, gels = parse_gel(gel)
     rows = []
     for g in gels:
-        row = GELS.get(g.upper())
+        row = GELS.get(gel_key(g))
         if row is None:
-            return None, f"gel {g} not in gels.csv — add it with Rosco's transmission figure"
+            # ⚠ SAY WHAT A BARE NUMBER IS MISSING. R119 is Light Hamburg Frost
+            # at 89% and L119 is Dark Blue at 2%: the same digits, opposite
+            # filters. An unprefixed number is not a gel this can look up, and
+            # guessing a house's preferred maker is how a plot promises forty
+            # times the light it will deliver.
+            if g[:1].isdigit():
+                return None, (f"gel {g} has no maker — R{g} and L{g} are different "
+                              f"filters. Write R{g} for Roscolux or L{g} for LEE.")
+            return None, (f"gel {g} not in gels.csv — add it with the maker's "
+                          f"published transmission")
         rows.append((g.upper(), row["t"]))
     if kind == "split":
         first = rows[0]

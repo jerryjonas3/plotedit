@@ -28,6 +28,8 @@ export interface DetailDeps {
   onChange: () => void;
   /** The ROOM has changed — the numbers are stale until the server answers. */
   onGeometry: () => void;
+  /** How symbols are DRAWN has changed — the outlines held are stale. */
+  onSymbols: () => void;
 }
 
 const UNITS = [
@@ -35,10 +37,20 @@ const UNITS = [
   { value: "metric", label: "Metric — metres" },
 ];
 
+// ⭐ 2025 USITT RP, Figure 3.1.4.0.4: write the beam angle in the barrel
+// instead of the mark. One setting for the whole plot (Jerry, 2026.10.09).
+const BEAM_ANGLE = [
+  { value: "mark", label: "A mark in the lens (RP)" },
+  { value: "number", label: "The number in the barrel" },
+];
+
 const CONTROL: { value: ControlModel; label: string }[] = [
   { value: "dimmer-per-circuit", label: "Dimmer per circuit (most houses)" },
   { value: "hard-and-soft-patch", label: "Hard and soft patch" },
   { value: "no-soft-patch", label: "No soft patch" },
+  // ⭐ Jerry, 2026.09.29: a dimmer is one DMX address carrying intensity, so
+  // the dimmer number and the address are the same fact.
+  { value: "dimmer-is-address", label: "Dimmer = address (ETC)" },
 ];
 
 function field(
@@ -48,7 +60,7 @@ function field(
           options?: { value: string; label: string }[] } = {},
 ): HTMLElement {
   const wrap = document.createElement("label");
-  wrap.className = "pos-field" + (opts.wide ? " wide" : "");
+  wrap.className = "card-field" + (opts.wide ? " wide" : "");
   const cap = document.createElement("span");
   cap.textContent = label;
   if (opts.hint) { cap.title = opts.hint; wrap.title = opts.hint; }
@@ -93,7 +105,7 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
 
   const group = (title: string, fields: HTMLElement[]) => {
     const box = document.createElement("div");
-    box.className = "pos-row";
+    box.className = "card";
     const h = document.createElement("p");
     h.className = "group-label";
     h.textContent = title;
@@ -119,7 +131,7 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
           { hint: "Printed along the bottom of the title block." }),
     field("Revision", p.revision, v => { store.setMeta({ revision: v }); deps.onChange(); }),
     field("Date", p.date, v => { store.setMeta({ date: v }); deps.onChange(); },
-          { hint: "The date on the plot. The sheet also stamps the day it was rendered." }),
+          { hint: "The date on the plot, printed in the title block. Blank prints the day it is exported." }),
   ]);
 
   // ⚠ The unit in the CAPTION has to follow the plot, or a metric plot shows
@@ -155,6 +167,13 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
             hint: "RP-2 6.14.1. This changes the NOTATION drawn, not just the data: "
                 + "with dimmer per circuit the circuit and dimmer are one number and "
                 + "one hexagon, because there is no patch to make." }),
+    field("Beam angle", p.angleInBarrel ? "number" : "mark",
+          v => { store.setMeta({ angleInBarrel: v === "number" || undefined });
+                 deps.onSymbols(); },
+          { wide: true, options: BEAM_ANGLE,
+            hint: "How an ellipsoidal shows its beam angle, on every unit in the plot. "
+                + "The 2025 USITT RP allows either. The number is plainer where many "
+                + "units share one body, and a 40° and a 10° both carry no mark." }),
   ]);
 
   // ⭐ Jerry, 2026.09.25, relaying a tester: "the lines are too thick for pipes."
@@ -183,18 +202,19 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
     pts("Light", w.light, "light",
         "RP-2's lightest weight — notation, leaders, dimensions, beam pools. Default 0.5."),
     pts("Medium", w.medium, "medium",
-        "Soft goods and reference lines — masking, drops, the centre and plaster lines. Default 0.9."),
+        "Positions — pipes, booms, catwalks — plus the building (drawn gray), soft goods "
+      + "and the centre and plaster lines. Default 0.9. Lower this if the pipes read heavy."),
     pts("Heavy", w.heavy, "heavy",
-        "Everything that physically exists — pipes, instruments, walls, the border. "
-      + "Default 1.7, which is what makes a plot read heavy. Lower this first."),
+        "The instruments, and the sheet border and title block. Default 1.7. "
+      + "The 2025 USITT RP makes the units the heaviest thing on the plot."),
     pts("Electrics", w.positions?.electric, "positions.electric",
-        "Overrides the heavy weight for electrics, pipes and grids only. Leave blank "
-      + "to follow Heavy."),
+        "Overrides the weight for electrics, pipes and grids only. Leave blank "
+      + "to follow Medium."),
     pts("Booms", w.positions?.boom, "positions.boom",
-        "Booms, box booms and ladders. Leave blank to follow Heavy."),
+        "Booms, box booms and ladders. Leave blank to follow Medium."),
     pts("Catwalks", w.positions?.catwalk, "positions.catwalk",
         "A catwalk is drawn as architecture, not as a pipe — this is its edges. "
-      + "Leave blank to follow Heavy."),
+      + "Leave blank to follow Medium."),
   ]);
 
   group("Where the figures came from", [

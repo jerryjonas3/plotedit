@@ -13,6 +13,7 @@ import { svgTransform, counterFlip, fmtFt, notationAnchor, symbolRadius,
          symbolTransform, type View } from "./geometry.js";
 import { symbolKey, isVertical, isFoh, type Plot, type Instrument } from "./plot.js";
 import type { SymbolPrim, BoomElevation, PositionLabel } from "./api.js";
+import type { Visibility } from "./layers.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -54,13 +55,38 @@ export interface Computed {
 }
 
 export interface RenderOptions {
-  showPools: boolean;
-  showFocus: boolean;
-  showLabels: boolean;
+  /** Which of the eight layers are drawn — see layers.ts.
+   *
+   * ⭐ Replaces showPools/showFocus/showLabels and the caller's own decision
+   * about the base plan. The renderer is now the ONLY thing that decides
+   * whether something is drawn; main.ts used to gate the base itself, which
+   * meant two places had an opinion and one of them was always about to
+   * disagree. */
+  layers: Visibility;
+  /** Symbol keys hung at TWO points, which therefore cannot pan — strips,
+   *  battens, cyc units. From the server, beside the symbol itself. #113. */
+  twoPoint?: Set<string>;
   /** Index into plot.instruments, or null. */
   selected?: number | null;
+  /** Which position is current, as an index into `positions`. #78 — a position
+   *  could not be selected at all before this; see `Store.selectedPosition`. */
+  selectedPosition?: number | null;
   /** A venue's DXF, already in feet. Drawn under everything, in gray. */
   basePaths?: { layer: string; points: [number, number][] }[];
+  /** A ground plan that has no vectors in it — a photograph, a scan, a planner's
+   *  layout — placed as a BACKDROP to draw over.
+   *
+   *  🔴 NEVER A MEASUREMENT. Nothing read off this image may reach the
+   *  paperwork; the room's dimensions are still typed in by whoever measured
+   *  them. `wide` and `tall` are how big it is DRAWN, in feet, which the
+   *  designer sets by calibration — they are not a claim about the building. */
+  baseImage?: {
+    href: string;
+    x: number; y: number;          // stage feet, lower-left of the image
+    wide: number; tall: number;    // stage feet
+    rotate: number;                // degrees, about the lower-left corner
+    opacity: number;
+  };
   /** RP-2 symbol outlines by fixture type, from GET /symbols. */
   symbols?: Record<string, SymbolPrim[]>;
   /** Where each position's NAME goes, from POST /labels. Without it the names
@@ -76,6 +102,32 @@ function isSelNow(opts: RenderOptions, i: number): boolean {
   return opts.selected === i;
 }
 
+/**
+ * Does the SELECTED unit get its pool and focus drawn even with those layers off?
+ *
+ * ⭐ #109. You switch pools off to read the plot, then click a unit to ask the
+ * one question the drawing is for — where does THAT one land? Having to switch a
+ * layer back on to answer it is the tool getting in the way.
+ *
+ * 🔴 GATED ON `units`, AND ONLY THE OVERRIDE IS. A unit can be selected from the
+ * Schedule panel (main.ts), which knows nothing about layers — so with the symbols
+ * off you can select something that is not on the plan at all, and without this
+ * you would get a pool and a focus ring hanging in space with nothing under them.
+ *
+ * ⚠ The LAYERS stay ungated, deliberately. `vis.pools` on with `vis.units` off is
+ * a legitimate way to read a rig and already works — see the note above where the
+ * instrument group is appended. It is the highlight that needs a symbol to belong
+ * to, because a highlight with nothing to highlight is a stray mark.
+ *
+ * ⭐ Screen only. An export has no selected instrument, so nothing here can reach
+ * a PDF or a DXF.
+ */
+export function selectionOverride(
+  vis: Visibility, selected: number | null | undefined, i: number,
+): boolean {
+  return selected === i && vis.units;
+}
+
 function el(name: string, attrs: Record<string, string | number>): SVGElement {
   const e = document.createElementNS(NS, name);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
@@ -85,7 +137,13 @@ function el(name: string, attrs: Record<string, string | number>): SVGElement {
 /** Line widths and text sizes are in FEET, so they scale with the drawing.
  *  Divided by the view scale they would be constant on screen; we want them
  *  to grow with zoom, the way ink on paper does. */
-const W = { room: 0.25, position: 0.4, focus: 0.08, pool: 0.06, dim: 0.06 };
+// ⭐ 2025 USITT Lighting Documentation RP §2.2.3: instrument outlines thick,
+// positions medium, the building gray. A pipe was 0.4' wide on screen — over
+// five times an instrument's 0.075' outline — and Jerry, 2026.10.09: "the line
+// weights of the pipes are way too thick." Now a pipe is a little LIGHTER than
+// the units on it, as the RP asks, and the room is a thin gray line.
+const W = { room: 0.05, position: 0.06, focus: 0.08, pool: 0.06, dim: 0.06 };
+const ROOM_STROKE = "#9a9a9a";
 const TEXT = 1.0;      // feet — about 12" tall, legible at a whole-room zoom
 // Position names, and the width of one character at that size. The server fits
 // the names but cannot measure this font, so the estimate is sent to it.
@@ -96,6 +154,7 @@ export function render(
   svg: SVGSVGElement, plot: Plot, view: View,
   computed: Computed[], opts: RenderOptions,
 ): void {
+  const vis = opts.layers;
   svg.replaceChildren();
   svg.setAttribute("width", String(view.width));
   svg.setAttribute("height", String(view.height));
@@ -113,12 +172,40 @@ export function render(
   const gBase = layer("base"), gRoom = layer("room"), gPools = layer("pools"),
         gPos = layer("positions");
 
+  // ---- a raster backdrop, under even the vector base.
+  // ⚠ SVG's y runs DOWN and the plot's runs UP, and the whole drawing is already
+  // flipped by the viewBox. An <image> flips with it, so it is flipped back
+  // about its own box or the plan arrives upside down.
+  const bi = vis.base ? opts.baseImage : undefined;
+  if (bi) {
+    gBase.appendChild(el("image", {
+      href: bi.href, x: bi.x, y: bi.y, width: bi.wide, height: bi.tall,
+      opacity: String(bi.opacity),
+      preserveAspectRatio: "none",
+      transform: `rotate(${bi.rotate} ${bi.x} ${bi.y}) `
+               + `translate(0 ${2 * bi.y + bi.tall}) scale(1 -1)`,
+    }));
+  }
+
   // ---- the venue's own drawing, if one was imported.
-  // Their claim, not a measurement — drawn quietly, under everything.
-  for (const path of opts.basePaths ?? []) {
+  //
+  // Their claim, not a measurement — drawn quietly, under everything. But
+  // 🔴 QUIETLY IS NOT INVISIBLY. This was #c9c9c9, which measures 1.66:1
+  // against the white the drawing sits on, when the floor for a line on a page
+  // is 3:1 — less than half. A tester imported a DXF, saw nothing, and only
+  // found his drawing by switching Chrome to forced-dark to invert the whole
+  // page. He did not find a setting; he found a workaround. (Reported
+  // 2026.10.05.)
+  //
+  // ⭐ #8c8c8c measures 3.36:1 against that white and 4.73:1 against the pipes
+  // at #222 — over the floor, and still obviously subordinate to the rig drawn
+  // on top of it, which is the whole point of drawing it quietly. Measured by
+  // basePlan.test.ts against the svg rule in index.html, so neither this colour
+  // nor that background can drift under the floor unnoticed.
+  for (const path of (vis.base ? opts.basePaths ?? [] : [])) {
     const d = path.points.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ");
     gBase.appendChild(el("path", {
-      d, fill: "none", stroke: "#c9c9c9", "stroke-width": W.dim * 2,
+      d, fill: "none", stroke: "#8c8c8c", "stroke-width": W.dim * 2,
       "vector-effect": "non-scaling-stroke",
     }));
   }
@@ -127,7 +214,7 @@ export function render(
   // ---- the room
   gRoom.appendChild(el("rect", {
     x: 0, y: 0, width: plot.room.width, height: plot.room.depth,
-    fill: "none", stroke: "#333", "stroke-width": W.room,
+    fill: "none", stroke: ROOM_STROKE, "stroke-width": W.room,
   }));
   // a foot grid, faint, so distances are readable without measuring
   for (let x = 5; x < plot.room.width; x += 5)
@@ -144,30 +231,62 @@ export function render(
   // units hanging off a rail rather than down its middle, so a unit drawn on its
   // centre is drawn three feet from where it is. A boom is a POINT in plan.
   // Mirrors Sheet.position() and Sheet.boom() in the Python.
-  const bar = (x1: number, y1: number, x2: number, y2: number, w: number) =>
-    gPos.appendChild(el("line", {
-      x1, y1, x2, y2, stroke: "#222", "stroke-width": w, "stroke-linecap": "round",
+  // ⭐ #78 — EACH POSITION IS NOW ITS OWN GROUP, so it can be pointed at and lit
+  // up. Until now they were loose lines in one bucket with nothing to say which
+  // was which, which is why a position could not be selected at all.
+  let gThis: SVGElement = gPos;
+  const bar = (x1: number, y1: number, x2: number, y2: number, w: number,
+               stroke = "#222") =>
+    gThis.appendChild(el("line", {
+      x1, y1, x2, y2, stroke, "stroke-width": w, "stroke-linecap": "round",
     }));
 
-  for (const p of plot.positions) {
+  plot.positions.forEach((p, pi) => {
     const kind = (p.type ?? "electric").trim().toLowerCase();
+    gThis = el("g", {
+      class: "position" + (pi === opts.selectedPosition ? " selected" : ""),
+      "data-position": String(pi),
+    });
+    // ⚠ Not appended when the layer is off, which also takes the invisible
+    // HIT LINE with it — deliberately. A pipe you cannot see is a pipe you
+    // should not be able to click: selecting something invisible puts the
+    // inspector on an object the drawing is not showing.
+    if (vis.positions) gPos.appendChild(gThis);
+
+    // 🔴 A HIT LINE, invisible and fat. A pipe is drawn about 1.5 px wide at a
+    // normal zoom, and nobody can reliably click a 1.5 px line — the same target
+    // problem the toolbar had, in a different place. This is a transparent
+    // stroke roughly a foot wide lying along the pipe, so the pointer has
+    // something to land on. It is FIRST in the group, so the real line draws
+    // over it.
+    if (!isVertical(p)) {
+      gThis.appendChild(el("line", {
+        x1: p.x1, y1: p.y1, x2: p.x2 ?? p.x1, y2: p.y2 ?? p.y1,
+        stroke: "transparent", "stroke-width": 1.2, "stroke-linecap": "round",
+      }));
+    } else {
+      gThis.appendChild(el("circle", {
+        cx: p.x1, cy: p.y1, r: Math.max((p.width ?? 1.4) / 2, 0.8),
+        fill: "transparent", stroke: "none",
+      }));
+    }
 
     if (isVertical(p)) {
       // A boom in plan: its mount, and one hatched symbol standing for the
       // stack. Drawing four units on top of each other is just a heavier blob.
       const half = (p.width ?? 1.4) / 2;
       if ((p.mount ?? "boom-base") === "floor-plate") {
-        gPos.appendChild(el("rect", {
+        gThis.appendChild(el("rect", {
           x: p.x1 - half, y: p.y1 - half, width: half * 2, height: half * 2,
           fill: "none", stroke: "#222", "stroke-width": W.position * 0.7,
         }));
       } else if (p.mount === "flange") {
-        gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.36,
+        gThis.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.36,
           fill: "none", stroke: "#222", "stroke-width": W.position * 0.7 }));
       } else {
-        gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half,
+        gThis.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half,
           fill: "none", stroke: "#222", "stroke-width": W.position * 0.7 }));
-        gPos.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.16,
+        gThis.appendChild(el("circle", { cx: p.x1, cy: p.y1, r: half * 0.16,
           fill: "none", stroke: "#222", "stroke-width": W.position * 0.5 }));
       }
       // §6.12: "hatch or shade acceptable for top view of boom." ONE symbol
@@ -177,15 +296,17 @@ export function render(
         const st = el("g", {
           transform: `translate(${p.x1} ${p.y1}) rotate(${-bm.plan.rotation})`,
         });
-        paintPrims(st, bm.plan.prims);
+        paintPrims(st, bm.plan.prims, { turned: -bm.plan.rotation });
         paintPrims(st, bm.plan.hatch, { width: 0.45 });
-        gPos.appendChild(st);
+        gThis.appendChild(st);
       }
     } else if (kind === "catwalk" || kind === "truss") {
       const half = (p.width ?? (kind === "catwalk" ? 3.0 : 1.5)) / 2;
       for (const side of [1, -1])
+        // A catwalk's edges are the BUILDING — gray, like the room (2025 RP).
         bar(p.x1, p.y1 + side * half, p.x2, p.y2 + side * half,
-            kind === "catwalk" ? W.room : W.position);
+            kind === "catwalk" ? W.room : W.position,
+            kind === "catwalk" ? ROOM_STROKE : "#222");
       if (kind === "catwalk") {
         // the pipe, INBOARD of the downstage rail — on the rail the two lines
         // coincide and the pipe disappears
@@ -196,7 +317,12 @@ export function render(
       bar(p.x1, p.y1, p.x2, p.y2, W.position);
     }
 
-    if (opts.showLabels) {
+    // ⚠ A NAME NEEDS BOTH LAYERS. The name is text, so it belongs to `labels`
+    // — that is where the DXF puts it and what the merged set says. But a name
+    // floating where its pipe has been hidden is the "hidden field holding a
+    // live value" problem drawn on paper: it labels something that is not
+    // there. So it draws when labels AND positions are both on.
+    if (vis.labels && vis.positions) {
       // ⭐ The SLOT comes from the server, fitted around the units and around
       // the other names. Placed at the pipe's stage-left end regardless, CAT 1
       // and HOUSE LEFT BOX BOOM 1 landed on each other and on the box boom's
@@ -225,15 +351,20 @@ export function render(
       t.textContent = at ? at.text : fallback;
       gText.appendChild(t);
     }
-  }
+  });
 
   // ---- boom elevations, §6.12 — beside the plot, because in plan a boom is a
   // point and its units all share one x and one y. Drawn BEFORE the
   // instruments so the plan loop can skip them.
   const onABoom = new Set(
     plot.positions.filter(isVertical).map(p => p.name.trim().toLowerCase()));
-  for (const b of opts.booms ?? [])
-    gPos.appendChild(elevation(b, plot.instruments, opts.selected));
+  // ⚠ BOTH LAYERS, because an elevation is a drawing of UNITS on a POSITION
+  // and is nothing without either. With the units off it would be an empty
+  // stick beside the plot; with the positions off it is a stack of symbols
+  // belonging to a pipe that is not drawn.
+  if (vis.positions && vis.units)
+    for (const b of opts.booms ?? [])
+      gPos.appendChild(elevation(b, plot.instruments, opts.selected));
 
   // ---- instruments
   plot.instruments.forEach((inst, i) => {
@@ -253,7 +384,8 @@ export function render(
     // as it is wide, and the long end is the one that reaches the scenery. The
     // circle that used to be drawn here understated the far end by half and hid
     // a grazing focus entirely.
-    if (opts.showPools && hasFocus && c?.pool) {
+    const selShows = selectionOverride(vis, opts.selected, i);
+    if ((vis.pools || selShows) && hasFocus && c?.pool) {
       // ⭐ Jerry, 2026.09.24: "could we highlight the pool of the selected
       // instrument?" Fifteen ellipses overlap across the middle of this plot
       // and they are all the same grey dashes — knowing WHICH one a unit throws
@@ -265,7 +397,7 @@ export function render(
         class: "pool" + (isSelNow(opts, i) ? " selected" : ""),
         fill: "none", stroke: "#bbb", "stroke-width": W.pool, "stroke-dasharray": "0.6 0.4",
       }));
-    } else if (opts.showPools && hasFocus && c?.pool_note) {
+    } else if ((vis.pools || selShows) && hasFocus && c?.pool_note) {
       // ⚠ Never silently. "No far edge" is a fact about the focus, not an
       // absence of information — mark the aim point so it is visible.
       // ⚠ The "no pool here, and here is why" marker gets the same treatment.
@@ -278,7 +410,7 @@ export function render(
         "stroke-dasharray": "0.3 0.3",
       }));
     }
-    if (opts.showFocus && hasFocus) {
+    if ((vis.focus || selShows) && hasFocus) {
       const selNow = isSelNow(opts, i);
       // ⭐ Jerry, 2026.09.24: "if we click on a lamp, the focus point should be
       // highlighted too." A unit and where it is AIMED are one fact, and with
@@ -309,7 +441,9 @@ export function render(
     }
     if (!inPlan) return;
     const isSel = opts.selected === i;
-    const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)], plot.symbolAngle);
+    const g = symbol(inst, c, opts.symbols?.[symbolKey(inst)], plot.symbolAngle,
+                     takesThePipeAngle(inst, opts, c?.elevation)
+                       ? positionAngle(inst, plot) : undefined);
     g.setAttribute("data-index", String(i));
     // 🔴 A unit the server could not compute draws NO pool and NO focus, and
     // used to say nothing about why — which reads as "the tool did not bother"
@@ -348,10 +482,102 @@ export function render(
       cx: inst.x, cy: inst.y, r: 1.1, fill: "transparent",
       class: "hit", "data-index": String(i), "data-handle": "body",
     }));
-    gInst.appendChild(g);
-    if (opts.showLabels) gText.appendChild(
+    // ⭐ THE LAYER ·82 ASKED FOR MOST. "Hide the units and read the pipes" is
+    // a thing designers do and this app could not do at all.
+    //
+    // ⚠ Pools and focus are NOT gated here. Where a unit's light lands is the
+    // most useful thing it contributes, and a plan with the symbols off and the
+    // pools on is a legitimate way to read a rig — the same reasoning that
+    // already draws a boom's pool while drawing no symbol for it.
+    if (vis.units) gInst.appendChild(g);
+    // Same rule as a position's name: a channel number with no symbol under it
+    // is worse than no channel number.
+    if (vis.labels && vis.units) gText.appendChild(
       labels(inst, c, plot.symbolAngle, opts.symbols?.[symbolKey(inst)]));
   });
+}
+
+/**
+ * Within this many degrees of plumb, a unit has no meaningful plan direction.
+ *
+ * ⚠ A STARTING POINT, not a measurement. Jerry, 2026.10.12: "use 88 degrees...
+ * we can use it as a basepoint and see how it works." At a 25ft trim 88° is a
+ * ten-inch sideways move, under 8% of the pool an S4 26 throws from there — the
+ * light lands in the same place. Expect to revisit it.
+ *
+ * 🔴 Mirrored by PLUMB_DEG in server/plotedit/positions.py.
+ */
+export const PLUMB_DEG = 88.0;
+
+/**
+ * Which way an unfocused or two-point unit faces. Jerry, 2026.10.12: "upstage is
+ * right". 0 is downstage in the pan convention, so this is the half turn applied
+ * to the pipe's own run.
+ *
+ * ⭐ It is also what plotedit already drew, by accident — `atan2(0.0, -0.0)` is
+ * π. So no existing plot moves; what changes is that it can no longer be swung
+ * off by a billionth of a foot of drift.
+ *
+ * 🔴 Mirrored by UPSTAGE in server/plotedit/positions.py.
+ */
+export const UPSTAGE = 180.0;
+
+/**
+ * Which way the PIPE this unit hangs on runs, in the pan convention.
+ *
+ * ⭐ The convention is `atan2(aimX, -aimY)`, 0 = downstage. A body lying along
+ * the pipe aims perpendicular to it, which is `atan2(dy, dx)` over the run. A
+ * pipe straight across stage gives 0.
+ *
+ * ⚠ NO POSITION, NO PIPE — across stage, facing upstage, which is where ground rows go
+ * (Jerry, 2026.10.12). A limitation, not a measurement; it is in the manual.
+ *
+ * 🔴 Mirrored by positions.position_angle() in the Python.
+ */
+export function positionAngle(inst: Instrument, plot: Plot): number {
+  const name = (inst.position ?? "").trim().toLowerCase();
+  const pos = plot.positions.find(p => p.name.trim().toLowerCase() === name);
+  if (!pos || isVertical(pos)) return UPSTAGE;
+  const dx = pos.x2 - pos.x1, dy = pos.y2 - pos.y1;
+  if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return UPSTAGE;
+  // 🔴 THE RUN IS A LINE, NOT A DIRECTION. Which end is x1 is just the order
+  // somebody typed them in: the same catwalk reads -169° or +11° either way
+  // round. So take the PERPENDICULAR and pick the one pointing upstage, which is
+  // the same answer however the position was entered.
+  let ax = dx > 0 ? -dy : dy, ay = dx > 0 ? dx : -dx;
+  if (Math.abs(dx) < 1e-9) { ax = 1; ay = 0; }  // up/downstage: neither is upstage
+  // ⚠ `+ 0` kills negative zero — the very bug this exists to fix. atan2(-0, -n)
+  // is -180 where atan2(0, -n) is +180, and the renderer drew a batten's end tab
+  // at opposite ends. Found by diffing Big House.
+  const a = Math.atan2(ax + 0, -ay) * 180 / Math.PI;
+  return a === -180 ? 180 : a;
+}
+
+/**
+ * Should this unit be DRAWN along its pipe rather than toward its focus?
+ *
+ * Two reasons, one answer.
+ *
+ * 🔴 #113 — IT CANNOT TURN. A strip is bolted to the pipe at two points and
+ * tilts on knobs at the mounting. Where it is aimed says nothing about which way
+ * its body lies.
+ *
+ * 🔴 #116 — THERE IS NOTHING TO TURN TOWARD. Within 2° of plumb there is no
+ * meaningful plan direction, and the one the arithmetic gives comes out of
+ * floating-point dust: at a 25ft trim a BILLIONTH of a foot sideways swings pan a
+ * quarter turn while the elevation moves by nothing. Jerry hit it by dragging a
+ * batten and putting it back.
+ *
+ * ⭐ And straight down is not a fault, it is the UNFOCUSED state — the normal
+ * condition of a plot between the hang and the focus call.
+ *
+ * 🔴 Mirrored by positions.takes_the_pipe_angle() in the Python.
+ */
+export function takesThePipeAngle(
+  inst: Instrument, opts: RenderOptions, elevation: number | undefined,
+): boolean {
+  if (opts.twoPoint?.has(symbolKey(inst))) return true;
+  return elevation !== undefined && elevation !== null && elevation >= PLUMB_DEG;
 }
 
 /** Paint RP-2 primitives into a group already placed and rotated.
@@ -362,7 +588,7 @@ export function render(
  * three at once.
  */
 function paintPrims(into: SVGElement, prims: SymbolPrim[] | undefined,
-                    o: { width?: number; solid?: boolean } = {}): void {
+                    o: { width?: number; solid?: boolean; turned?: number } = {}): void {
   const w = o.width ?? 1;
   for (const p of prims ?? []) {
     if (p.k === "poly") {
@@ -382,7 +608,11 @@ function paintPrims(into: SVGElement, prims: SymbolPrim[] | undefined,
       }));
     } else if (p.k === "text") {
       const t = el("text", {
-        transform: `translate(${p.c[1]} ${p.c[0]}) scale(1 -1)`,
+        // ⭐ UPRIGHT, as the paper prints it. `turned` is the rotation of the
+        // group this is drawn into, undone here: a beam angle written in the
+        // barrel (2025 RP) has to be READ, and a unit hung pointing stage left
+        // would otherwise show "30" on its side.
+        transform: `translate(${p.c[1]} ${p.c[0]}) rotate(${-(o.turned ?? 0)}) scale(1 -1)`,
         "font-size": p.size, "font-family": "system-ui, sans-serif",
         "font-weight": "700", fill: "#111", "text-anchor": "middle",
       });
@@ -404,7 +634,10 @@ function paintPrims(into: SVGElement, prims: SymbolPrim[] | undefined,
  */
 function symbol(inst: Instrument, c: Computed | undefined,
                 prims: SymbolPrim[] | undefined,
-                symbolAngle?: string): SVGElement {
+                symbolAngle?: string,
+                /** ⭐ #113. Set for a two-point fixture, undefined for anything on
+                 *  a single yoke — which is everything else. */
+                alongTheMount?: number): SVGElement {
   const g = el("g", { class: "instrument", "data-unit": inst.unit,
                       "data-channel": inst.channel ?? "" });
   // ⭐ RP-2 p.2 allows orienting a symbol "to either focus points or 90° axes",
@@ -414,9 +647,20 @@ function symbol(inst: Instrument, c: Computed | undefined,
   //
   // 🔴 COSMETIC ONLY. `c.pan` remains the real aim and every number is computed
   // from it — this rotates ink, nothing else.
-  const truePan = c?.pan ?? 0;
+  // 🔴 THE SOURCE IS CHOSEN BEFORE THE SNAP, NOT SUBSTITUTED AFTER IT.
+  //
+  // #113 and #116 give a unit its pipe's angle — a strip because it cannot turn,
+  // an unfocused unit because it has nothing to turn toward. But RP-2 p.2 wants
+  // luminaires on 90° axes however the angle was arrived at, so the pipe's angle
+  // has to go through the same snap as a real aim.
+  //
+  // ⚠ Overriding afterwards drew Big House's raked catwalks and its balcony rail
+  // at their own rake — the rail is 37° off square — instead of square to the
+  // stage. The Python had this right and the browser did not, which is the exact
+  // shape of bug test_two_point.py exists to prevent, and did not.
+  const src = alongTheMount ?? (c?.pan ?? 0);
   const pan = (symbolAngle ?? "orthogonal").startsWith("orth")
-    ? Math.round(truePan / 90) * 90 : truePan;
+    ? Math.round(src / 90) * 90 : src;
   // 🔴 NOT -pan. See symbolTransform: negating the angle agrees with the paper
   // at 0 and 180 and mirrors it at ±90, so every sideways unit pointed the
   // wrong way.
@@ -428,9 +672,22 @@ function symbol(inst: Instrument, c: Computed | undefined,
     body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.42, fill: "#fff",
                                     stroke: "#111", "stroke-width": 0.07 }));
   }
-  paintPrims(body, prims);
-  // the yoke point — where the unit actually is, per RP-2 2.2
-  body.appendChild(el("circle", { cx: 0, cy: 0, r: 0.09, fill: "#111" }));
+  paintPrims(body, prims, { turned: pan });
+  // ⭐ NO YOKE DOT (Jerry, 2026.09.29: "I don't think I've seen them before").
+  // RP-2 §2.2 says the SYMBOL is placed at the hanging point — "the symbol
+  // should be placed so that its location reflects its exact hanging point" —
+  // it never asks for a mark there, and no plot in the archive draws one.
+  //
+  // 🔴 And it was colliding. A filled black dot at the origin sat 5mm from the
+  // filled black dot §6.1.11 puts in the body for a GOBO, at 0.090 against
+  // 0.085 — indistinguishable on paper, and telling them apart depended on the
+  // symbol's length, so they moved relative to each other between a 19° and a
+  // 50°. RP-2 spends filled dots on gobos and on §6.16 colour counts; this one
+  // was ours, and it was spending the same ink on something the standard does
+  // not ask to be drawn.
+  //
+  // ⚠ The PDF never drew it. Removing it makes the screen agree with the paper
+  // rather than disagreeing quietly — see test_agreement.py.
   g.appendChild(body);
   return g;
 }
@@ -452,7 +709,20 @@ function fieldOf(type: string): number | null {
  */
 function labels(inst: Instrument, c?: Computed, symbolAngle?: string,
                 prims?: SymbolPrim[]): SVGElement {
-  const g = el("g", { class: "annot" });
+  // 🔴 pointer-events NONE, or the unit's own number swallows the click that
+  // was aimed at the unit. Found 2026.09.30 while building click-to-number: a
+  // click on the middle of a symbol hit this `text` instead of the body circle,
+  // and `interact.ts` does `closest("[data-index]")` and DESELECTS when there is
+  // no hit — so clicking a light's number cleared the selection.
+  //
+  // ⚠ NOT a new bug. It arrived when the unit number moved INSIDE the body on
+  // 2026.09.23 (see above), and went unnoticed because the ring around the digit
+  // still works — you can select a light by clicking just off its centre, which
+  // is what anyone does after the first try fails.
+  //
+  // This layer is decoration: 33 text and 13 circles in the sample, nothing that
+  // is ever a drag target. Labels should not be grabbable.
+  const g = el("g", { class: "annot", "pointer-events": "none" });
   const add = (dx: number, dy: number, s: string, size: number, weight = "400", fill = "#111") => {
     const t = el("text", {
       transform: counterFlip(inst.x + dx, inst.y + dy),
@@ -606,7 +876,7 @@ function elevation(b: BoomElevation, all: Instrument[],
       st.appendChild(el("circle", { cx: 0, cy: 0,
         r: symbolRadius(u.prims) + 0.28, class: "halo" }));
     }
-    paintPrims(st, u.prims);
+    paintPrims(st, u.prims, { turned: 90 });
     g.appendChild(st);
     if (idx >= 0) {
       g.appendChild(el("circle", {

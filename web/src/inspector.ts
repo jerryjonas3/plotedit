@@ -7,6 +7,7 @@
  */
 import { isVertical, type Instrument } from "./plot.js";
 import { confirmDelete, describeUnit } from "./confirm.js";
+import { button } from "./button.js";
 import { parseFeet } from "./feet.js";
 import { fmtFt, fmtFc } from "./geometry.js";
 import type { Store } from "./store.js";
@@ -16,7 +17,7 @@ import type { DmxTable } from "./api.js";
 export interface Field {
   key: keyof Instrument;
   label: string;
-  kind: "number" | "text" | "select" | "list";
+  kind: "number" | "text" | "select" | "list" | "combo";
   /** Does changing it change the light? */
   photometric?: boolean;
   /** 🔴 Does the SERVER have to work the row out again? Photometric fields do.
@@ -37,6 +38,9 @@ export interface Field {
 export const FIELDS: Field[] = [
   { key: "unit", label: "Unit", kind: "number", step: 1 },
   { key: "channel", label: "Channel", kind: "number", step: 1 },
+  // ⭐ Right under the channel (Jerry, 2026.09.29). What a light is FOR is what
+  // you read next after what it answers to — not a footnote below the patch.
+  { key: "purpose", label: "Purpose", kind: "text" },
   { key: "circuit", label: "Circuit", kind: "text",
     hint: "The HOUSE circuit. Never generated — circuits depend on the house and have no set order" },
   { key: "dimmer", label: "Dimmer", kind: "number", step: 1, recompute: true },
@@ -57,7 +61,21 @@ export const FIELDS: Field[] = [
         + "can be on a different personality from the one beside it" },
   { key: "type", label: "Type", kind: "select", photometric: true },
   { key: "position", label: "Position", kind: "select" },
-  { key: "purpose", label: "Purpose", kind: "text" },
+  // ⭐ THE TYPED FIELDS COME FIRST (Jerry, 2026.09.29). Colour, gobo and
+  // accessories are entered by hand, over and over. X, Y, trim and focus below
+  // them USUALLY ARE NOT — they arrive by dragging the unit on the plot and by
+  // focusing it, and the boxes are there to read back and to correct. So the
+  // panel is ordered by what you actually type into, not by what matters.
+  //
+  // ⭐ A COMBO, NOT A SELECT. The value is often a COMBINATION — "R52+R119" is
+  // stacked and "R52/R119" is a split frame — and neither is an entry in any
+  // list. A fixed dropdown would make Jerry's own most-used colour, on 105
+  // units of the archive, impossible to choose. So: suggestions you can ignore.
+  { key: "color", label: "Color", kind: "combo", photometric: true,
+    hint: "R52+R119 stacks · R52/R119 is a split frame" },
+  { key: "gobo", label: "Gobo", kind: "text" },
+  { key: "accessories", label: "Accessories", kind: "list",
+    hint: "Separate with + — \"top hat + gobo\". Barn doors, hats, gobo, iris, rotator" },
   { kind2: "feet", key: "x", label: "X (ft)", kind: "number", step: 0.0833, photometric: true },
   { kind2: "feet", key: "y", label: "Y (ft)", kind: "number", step: 0.0833, photometric: true },
   { kind2: "feet", key: "trim", label: "Trim (ft)", kind: "number", step: 0.5, photometric: true,
@@ -68,16 +86,11 @@ export const FIELDS: Field[] = [
   { kind2: "feet", key: "focusY", label: "Focus Y", kind: "number", step: 0.5, photometric: true },
   { kind2: "feet", key: "focusH", label: "Focus height", kind: "number", step: 0.5, photometric: true,
     hint: "Head height, 5'-6\" unless the light lands somewhere else" },
-  { key: "color", label: "Color", kind: "text", photometric: true,
-    hint: "R52+R119 stacks · R52/R119 is a split frame" },
-  { key: "gobo", label: "Gobo", kind: "text" },
   { key: "lamp", label: "Lamp", kind: "select", photometric: true },
   { key: "mode", label: "LED mode", kind: "select", photometric: true,
     hint: "The PHOTOMETRIC output mode — how bright. Not the DMX personality" },
   { key: "lensRotation", label: "Lens angle", kind: "number", step: 15,
     hint: "Oval-beam units (PARNel): degrees the lens is turned" },
-  { key: "accessories", label: "Accessories", kind: "list",
-    hint: "Separate with + — \"top hat + gobo\". Barn doors, hats, gobo, iris, rotator" },
   { key: "notes", label: "Notes", kind: "text" },
 ];
 
@@ -93,15 +106,79 @@ function modelsFor(inst: Instrument, deps: InspectorDeps): string[] {
  *  fixture has it, and a designer who is on RGB Plus 7 must be able to record
  *  that. It is marked so, and the range is simply not drawn for it. Leaving it
  *  out of the list would make the plot unable to describe a real rig. */
-function profilesFor(inst: Instrument, deps: InspectorDeps): string[] {
+function profilesFor(inst: Instrument, deps: InspectorDeps, control?: string): string[] {
+  if (!deps.dmx) return [];
+  // ⭐ "Dimmer" belongs to no model, so it is offered before one is looked up —
+  // a Source Four on a dimmer has no model to name and must still be able to
+  // say what it is patched as. Only in a house where that is true: elsewhere a
+  // dimmer number is not an address and offering it would invite a wrong patch.
+  const universal = control === "dimmer-is-address" ? (deps.dmx.universal ?? []) : [];
   const model = inst.model || modelsFor(inst, deps)[0];
-  if (!model || !deps.dmx) return [];
+  if (!model) return [...universal];
   // ⚠ PLAIN NAMES. The select builder uses each string as BOTH the option value
   // and its label, so decorating a name here would store the decoration — and
   // "RGB Plus 7 (channels not published)" matches nothing in the table. The
   // cell's hover already says when a count is unpublished.
-  return [...(deps.dmx.profiles[model] ?? []),
-          ...(deps.dmx.unpublished[model] ?? [])].sort();
+  return [...universal,
+          ...[...(deps.dmx.profiles[model] ?? []),
+              ...(deps.dmx.unpublished[model] ?? [])].sort()];
+}
+
+/** Why this field does not apply to this unit — or null when it does.
+ *
+ *  ⭐ INERT, NOT HIDDEN (Jerry, 2026.09.29: "lets try having unused fields
+ *  greyed-out"). A row that vanishes takes its explanation with it and changes
+ *  the panel's shape under the cursor; a greyed row with a reason on hover says
+ *  what the rig is. The field keeps its value — see `docs/DECISIONS.md` on why
+ *  a hidden field holding a live value is the worst of the three options.
+ *
+ *  ⚠ This DISABLES INPUT ONLY. It is not a filter on the data: a unit that
+ *  already carries a contradictory value still shows it, greyed, because
+ *  hiding it is how it survives to the load-in. */
+function inertBecause(
+  f: Field, inst: Instrument, deps: InspectorDeps, control?: string,
+): string | null {
+  if (f.key === "dimmer" && inst.profile === "Dimmer") {
+    return "This unit is patched as a Dimmer, and in a dimmer-is-address house "
+         + "that number IS the address — set it there instead.";
+  }
+  if (f.key === "dimmer" && control === "dimmer-is-address" && inst.address) {
+    return "This house is dimmer-is-address, and this unit has one — the "
+         + "address carries the dimmer number.";
+  }
+  // 🔴 THE PAIR JERRY STATED: "if there is an LED then there is no Lamp. A
+  // Lustr means it is an LED so having an HPL 575 makes no sense." Both
+  // directions, from the server's own table rather than a list of names typed
+  // here — docs/MUTUALLY-EXCLUSIVE-FIELDS.md §1.1.
+  if (f.key === "mode" && !modesApply(inst, deps)) {
+    return "An output mode belongs to an LED engine. This unit takes a lamp.";
+  }
+  if (f.key === "lamp" && modesApply(inst, deps)) {
+    return "This is an LED engine — there is no lamp in it. Its output is set "
+         + "by the mode below.";
+  }
+  // ⚠ An empty dropdown looks like missing DATA. It is usually missing
+  // KNOWLEDGE, and the two send you to different places: one to the plot, one
+  // to the fixture's own display.
+  if (f.key === "model" && modelsFor(inst, deps).length === 0) {
+    return "No specific models are on file for this fixture type, so there is "
+         + "nothing to choose between.";
+  }
+  if (f.key === "profile" && profilesFor(inst, deps, control).length === 0) {
+    return "No DMX personalities are published for this fixture. If it is on a "
+         + "dimmer, set the house to dimmer-is-address and pick Dimmer.";
+  }
+  if (f.key === "lensRotation" && !/parnel|oval/i.test(inst.type ?? "")) {
+    return "Only an oval-beam unit has a lens to turn.";
+  }
+  return null;
+}
+
+/** Does this unit have output modes at all? An LED engine does; a barrel with a
+ *  lamp in it does not, and the two never overlap — see
+ *  docs/MUTUALLY-EXCLUSIVE-FIELDS.md. */
+function modesApply(inst: Instrument, deps: InspectorDeps): boolean {
+  return (deps.modesFor?.(inst.type) ?? []).length > 0;
 }
 
 /** Is this unit hung on a boom, box boom, ladder or tormentor? */
@@ -114,12 +191,20 @@ function onVerticalPosition(store: Store, inst: Instrument): boolean {
 
 export interface InspectorDeps {
   fixtures: string[];
+  /** Gel numbers with their names, for the colour suggestions. Undefined until
+   *  `/gels` has answered, in which case the field is a plain text box — which
+   *  is what it was before, so nothing is lost by the wait. */
+  gels?: { gel: string; name: string }[];
   /** The DMX table, once it has arrived. Undefined until then — the two
    *  personality dropdowns simply offer nothing rather than guessing. */
   dmx?: DmxTable;
   /** The photometric family of a fixture type, for choosing which models to
    *  offer. Undefined for a type the server does not know. */
   familyOf?: (type: string) => string | undefined;
+  /** The OUTPUT modes this fixture type has, from the server's own table. An
+   *  empty list means it is not an LED engine, which is what greys the mode
+   *  row out — see docs/MUTUALLY-EXCLUSIVE-FIELDS.md. */
+  modesFor?: (type: string) => string[];
   /** Say why an entry was refused. Optional so other callers still compile. */
   onStatus?: (msg: string, bad?: boolean) => void;
   lamps: string[];
@@ -134,10 +219,13 @@ export function renderInspector(
   host.replaceChildren();
   const i = store.selected;
   const inst = store.selectedInstrument;
+  // The HOUSE's control model. It decides whether a dimmer number is a
+  // separate fact from the address or the same one written twice.
+  const control = store.plot.control ?? "dimmer-per-circuit";
   if (i === null || !inst) {
     const p = document.createElement("p");
     p.className = "muted";
-    p.textContent = "Click an instrument to edit it. Drag the body to move it, the ring to re-aim it. Alt-drag to place it off a pipe.";
+    p.textContent = "Click an instrument to edit it. Drag the body to move it, the ring to re-aim it. Shift-drag the body to re-aim it too, for a focus hidden under the unit. Alt-drag to place it off a pipe.";
     host.appendChild(p);
     return;
   }
@@ -198,7 +286,7 @@ export function renderInspector(
         : f.key === "lamp" ? deps.lamps
         : f.key === "mode" ? deps.modes
         : f.key === "model" ? modelsFor(inst, deps)
-        : f.key === "profile" ? profilesFor(inst, deps)
+        : f.key === "profile" ? profilesFor(inst, deps, control)
         : store.plot.positions.map(p => p.name);
       const blank = document.createElement("option");
       blank.value = ""; blank.textContent = "—";
@@ -209,6 +297,38 @@ export function renderInspector(
         input.appendChild(el);
       }
       input.value = String(inst[f.key] ?? "");
+    } else if (f.kind === "combo") {
+      // A text box with a datalist: 498 suggestions, and anything typed is
+      // still accepted. ⚠ The browser stops matching once you type "R52+",
+      // because no single entry starts with that — normal combobox behaviour,
+      // and the reason this must never become a <select>.
+      input = document.createElement("input");
+      input.type = "text";
+      input.value = String(inst[f.key] ?? "");
+      const listId = `datalist-${f.key}`;
+      input.setAttribute("list", listId);
+      let dl = document.getElementById(listId) as HTMLDataListElement | null;
+      if (!dl) {
+        dl = document.createElement("datalist");
+        dl.id = listId;
+        document.body.appendChild(dl);
+      }
+      // ⭐ THE NAME FINALLY EARNS ITS PLACE. gels.csv has carried a name column
+      // all along and nothing read it. Here the VALUE stays the bare number —
+      // what the table is keyed on — and the name rides along as the label, so
+      // the dropdown reads "R52  Light Lavender" instead of a wall of numbers.
+      // Whether typing "lav" FILTERS on the name is the browser's business, not
+      // ours: Chrome matches the label, others match the value only. Either way
+      // the number is what gets stored.
+      if (f.key === "color" && deps.gels && dl.childElementCount !== deps.gels.length) {
+        dl.replaceChildren();
+        for (const g of deps.gels) {
+          const o = document.createElement("option");
+          o.value = g.gel;
+          o.label = g.name;
+          dl.appendChild(o);
+        }
+      }
     } else {
       input = document.createElement("input");
       // ⚠ A length is a TEXT box. type="number" silently discards 1'6" — the
@@ -228,6 +348,17 @@ export function renderInspector(
     }
     input.id = id;
     if (f.hint) input.title = f.hint;
+
+    // ⭐ INERT, NOT HIDDEN. The row keeps its place and its value; it stops
+    // taking input and says why on hover. A field that does not apply is a
+    // fact about the rig, and the panel should show facts rather than shrink.
+    const why = inertBecause(f, inst, deps, control);
+    if (why) {
+      input.disabled = true;
+      input.title = why;
+      label.classList.add("inert");
+      label.title = why;
+    }
 
     const apply = () => {
       const raw = input.value.trim();
@@ -278,9 +409,10 @@ export function renderInspector(
   }
   host.appendChild(grid);
 
-  const del = document.createElement("button");
-  del.className = "danger";
-  del.textContent = "Delete instrument";
+  const del = button({
+    label: "Delete instrument", variant: "danger", icon: "delete",
+    title: "Remove this unit from the plot. Asks first.",
+  });
   del.addEventListener("click", () => {
     if (!confirmDelete(describeUnit(inst))) return;
     store.remove(i);

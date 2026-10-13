@@ -12,6 +12,39 @@ and the one fetched here, so there is one standard and no ambiguity about which.
 
 **The plates are pages 4–9. Read them before drawing anything.**
 
+**⭐ RP-2 HAS A SUCCESSOR (read 2026.10.09).** USITT's *Lighting Documentation
+Recommended Practice* (Lighting Design & Technology Commission, April 2025)
+"supersedes all previous documents". Download it from the link on
+[USITT's announcement](https://www.usitt.org/news/lighting-design-technology-commission-releases-updated-lighting-documentation-recommended);
+put your copy at `docs/reference/USITT-Lighting-Documentation-RP-2025.pdf` — like
+RP-2, it is copyrighted and `*.pdf` keeps it out of the repo. (Jerry's copy is in
+the My AI Brain repo beside RP-2.) **What plotedit has taken from it so far:**
+
+- **Line weights** (§2.2.3): instruments thick, positions medium, the building
+  gray. RP-2 had a pipe as heavy as its units.
+- **The 14° ellipsoidal mark** (Figure 3.1.4.0.4): three lines standing proud of
+  the face. RP-2 drew the narrow lenses by length alone.
+- **The title block prints the plot's own date** (§2.2.6), not the day it was exported.
+
+**Not yet, and flagged:** the figure is a low-resolution image, and its 70° and 90°
+fronts (a filled band? a curved face?) cannot be read with confidence. Check a
+printed copy before changing the rings.
+
+**The LED batten** (CYC LIGHTS column): a plain rectangle at the unit's real
+length and depth, with a cluster of §6.16 source dots in one end, one per colour.
+The RP also draws it divided into cells; plotedit draws the plain form, since a
+Color Force's 24 cells at 3" are under a point apiece at 1/4" scale. First used
+for the Chroma-Q Color Force II Plus 72 (Jerry, 2026.10.09).
+
+**The beam angle in the barrel.** The RP's other column: the number written in the
+lens housing instead of the mark. One setting for the whole plot, `angleInBarrel`
+("Beam angle" under Show & Venue), marks by default (Jerry, 2026.10.09). Asked for
+on a house rep rig, where every unit shares one body and a 40° and a 10° both
+carry no mark. Ellipsoidals only; a zoom keeps its Z.
+
+The RP-2 plates below remain the geometry; the 2025 figure is the same family of
+shapes with these changes.
+
 **✅ Redrawn to RP-2 on 2026.09.23.** `server/plotedit/symbols.py` holds the
 geometry, traced from the plates; `server/draw_symbol_sheet.py` prints the set for
 comparison against the document.

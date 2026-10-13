@@ -31,6 +31,10 @@ Verify a PDF you did not make here: measure the scale bar with any PDF
 reader's measuring tool, or run  scaled_pdf.py --check file.pdf  which
 reads the 1-inch check bar and reports its width in points (want 72.0).
 """
+import contextlib
+import os
+import tempfile
+import shutil
 import sys, math
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
@@ -40,13 +44,47 @@ PAGES = {  # inches, portrait
     "LETTER": (8.5, 11), "LEGAL": (8.5, 14), "TABLOID": (11, 17),
     "ARCH_A": (9, 12), "ARCH_B": (12, 18), "ARCH_C": (18, 24),
     "ARCH_D": (24, 36), "ARCH_E": (36, 48),
+    # ⭐ THE FULL A SERIES, admitted 2026.09.30 once the advice could be trusted.
+    # These were held out for a day because adding them broke the clipping
+    # recommendation: A2 is 387 sq in, which drops it between TABLOID and ARCH C
+    # in the area-sorted list the advice walks, so "move to this sheet" started
+    # naming A2 — and A2 did not hold the drawing. `_fits` compared the drawing's
+    # SPAN against the sheet while the renderer placed it by ORIGIN, so a drawing
+    # narrower than the paper could still run off the right of it (#57).
+    #
+    # What closed it was not `_fits` but the PLACEMENT: slack_left and
+    # slack_above now centre whenever the span fits, so a span that fits has
+    # margin on both sides by construction and span-fits implies fits. The
+    # comparison `_fits` was already making became true.
+    #
+    # ⚠ Checked rather than reasoned: every recommendation the guard makes across
+    # 10 sheets x 2 orientations x 4 scales was re-rendered and measured. 96
+    # recommendations, none of which clip — see test_package.
     "A4": (8.27, 11.69), "A3": (11.69, 16.54),
+    "A2": (16.54, 23.39), "A1": (23.39, 33.11), "A0": (33.11, 46.81),
 }
+
+# ⚠ WHICH SHEETS BELONG TO WHICH SYSTEM. Offering A1 on an imperial plot, or
+# ARCH D on a metric one, is the same error the scale menu already refuses: a
+# drawing issued on a sheet the reader does not stock. LETTER and TABLOID sit on
+# the imperial side because that is where they are used, whatever ISO calls them.
+PAGES_IMPERIAL = ("LETTER", "LEGAL", "TABLOID",
+                  "ARCH_A", "ARCH_B", "ARCH_C", "ARCH_D", "ARCH_E")
+PAGES_METRIC = ("A4", "A3", "A2", "A1", "A0")
+
+# 🔴 AND THE TWO MUST AGREE. The first cut of this listed A2, A1 and A0 here
+# while the revert above took them out of PAGES, so /pages raised a KeyError and
+# answered 500. The app caught it — the sheet menu fell back to ARCH D and said
+# so in the console — but nothing in the suites did.
+assert set(PAGES) == set(PAGES_IMPERIAL) | set(PAGES_METRIC), (
+    "every sheet in PAGES belongs to exactly one system: "
+    f"{sorted(set(PAGES) ^ (set(PAGES_IMPERIAL) | set(PAGES_METRIC)))}")
 SCALES = {"1/8": 0.125, "1/4": 0.25, "3/8": 0.375, "1/2": 0.5, "3/4": 0.75, "1": 1.0}
 GREEN, BROWN = HexColor("#256948"), HexColor("#994C00")   # Twin Oaks palette
 
 # ---------------------------------------------------------------------------
-# §6.18 LINE WEIGHTS — three, and only three.
+# §6.18 LINE WEIGHTS — three, and only three. (Assignments updated to the 2025
+# USITT Lighting Documentation RP §2.2.3: see LINE_STYLES.)
 #
 # RP-2 assigns every element on a plot to one of three weights, and four of the
 # medium ones to a dash pattern. Drawing everything at one weight is legible but
@@ -70,13 +108,27 @@ LINE_STYLES = {
     "drop":         (MEDIUM, (8, 4)),
     "centerline":   (MEDIUM, (11, 3, 2.5, 3)),   # chain-dash
     "plasterline":  (MEDIUM, (5, 4)),
-    # heavy — the things that physically exist
-    "batten":       (HEAVY, None),
+    # heavy — the instruments, and the sheet's own frame
     "luminaire":    (HEAVY, None),
-    "architecture": (HEAVY, None),
     "border":       (HEAVY, None),
     "titleblock":   (HEAVY, None),
+    # ⭐ USITT LIGHTING DOCUMENTATION RP (2025) §2.2.3, which supersedes RP-2:
+    # "thick lines: perimeter of lighting instrument symbols ... medium lines:
+    # lighting positions ... reduced line opacity and/or gray: architectural
+    # information." Under RP-2 a pipe was as heavy as the units on it, and Jerry,
+    # 2026.10.09, on a 200-unit rep plot: "the line weights of the pipes are way
+    # too thick." So positions drop to MEDIUM and the building goes gray
+    # (ARCH_GREY below), leaving the instruments as the darkest thing on the page.
+    "batten":       (MEDIUM, None),
+    "architecture": (MEDIUM, None),
 }
+
+# The colour a category is drawn in when the caller does not say. Only the
+# building is here: the 2025 RP draws architecture gray "to focus visual
+# attention on lighting devices", and never by colour alone — it is also a
+# lighter weight than the instruments.
+ARCH_GREY = HexColor("#8c8c8c")
+STYLE_COLOURS = {"architecture": ARCH_GREY}
 
 
 # ⭐ Which line a POSITION is drawn with. Everything physical is heavy under
@@ -158,10 +210,51 @@ def ft(feet, inches=0):
     return feet + inches / 12.0
 
 
+# ⭐ THE EIGHT LAYERS, as PDF optional content groups, in painting order.
+#
+# PDF has had real layers since 1.5 — a reader shows them as a Layers panel with
+# a checkbox each, and switching one off removes it from the page AND from the
+# print. docs/LAYERS.md calls this the single most valuable item on the list:
+# an electrician on a ladder switches the rep plot off in Acrobat.
+#
+# 🔴 reportlab CANNOT MAKE THEM. It draws every plot PDF here, and a search of
+# the installed package for `OCProperties`, `OptionalContent`, `setOCG` and
+# `OCG` returns nothing at all. So this is not a flag to switch on: each layer
+# is drawn to its OWN reportlab canvas and PyMuPDF overlays them onto one page,
+# each tagged with its own group.
+#
+# ⚠ THE NAME ON THE LEFT IS THE DXF LAYER, which the sheet already tracked for
+# the DXF export, so most of the assignment was already written down. Pools and
+# focus had no layer of their own — they were drawn on NOTES — so they are the
+# two that gain one here.
+PDF_LAYERS = [
+    ("base",       "Base plan"),
+    ("pools",      "Pools"),
+    ("positions",  "Positions"),
+    ("focus",      "Focus"),
+    ("units",      "Units"),
+    ("labels",     "Labels"),
+    ("dimensions", "Dimensions"),
+    ("notes",      "Notes"),
+]
+# ⭐ ONE SET, TWO SPELLINGS. Since #82 step 2 the DXF writes these same eight,
+# so this is a case change and nothing more — which is the whole point. It was a
+# genuine translation table while the DXF had six names of its own.
+PDF_FOR_DXF = {"BASE": "base", "POOLS": "pools", "POSITIONS": "positions",
+               "FOCUS": "focus", "UNITS": "units", "LABELS": "labels",
+               "DIMS": "dimensions", "NOTES": "notes"}
+# The DXF spelling of each PDF group, for on_layer().
+DXF_FOR_PDF = {v: k for k, v in PDF_FOR_DXF.items()}
+# ⚠ NOT a layer. The title block, the scale bar and the one-inch check are the
+# SHEET, not the drawing — a reader who switches off every layer must still be
+# holding a drawing that says what it is and what scale it is at.
+FRAME = "frame"
+
+
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
-                 show="", venue="", sheet="", rev="A", designer="", studio="",
-                 margin_in=0.5, dxf=None, weights=None, units=None):
+                 show="", venue="", sheet="", rev="A", designer="", studio="", date="",
+                 margin_in=0.5, dxf=None, weights=None, units=None, layered=True):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
         self.page_pt = (w * inch, h * inch)
@@ -172,7 +265,29 @@ class Sheet:
         self.page_name = page if isinstance(page, str) else "custom"
         self.landscape = bool(landscape)
         self.page_in = (w, h)
-        self.c = canvas.Canvas(path, pagesize=self.page_pt)
+        # ⭐ ONE CANVAS PER LAYER, and `self.c` hands out whichever the current
+        # layer is. Everything that draws already goes through `self.c`, so this
+        # is the single place the whole sheet had to change.
+        #
+        # ⚠ Why not one canvas and a null-object proxy for the suppressed
+        # layers: four calls read VALUES back out of the canvas — three
+        # `stringWidth` and a `beginPath` — and a proxy that swallows those
+        # returns None into arithmetic. Real canvases keep working.
+        #
+        # ⚠ Checked before relying on it: seven places capture `c = self.c` into
+        # a local, and NONE of them calls self.layer() afterwards, so no capture
+        # can outlive the layer it was taken for.
+        self.layered = layered
+        self._tmpdir = tempfile.mkdtemp(prefix="plotedit-layers-") if layered else None
+        self._canvases = {}
+        if layered:
+            for lid, _label in [(FRAME, "")] + PDF_LAYERS:
+                self._canvases[lid] = canvas.Canvas(
+                    os.path.join(self._tmpdir, f"{lid}.pdf"), pagesize=self.page_pt)
+        else:
+            self._canvases[FRAME] = canvas.Canvas(path, pagesize=self.page_pt)
+        # The DXF sheet starts on POSITIONS, so the PDF starts there too.
+        self._pdf_layer = "positions" if layered else FRAME
         self.path = path
         # ⭐ BOTH SYSTEMS REDUCE TO POINTS PER FOOT, which is why one number runs
         # the whole drawing. 1/4" = 1'-0" IS 1:48 exactly — a foot is twelve
@@ -202,7 +317,11 @@ class Sheet:
         # came out with his name on it — in the title block, in brown, as a
         # claim of authorship. Both now come from the plot file or stay blank.
         self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev,
-                         designer=designer, studio=studio)
+                         designer=designer, studio=studio, date=date)
+        # The plot's `angleInBarrel`, set by whoever builds the sheet from a
+        # plot. Every symbol this sheet draws asks for it, so the plan, the boom
+        # elevations and the key cannot disagree about how an angle is shown.
+        self.angle_in_barrel = False
         self.c.setLineJoin(1); self.c.setLineCap(1)
         self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
         self.warnings = []
@@ -225,11 +344,120 @@ class Sheet:
             from .dxf_bridge import DxfOut
             self.dxf = DxfOut()
 
+    def slack_above(self):
+        """How far up the sheet this drawing could move, in FEET.
+
+        ⭐ CENTRED ON THE PAGE, then clamped out of the guard's band. The origin
+        in plot_to_pdf is a FLOOR — it pads for the FOH catwalk and the boom
+        elevations so neither is clipped off the bottom — and nothing ever asked
+        what was left over above, so every spare inch landed at the top. Measured
+        2026.09.30 on Jerry's own exports: 2.63" of white above and 0.50" below
+        on Letter, 31% of the height doing nothing.
+
+        🔴 THE FIRST ATTEMPT CENTRED INSIDE THE GUARD'S BAND AND BARELY MOVED.
+        `finish()` treats the top 1.3" as unavailable, so the band's own centre
+        sits low on the page — Letter gained a quarter inch, and ARCH D, which
+        was already centred, was pushed 0.44" off. Centre on the PAGE; the band
+        is a limit, not a frame.
+
+        ⚠ THE CLAMP IS WHAT KEEPS THE GUARD HONEST. Nothing may be nudged into
+        the reserved strip, so this can never turn a drawing that fits into one
+        the guard reports as clipped.
+
+        🔴 AND ZERO WHEN IT DOES NOT ALREADY FIT. Moving a clipped drawing only
+        changes WHICH edge loses, and the guard's message names the edge — it
+        would start naming the wrong one. A plot that overruns wants a bigger
+        sheet or a smaller scale, and it already says so.
+        """
+        x0b, y0b, x1b, y1b = self._bounds
+        if x1b < -1e8:
+            return 0.0                       # nothing drawn
+        m = self.margin
+        page_top = self.page_pt[1] - m
+        guard_top = page_top - 1.3 * inch           # the band finish() polices
+        # ⭐ THE RULE IS THE SPAN, matching slack_left. This used to give up the
+        # moment anything was clipped, on the reasoning below — which is right
+        # when the drawing is too tall and wrong when it is merely parked badly.
+        # Found by putting a venue plan behind a rig: the house sits downstage
+        # of the room, so 42.1' hung off the BOTTOM of a sheet holding 134.8'
+        # for a drawing 97.1' deep, and the advice then recommended the very
+        # sheet and scale that had just failed.
+        if (y1b - y0b) > (guard_top - m):
+            return 0.0                              # too tall at any placement
+        # Centre on the PAGE...
+        want = ((page_top - y1b) - (y0b - m)) / 2.0
+        # ...then clamp into what the guard actually allows. Since the span
+        # fits, these two bounds cannot cross, so the result never clips.
+        low = m - y0b                               # or the bottom loses
+        high = guard_top - y1b                      # or the band loses
+        return max(low, min(want, high)) / self.pt_per_ft
+
+    def slack_left(self):
+        """How far RIGHT this drawing should move to sit centred, in FEET.
+
+        Negative means move left. The horizontal twin of `slack_above`, and the
+        same underlying fault: the origin in plot_to_pdf pads a fixed four feet
+        plus whatever the boom elevations need, which is a FLOOR, and nothing
+        ever asked what was left over on the other side. Measured on the demo
+        plot at 1/2": 4.21 feet of dead paper against the left margin while 3.03
+        feet hung off the right — with 1.18 feet of slack going spare.
+
+        ⭐ THE RULE IS THE SPAN, NOT THE CURRENT CLIPPING, and that is where this
+        deliberately parts company with `slack_above`. That one gives up the
+        moment anything is clipped, on the reasoning that moving a clipped
+        drawing only changes which edge loses. True when the drawing is too
+        wide — and false when it is merely parked badly, which is this case
+        exactly. So: centre whenever the SPAN fits between the margins, and
+        centring then cannot clip anything, because a span that fits, centred,
+        has margin to spare on both sides by construction.
+
+        🔴 A drawing WIDER than the sheet gets nothing. There is no placement
+        that saves it, the guard names the edge and the scale that would work,
+        and nudging it would only rename the edge.
+        """
+        x0b, y0b, x1b, y1b = self._bounds
+        if x1b < -1e8:
+            return 0.0                       # nothing drawn
+        m = self.margin
+        right = self.page_pt[0] - m
+        if (x1b - x0b) > (right - m):
+            return 0.0                       # too wide at any placement
+        return ((right - x1b) - (x0b - m)) / 2.0 / self.pt_per_ft
+
     # ---- coordinates -------------------------------------------------
     def origin(self, x_ft, y_ft):
         """Place real-world (0,0) at this many feet in from the page's lower-left margin."""
         self.ox = self.margin + x_ft * self.pt_per_ft
         self.oy = self.margin + y_ft * self.pt_per_ft
+
+    def base_image(self, png_bytes, x_ft, y_ft, wide_ft, tall_ft,
+                   rotate_deg=0.0, opacity=0.45):
+        """A picture of a plan, drawn under everything as a tracing backdrop.
+
+        🔴 NOT A MEASUREMENT, and it must not be mistaken for one on paper any
+        more than on screen. It is drawn faded and underneath, and the room
+        outline, the pipes and the rig are all heavier than it by §6.18.
+
+        ⚠ Drawn from BYTES, not a path. The image came up from the browser in
+        the export request; writing it to a file first would only mean deleting
+        it afterwards.
+        """
+        import io as _io
+        from reportlab.lib.utils import ImageReader
+        x0, y0 = self.P(x_ft, y_ft)
+        w = wide_ft * self.pt_per_ft
+        h = tall_ft * self.pt_per_ft
+        self.P(x_ft + wide_ft, y_ft + tall_ft)      # so the guard sees its extent
+        c = self.c
+        c.saveState()
+        try:
+            if rotate_deg:
+                c.translate(x0, y0); c.rotate(rotate_deg); c.translate(-x0, -y0)
+            c.setFillAlpha(opacity)
+            c.drawImage(ImageReader(_io.BytesIO(png_bytes)), x0, y0, w, h,
+                        mask="auto", preserveAspectRatio=False)
+        finally:
+            c.restoreState()
 
     def import_dxf(self, path, **kw):
         """Draw a venue's DXF under the plot as the base drawing. See dxf_bridge.import_into."""
@@ -239,9 +467,55 @@ class Sheet:
         if self.dxf: self.dxf.layer = "POSITIONS"
         return ext
 
-    def layer(self, name):
-        """Set the DXF layer for what is drawn next (BASE, POSITIONS, UNITS, TEXT, DIMS, NOTES)."""
+    @property
+    def c(self):
+        """The canvas for the layer being drawn right now."""
+        return self._canvases.get(self._pdf_layer) or self._canvases[FRAME]
+
+    @contextlib.contextmanager
+    def on_layer(self, pdf_layer):
+        """Put what is drawn in this block into one PDF group, then put it back.
+
+        ⭐ For the two things the screen's `labels` chip controls — a position's
+        name and a unit's §6.14 notation — which are drawn while POSITIONS and
+        UNITS are current. Without this the PDF has no Labels group at all, and
+        the paper stops agreeing with the screen about what a layer is. The DXF
+        has always put every piece of text on TEXT, so this is the merge doing
+        what it said it would.
+
+        ⚠ NOT "all text". The title block belongs to the frame, and the key's
+        words belong with the key — routing those here would let a reader switch
+        off a drawing's title, or leave the key a set of symbols with no words.
+        """
+        was = self._pdf_layer
+        was_dxf = self.dxf.layer if self.dxf else None
+        if self.layered:
+            self._pdf_layer = pdf_layer
+        # ⭐ AND THE DXF WITH IT (#82 step 2). While the DXF forced every string
+        # onto one TEXT layer this had nothing to say to it; now that text
+        # follows its subject, a position's name has to reach LABELS in CAD for
+        # the same reason it reaches Labels on paper.
+        if self.dxf and pdf_layer in DXF_FOR_PDF:
+            self.dxf.layer = DXF_FOR_PDF[pdf_layer]
+        try:
+            yield
+        finally:
+            self._pdf_layer = was
+            if self.dxf and was_dxf is not None:
+                self.dxf.layer = was_dxf
+
+    def layer(self, name, pdf=None):
+        """Set the DXF layer for what is drawn next (BASE, POSITIONS, UNITS, TEXT, DIMS, NOTES).
+
+        ⭐ `pdf` names the PDF group separately, for the two that have no DXF
+        layer of their own. Pools and focus are drawn on the DXF's NOTES layer
+        because there was nowhere else to put them; in the PDF they get their
+        own group, which is the whole point of being able to switch the pools
+        off on a ladder while keeping the key.
+        """
         if self.dxf: self.dxf.layer = name
+        if self.layered:
+            self._pdf_layer = pdf or PDF_FOR_DXF.get(name, name)
 
     def P(self, x_ft, y_ft):
         """Real feet -> page points. Records extents so finish() can warn about clipping."""
@@ -249,6 +523,25 @@ class Sheet:
         b = self._bounds
         b[0], b[1], b[2], b[3] = min(b[0], px), min(b[1], py), max(b[2], px), max(b[3], py)
         return px, py
+
+    def drawn_right_ft(self):
+        """The rightmost thing drawn so far, in stage feet — or None if nothing.
+
+        🔴 For placing the instrument key. The key used to sit at a fixed four
+        feet right of the ROOM wall, which is only clear if nothing else reaches
+        past the room. Pools do, booms do, and an imported base plan certainly
+        does: a venue drawing offset ten feet ran its walls straight through
+        "6) S4 26" and four lines of NOTATION, and read as a strikethrough. The
+        clipping guard never saw it, because the guard polices the sheet EDGE
+        and the key is nowhere near the edge.
+
+        ⚠ Read this AFTER the drawing and BEFORE the key, or it answers a
+        question about a half-finished page.
+        """
+        right = self._bounds[2]
+        if right < -1e8:                      # nothing has been drawn yet
+            return None
+        return (right - self.ox) / self.pt_per_ft
 
     def L(self, feet):
         return feet * self.pt_per_ft
@@ -351,6 +644,8 @@ class Sheet:
             # staying in the same RP-2 category — and the default is None, so
             # nothing that does not ask for it is affected.
             width = sw if width_override is None else width_override
+            if color is black:
+                color = STYLE_COLOURS.get(style, black)
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
         if dash: c.setDash(list(dash))   # (array, phase) — pass the pattern as ONE list
         c.line(*self.P(x1, y1), *self.P(x2, y2)); c.restoreState()
@@ -359,6 +654,8 @@ class Sheet:
     def rect(self, x, y, w, h, width=1.0, label=None, fill=None, color=black, style=None):
         if style:
             width, dash = self.style(style)
+            if color is black:
+                color = STYLE_COLOURS.get(style, black)
         c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
         if style and self.style(style)[1]:
             c.setDash(list(self.style(style)[1]))
@@ -446,7 +743,7 @@ class Sheet:
         c.restoreState()
 
     def text(self, x, y, s, size=8, center=False, color=black, rotate=0, bold=False,
-             align=None):
+             align=None, knockout=False):
         """`align` is "left" (default), "center" or "right".
 
         ⚠ Right alignment is not a nicety. A label placed just left of a line and
@@ -454,12 +751,42 @@ class Sheet:
         height labels did: the text started 4" clear of the pipe and then grew
         rightwards over it. Anchoring the END of the string is the only way to
         keep a label clear of something to its right.
+
+        ⭐ `knockout` clears a box out of whatever is underneath before setting
+        the text in it — drafting practice, and the only thing that works when
+        what is underneath is an imported ground plan. `labels.py` fits names
+        around units and around each other, but a base plan is routinely
+        thousands of paths with ink almost everywhere, so there is no clear spot
+        to find. Issue #66: on a real venue plan, 42 words had a line running
+        straight through them, including the leading letter of ELECTRIC 1.
+
+        ⚠ NOT in the DXF. A knockout is a property of the printed sheet; in DXF
+        the text is on its own layer and the reader turns layers off, so a white
+        rectangle exported beside it would be an object nobody asked for. Note
+        the knockout is drawn on the canvas only, below.
         """
         how = align or ("center" if center else "left")
         c = self.c; c.saveState(); c.setFillColor(color)
         c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
         px, py = self.P(x, y); c.translate(px, py); c.rotate(rotate)
         dy = -size / 3 if how == "center" else 0
+        if knockout and s:
+            w = c.stringWidth(s, "Helvetica-Bold" if bold else "Helvetica", size)
+            # ⚠ Anchored the same way the text is, or the box sits beside the
+            # words instead of behind them.
+            x0 = {"center": -w / 2, "right": -w}.get(how, 0.0)
+            # ⚠ The box is the font's OWN extent, ascender to descender, not the
+            # cap height. Sized to the caps it left a strip above them, and a
+            # rule running through that strip still reads as struck through —
+            # 2.7% of the label's pixels on a twelve-line comb, which the test
+            # in test_drafting.py measures by rasterising.
+            pad = size * 0.16
+            c.saveState()
+            c.setFillColor(white)
+            c.rect(x0 - pad, dy - size * 0.25 - pad,
+                   w + 2 * pad, size * 1.03 + 2 * pad, stroke=0, fill=1)
+            c.restoreState()
+            c.setFillColor(color)
         draw = {"center": c.drawCentredString, "right": c.drawRightString}.get(how, c.drawString)
         draw(0, dy, s)
         c.restoreState()
@@ -468,12 +795,14 @@ class Sheet:
 
     # ---- theatre objects ----------------------------------------------
     def pipe(self, x1, y, x2, label=None, width=2.0):
-        """A hanging position. §6.18: a batten is HEAVY."""
+        """A hanging position. A batten is MEDIUM (2025 RP §2.2.3; RP-2 had it HEAVY)."""
         self.layer("POSITIONS")
         self.line(x1, y, x2, y, style="batten")
-        if label: self.text(x1, y + ft(0, 6), label, size=7, bold=True)
+        if label:
+            with self.on_layer("labels"):
+                self.text(x1, y + ft(0, 6), label, size=7, bold=True, knockout=True)
 
-    def position(self, pos, label=None, label_at=None):
+    def position(self, pos, label=None, label_at=None, draw_label=True):
         """Draw one horizontal hanging position from a plot record.
 
         `type` decides the drawing, and the distinction is not decoration:
@@ -550,18 +879,36 @@ class Sheet:
             self.line(x1, y1, x2, y2, style=_pstyle, width_override=_pw)
             top = max(y1, y2)
 
-        if label:
-            # CAPS on a plot — Jerry, 2026.09.22: "probably caps are more legible."
-            text = label.upper() + ("  (FOH)" if foh and "FOH" not in label.upper() else "")
-            # ⭐ `label_at` comes from labels.place(), which fits every name around
-            # the units and around the other names. Without it the name always
-            # went to the pipe's stage-left end, which is how CAT 1 and HOUSE
-            # LEFT BOX BOOM 1 ended up on top of each other and on the box boom.
-            if label_at:
-                self.text(label_at["x"], label_at["y"], text, size=7, bold=True,
-                          align=label_at["align"])
-            else:
-                self.text(x1, top + ft(0, 6), text, size=7, bold=True)
+        if not label:
+            return None
+        # CAPS on a plot — Jerry, 2026.09.22: "probably caps are more legible."
+        text = label.upper() + ("  (FOH)" if foh and "FOH" not in label.upper() else "")
+        # ⭐ `label_at` comes from labels.place(), which fits every name around
+        # the units and around the other names. Without it the name always
+        # went to the pipe's stage-left end, which is how CAT 1 and HOUSE
+        # LEFT BOX BOOM 1 ended up on top of each other and on the box boom.
+        spec = ({"x": label_at["x"], "y": label_at["y"], "text": text,
+                 "align": label_at["align"]} if label_at else
+                {"x": x1, "y": top + ft(0, 6), "text": text, "align": None})
+        if draw_label:
+            self.position_label(spec)
+        return spec
+
+    def position_label(self, spec):
+        """Set one position name, knocked out of whatever is under it.
+
+        🔴 SEPARATE FROM THE PIPE so the caller can draw it LAST. A knockout
+        only clears what is already on the canvas, and plot_to_pdf draws the
+        positions before the units — so a pool, or a later position's pipe,
+        was painted straight over a label the knockout had just cleared for it.
+        Proved by drawing a line after a knocked-out label: 2898 of its pixels
+        came back. Deferring the names is the only thing that makes "the label
+        is legible" true rather than "the label is legible for now".
+        """
+        self.layer("POSITIONS")
+        with self.on_layer("labels"):
+            self.text(spec["x"], spec["y"], spec["text"], size=7, bold=True,
+                      align=spec["align"], knockout=True)
 
     @staticmethod
     def foh_extent(positions):
@@ -589,7 +936,8 @@ class Sheet:
         if units:
             # One symbol, hatched, standing for the stack. Drawing four on top of
             # each other would just be a heavier blob.
-            prims = _sym.for_type(units[0].get("type", ""))
+            prims = _sym.for_type(units[0].get("type", ""),
+                                  angle_in_barrel=self.angle_in_barrel)
             _sym.draw(self, prims, x, y, rotate_deg=pos.get("rotation", 0.0))
             _sym.draw(self, _sym.hatch(prims), x, y,
                       rotate_deg=pos.get("rotation", 0.0), width=0.35)
@@ -600,19 +948,24 @@ class Sheet:
         # point is, placed OUTBOARD so it never lands on the room or on a
         # position label.
         text = (label if label is not None else pos.get("name", "")).upper()
-        if label_at:
-            self.text(label_at["x"], label_at["y"], text, size=6, bold=True,
-                      align=label_at["align"])
-        else:
-            out = -1 if center_x is None else (1 if x >= center_x else -1)
-            self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
-                      bold=True, center=False if out > 0 else True)
+        # ⚠ A boom's name is drawn HERE and not through position_label(), so it
+        # needs the labels group named again. Found by rendering the ladder view
+        # and looking at it: two boom names were still on the sheet with Labels
+        # switched off, because this is a second place a position gets named.
+        with self.on_layer("labels"):
+            if label_at:
+                self.text(label_at["x"], label_at["y"], text, size=6, bold=True,
+                          align=label_at["align"], knockout=True)
+            else:
+                out = -1 if center_x is None else (1 if x >= center_x else -1)
+                self.text(x + out * ft(1, 4), y - ft(0, 3), text, size=6,
+                          bold=True, center=False if out > 0 else True, knockout=True)
 
     def _unused_marker(self):
         pass
 
     def boom_elevation(self, pos, units, x, y, height=None, unit_gap=1.5,
-                       layout="option1", max_gap=2.5):
+                       layout="option1", max_gap=2.5, note=True):
         """§6.12 Option 1 — the boom as an elevation beside the plot.
 
         ⭐ COMPRESSED, with a BREAK MARK where paper was taken out. RP-2's own
@@ -632,7 +985,14 @@ class Sheet:
         """
         from . import symbols as _sym
         from . import photometrics as _ph
-        self.layer("NOTES")
+        # 🔴 A BOOM ELEVATION IS NOT A NOTE. The whole thing — the pipe, the
+        # units, their numbers and trims — was drawn on NOTES, so hiding the key
+        # took every boom elevation with it, and the ladder view (everything off
+        # but positions and units) lost exactly the drawing an electrician
+        # hanging booms needs. It is a POSITION with UNITS on it, and it is drawn
+        # that way now, matching the screen — which already requires both layers
+        # before it draws an elevation at all.
+        self.layer("POSITIONS")
 
         # ⭐ WHERE things go is booms.elevation(); this method only puts ink on
         # paper. The /booms endpoint feeds the browser from the same call, so
@@ -657,35 +1017,79 @@ class Sheet:
         for b in cuts:
             self.break_mark(x, y + b)
 
-        self.text(x, y + top + ft(0, 6), (pos.get("name") or "").upper(),
-                  size=7, bold=True, center=True)
-        self.text(x, y - ft(0, 9), "NOT TO SCALE — heights are the data",
-                  size=5, center=True)
-        if cuts:
-            self.text(x, y - ft(1, 4), f"{len(cuts)} break{'s' if len(cuts) > 1 else ''} "
-                      f"— pipe compressed", size=5, center=True)
+        with self.on_layer("labels"):
+            self.text(x, y + top + ft(0, 6), (pos.get("name") or "").upper(),
+                      size=7, bold=True, center=True)
+        # 🔴 THE FOOTNOTE IS THE SAME SENTENCE ON EVERY BOOM, and it used to be
+        # drawn once PER BOOM, centred on that boom's own x. Two booms standing
+        # near each other therefore overprinted each other's notes — found on a
+        # tester's export, 2026.09.30, where "NOT TO SCALE — heights are the
+        # data" and "1 break — pipe compressed" each sat on top of a second copy
+        # of themselves and neither was readable.
+        #
+        # ⭐ The caller draws ONE note under the whole strip instead — see
+        # boom_note(). `note=True` is kept so any other caller behaves as before.
+        if note:
+            # ⭐ This one IS a note — it is about the drawing rather than part of
+            # it, so it stays where notes go.
+            with self.on_layer("notes"):
+                self.text(x, y - ft(0, 9), "NOT TO SCALE — heights are the data",
+                          size=5, center=True)
+                if cuts:
+                    self.text(x, y - ft(1, 4), f"{len(cuts)} break{'s' if len(cuts) > 1 else ''} "
+                              f"— pipe compressed", size=5, center=True)
 
         for u, dy in drawn:
             uy = y + dy
             self.line(x, uy, x + unit_gap * 0.55, uy, style="leader")
-            _sym.draw(self, _sym.for_type(u.get("type", "")), x + unit_gap, uy,
-                      rotate_deg=90)
-            # Ends 5" clear of the pipe, growing leftwards away from it.
-            self.text(x - ft(0, 5), uy - ft(0, 2), self.fmt_len(u["height"]),
-                      size=6, align="right")
-            self.text(x + unit_gap, uy - ft(0, 3), str(u.get("unit")),
-                      size=6, center=True, bold=True)
+            with self.on_layer("units"):
+                _sym.draw(self, _sym.for_type(u.get("type", ""),
+                                              angle_in_barrel=self.angle_in_barrel),
+                          x + unit_gap, uy,
+                          rotate_deg=90)
+            with self.on_layer("labels"):
+                # Ends 5" clear of the pipe, growing leftwards away from it.
+                self.text(x - ft(0, 5), uy - ft(0, 2), self.fmt_len(u["height"]),
+                          size=6, align="right")
+                self.text(x + unit_gap, uy - ft(0, 3), str(u.get("unit")),
+                          size=6, center=True, bold=True)
         for i, u in enumerate(no_height):
-            self.text(x + unit_gap, y + top - (i + 1) * 0.5,
-                      f"{u.get('unit')}: NO HEIGHT RECORDED", size=5)
-        return top
+            # ⚠ A warning about missing data, not a label — it belongs with the
+            # notes, where somebody reading the sheet for problems will look.
+            with self.on_layer("notes"):
+                self.text(x + unit_gap, y + top - (i + 1) * 0.5,
+                          f"{u.get('unit')}: NO HEIGHT RECORDED", size=5)
+        # ⚠ The break count goes back to the caller so one note can speak for the
+        # whole strip. Returning only `top` meant the caller had no way to know
+        # which pipes were compressed without redoing the layout.
+        return top, len(cuts)
+
+    def boom_note(self, x0, x1, y, compressed=0, total=0):
+        """One footnote under the whole elevation strip.
+
+        ⭐ ONE, not one per boom. The sentence does not change from pipe to pipe,
+        so repeating it under each one bought nothing and cost legibility the
+        moment two booms stood close together.
+        """
+        mid = (x0 + x1) / 2.0
+        # ⚠ A NOTE, and it was on whatever layer happened to be current. Found
+        # in the ladder view: the footnote was the only text left on a sheet with
+        # Notes switched off, while the elevation it describes had gone.
+        with self.on_layer("notes"):
+            self.text(mid, y - ft(0, 9), "NOT TO SCALE — heights are the data",
+                      size=5, center=True)
+            if compressed:
+                what = (f"{compressed} of {total} pipes compressed" if total > 1
+                        else "pipe compressed")
+                self.text(mid, y - ft(1, 4), f"{what} — see the break marks",
+                          size=5, center=True)
 
     def unit(self, x, y, num, ch=None, kind="", color_gel=None, focus_to=None, r=None, color_tier=0,
              trim=None, focus_h=5.5, lamp=None, mode=None, lens_rotation=None,
-             accessories=None, circuit=None, dimmer=None, wattage=None,
+             accessories=None, circuit=None, dimmer=None, address=None, wattage=None,
              control="dimmer-per-circuit", symbol_angle="orthogonal",
              pool_plane=None, show_pool=True, show_focus=True, show_labels=True,
-             annotate=False, in_plan=True):
+             annotate=False, in_plan=True, position_angle=None):
         """A lighting instrument: circle body, unit number inside, channel below,
         gel/type beside, optional focus arrow to a real-world point.
 
@@ -730,10 +1134,13 @@ class Sheet:
         # docs/SYMBOLS.md — the shape and the mark inside it carry the fixture
         # type and the beam angle, which is what an electrician reads first.
         from . import symbols as _sym
+        from . import positions as _pos
         pan = 0.0
+        elev = None
         if focus_to and trim is not None:
             from . import photometrics as _ph
-            pan = _ph.aim((x, y, trim), (focus_to[0], focus_to[1], focus_h))["pan"]
+            _a = _ph.aim((x, y, trim), (focus_to[0], focus_to[1], focus_h))
+            pan, elev = _a["pan"], _a["elevation"]
         # ⭐ RP-2 p.2, in its own words: "It is acceptable to visually orient the
         # angle of each drawn luminaire to either focus points or 90° axes."
         # Jerry, 2026.09.23: "most plots display the instruments on even 90
@@ -744,11 +1151,28 @@ class Sheet:
         # aim, and every throw, pool and footcandle is computed from it. A unit
         # drawn at 0° while pointing at 320° is a drawing convention; a unit
         # COMPUTED at 0° would be a lie about the light.
-        draw_deg = pan
+        # 🔴 DRAWN ALONG THE PIPE, for either of two reasons — #113 and #116. A
+        # strip cannot turn; a unit aimed within 2° of plumb has nothing to turn
+        # toward. The caller hands in the position's angle because this method is
+        # given a unit, not a plot; positions.takes_the_pipe_angle() decides.
+        #
+        # ⚠ CHOSEN BEFORE THE SNAP, not after. RP-2 p.2 wants luminaires on 90°
+        # axes and that applies however the angle was arrived at — overriding
+        # afterwards drew Big House's raked catwalks at their own 11° rake.
+        src = pan
+        if position_angle is not None and _pos.takes_the_pipe_angle({"type": kind}, elev):
+            src = position_angle
+        draw_deg = src
         if (symbol_angle or "orthogonal").startswith("orth"):
-            draw_deg = round(pan / 90.0) * 90.0
+            draw_deg = round(src / 90.0) * 90.0
+        # ⚠ `pan` itself is untouched. Every throw, pool and footcandle is still
+        # computed from the real aim; this moves ink only.
 
-        _base = _sym.for_type(kind, lens_rotation)
+        # ⚠ THE LAMP IS PASSED. A retrofit draws §6.16 dots at the lamp
+        # housing, and leaving it out here is how the paper would have gone
+        # on drawing a tungsten unit while the screen drew an LED.
+        _base = _sym.for_type(kind, lens_rotation, lamp,
+                              angle_in_barrel=self.angle_in_barrel)
         # The centre comes from the BARE instrument. Accessories hang off the
         # nose, so measuring the accessorised symbol would drag the "centre"
         # forward out of the body and put the number on a barn door.
@@ -760,6 +1184,11 @@ class Sheet:
         # arc sources; Jerry uses the same mark for a 750W Source Four, which is
         # the only place he has seen a wattage called out on a plot at all.
         # Inserted FIRST so the body's own outline is stroked back over it.
+        #
+        # ⚠ A BLACKENED REAR WOULD SWALLOW THE §6.16 SOURCE DOTS, which sit in
+        # the same place. Today the two cannot both happen — shading needs a
+        # lamp above 575W and every retrofit burner is 150W — so this is a note
+        # for whoever adds a high-wattage LED source, not a live bug.
         if _shade_rear_for(kind, lamp):
             _prims = _sym.shade_rear(_base) + list(_base)
 
@@ -773,7 +1202,7 @@ class Sheet:
         # the unit number — which is exactly the mess that putting the number
         # inside the body was meant to avoid.
         if focus_to and show_focus:
-            self.layer("NOTES")
+            self.layer("FOCUS")
             self.line(x, y, focus_to[0], focus_to[1], color=grey, style="leader")
             self.circle(focus_to[0], focus_to[1], ft(0, 3), color=grey, style="leader")
             self.layer("UNITS")
@@ -799,10 +1228,14 @@ class Sheet:
             # further out, not somewhere else.
             _step = (7.0 / self.pt_per_ft if self.pt_per_ft else 0.39) * 1.5
             _above = _clear + (color_tier or 0) * _step
-            _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
-                          circuit=circuit, dimmer=dimmer, wattage=wattage,
-                          control=control, rotate_deg=draw_deg,
-                          body_center=_center, above=_above)
+            from . import dmx as _dmx
+            with self.on_layer("labels"):
+                _sym.notation(self, x, y, unit=num, channel=ch, color=color_gel,
+                              circuit=circuit, dimmer=dimmer,
+                              address=_dmx.plot_number(address, dimmer) if address else None,
+                              wattage=wattage,
+                              control=control, rotate_deg=draw_deg,
+                              body_center=_center, above=_above)
         result = None
         if focus_to:
             fx, fy = focus_to
@@ -845,7 +1278,7 @@ class Sheet:
                     elif sh.get("note"):
                         self.warnings.append(f"unit {num}: {sh['note']}")
                     if show_pool and sh.get("a"):
-                        self.layer("NOTES")
+                        self.layer("POOLS")
                         self.ellipse(sh["cx"], sh["cy"], sh["a"], sh["b"],
                                      sh["angle"], color=grey, style="pool")
                         self.layer("UNITS")
@@ -1029,6 +1462,11 @@ class Sheet:
     # ---- sheet furniture ----------------------------------------------
     def finish(self):
         """Scale bar, one-inch check, title block, then save."""
+        # ⚠ BEFORE `c` is captured. The title block, scale bar and one-inch
+        # check go on the frame, which carries no optional-content group — a
+        # reader who switches off every layer must still be holding a drawing
+        # that says what it is and what scale it was drawn at.
+        self._pdf_layer = FRAME
         c = self.c; W, H = self.page_pt; m = self.margin
         # clipping check — a drawing that runs off the sheet is worse than no drawing
         x0b, y0b, x1b, y1b = self._bounds
@@ -1102,9 +1540,19 @@ class Sheet:
                 while stringWidth(t + "…", "Helvetica", 8) > tb_w - 12: t = t[:-1]
                 t += "…"
             c.drawString(x0 + 6, y0 + tb_h - 27 - 12 * i, t)
+        # ⭐ THE PLOT'S DATE, not today's. The title block carries "the date the
+        # plate was published" (2025 USITT RP §2.2.6; RP-2 §4.1 the same), and
+        # printing today's date made a reprint of an old plot claim to be new.
+        # Today's date only when the plot carries none.
         import datetime
+        when = str(self.meta.get("date") or "").strip()
+        try:
+            when = datetime.date.fromisoformat(when).strftime('%Y.%m.%d') if when else ""
+        except ValueError:
+            pass                    # not ISO: print it as the plot has it
+        when = when or datetime.date.today().strftime('%Y.%m.%d')
         c.drawString(x0 + 6, y0 + tb_h - 51, f"Scale {self.scale_label}   Rev {self.meta['rev']}   "
-                                              f"{datetime.date.today().strftime('%Y.%m.%d')}")
+                                              f"{when}")
         if self.meta["designer"]:
             c.setFillColor(BROWN); c.setFont("Helvetica-Bold", 8)
             c.drawString(x0 + 6, y0 + 6, self.meta["designer"])
@@ -1149,8 +1597,71 @@ class Sheet:
             bar_pt, bar_says = 72.0, 'this bar is 1" when printed at 100%'
         c.setLineWidth(1); c.rect(cx, cy, bar_pt, 4, stroke=1, fill=0)
         c.drawString(cx + bar_pt + 4, cy, bar_says)
-        c.save()
+        if self.layered:
+            self._compose()
+        else:
+            c.save()
         if _dxf and self.dxf_path: _dxf.save(self.dxf_path)
+
+    def _compose(self):
+        """Overlay the per-layer canvases onto one page, each its own group.
+
+        ⚠ A LAYER THAT DREW NOTHING GETS NO GROUP. An empty entry in the
+        reader's Layers panel is a switch that does nothing, which is the same
+        "control that lies" the screen chips were kept free of — and several are
+        legitimately empty, because what the designer hid is not drawn at all
+        rather than drawn and switched off.
+
+        ⭐ Emptiness is MEASURED, not assumed: a page counts as inked if
+        PyMuPDF finds any vector drawing or any text on it. A blank reportlab
+        page is not zero bytes, so a file-size test would have called every
+        layer inked.
+        """
+        import pymupdf
+        for cv in self._canvases.values():
+            cv.save()
+        out = pymupdf.open()
+        page = out.new_page(width=self.page_pt[0], height=self.page_pt[1])
+        self.pdf_layers = []
+        try:
+            for lid, label in PDF_LAYERS + [(FRAME, None)]:
+                src = pymupdf.open(os.path.join(self._tmpdir, f"{lid}.pdf"))
+                try:
+                    # ⚠ A canvas nothing was drawn to saves a PDF with NO PAGES at
+                    # all — reportlab only emits one when something lands on it.
+                    # That is the cheap signal; the ink test behind it catches a
+                    # page that exists but carries nothing visible.
+                    if src.page_count == 0:
+                        continue
+                    pg = src[0]
+                    if not (pg.get_drawings() or pg.get_text().strip()):
+                        continue
+                    # 🔴 THE FRAME IS LAST AND CARRIES NO `oc`. Painted first it
+                    # would sit under the drawing; given a group it could be
+                    # switched off, and a sheet with no title block is not a
+                    # drawing anybody should be holding.
+                    if label is None:
+                        page.show_pdf_page(page.rect, src, 0)
+                    else:
+                        ocg = out.add_ocg(label, on=True)
+                        page.show_pdf_page(page.rect, src, 0, oc=ocg)
+                        self.pdf_layers.append(label)
+                finally:
+                    src.close()
+            # ⚠ BYTES, NOT out.save(path). PyMuPDF's save() seeks in its output
+            # and os.devnull cannot be told its position — "Cannot tell in
+            # untellable output stream". A Sheet written to devnull is a real
+            # use: test_package builds one purely to read its clipping warnings.
+            # reportlab never minded, because it only ever writes forwards.
+            data = out.tobytes(garbage=3, deflate=True)
+            if hasattr(self.path, "write"):
+                self.path.write(data)
+            else:
+                with open(self.path, "wb") as fh:
+                    fh.write(data)
+        finally:
+            out.close()
+            shutil.rmtree(self._tmpdir, ignore_errors=True)
 
 
 def _shade_rear_for(kind, lamp=None):

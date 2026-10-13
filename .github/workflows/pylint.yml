@@ -1,6 +1,28 @@
 name: CI
 
-on: [push, pull_request]
+# ⚠ BRANCHES, NOT TAGS. A tag push used to fire this whole workflow a second
+# time against a commit that had already passed it on main — while the release
+# workflow ran the identical suites alongside it. On v0.1.29 the three jobs
+# competed for runners, `web` and `tests` sat queued for fifteen minutes without
+# ever starting, and GitHub cancelled them. A cancelled job reports as a failed
+# run, so a perfectly good release looked broken.
+#
+# ⭐ Nothing is lost by skipping tags: .github/workflows/release.yml runs the
+# Python suites, verify_suites.py, tsc and `npm run test:all` itself before it
+# builds anything, and it will not publish a release if they fail.
+# ⚠ MAIN ONLY ON PUSH, because `push` and `pull_request` BOTH match when you
+# push a branch that has a pull request open — which ran the whole suite twice
+# for every commit under review. Six check runs where three were wanted, and it
+# had been written off as harmless for weeks.
+#
+# ⚠ A branch with no pull request now gets no CI. That is the trade, and it is
+# the right way round here: `main` is protected and nothing reaches it except
+# through a pull request, so the run that actually gates anything is the
+# pull_request one. Open the PR and the checks start.
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
   tests:
@@ -27,6 +49,14 @@ jobs:
         working-directory: server
         run: |
           for t in test_*.py; do echo "--- $t"; python "$t"; done
+      - name: Every fixture is sourced, consistent and reachable
+        # ⭐ This is what makes a contributed fixture reviewable. A diff does not
+        # show that a field angle is narrower than its beam, or that an alias
+        # points at a fixture that was renamed. A person checks what they think
+        # to check; this checks the same things every time.
+        working-directory: server
+        run: python validate_fixtures.py
+
       - name: Verify the suites actually fail when broken
         # ⚠ Twice in one day a suite printed its verdict in the MIDDLE of the
         # file, so anything appended ran without affecting the exit code — it

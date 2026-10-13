@@ -14,8 +14,10 @@ the EDLT figures got mistaken for standard-tube figures in the first place.
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unicodedata
+from pathlib import Path
 from typing import Optional, List, Dict, Any, Union
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -29,9 +31,11 @@ from . import photometrics as ph
 from . import positions as P
 from . import exports, dxf_bridge, pdf_bridge, symbols as sym
 from . import booms
+from . import folderpick
 from . import store as plotstore
 from . import labels as lbl
 from . import fixture_names
+from . import scaled_pdf as sp
 
 app = FastAPI(
     title="plotedit",
@@ -171,55 +175,13 @@ def gels() -> Dict[str, Any]:
 
 
 def _patch_cell(inst) -> tuple:
-    """What this unit is plugged into, and what that number actually is.
-
-    An address and a dimmer are alternatives, not a pair, and the address wins
-    when a unit carries both, because that is the number the console uses.
-
-    ⚠ A range is only ever shown when the footprint is KNOWN. A fixture whose
-    profile nobody wrote down shows its start address and says why there is no
-    range — an invented range is how the next unit gets patched into the tail
-    of this one.
-    """
-    addr = inst.address.strip() if isinstance(inst.address, str) else inst.address
-    dim = inst.dimmer.strip() if isinstance(inst.dimmer, str) else inst.dimmer
-    if addr in (None, ""):
-        if dim in (None, ""):
-            return "—", "no dimmer and no address — this unit is not patched to anything"
-        return str(dim), "dimmer"
-
-    spec = ph.FIXTURES.get(inst.type)
-    if spec is None:
-        # ⚠ AN UNRECOGNISED TYPE IS NOT A CONVENTIONAL ONE. Falling through to
-        # "one address" here would quietly call an unknown LED a dimmer, which
-        # is the direction of this guess that costs somebody a patch.
-        return str(addr), (f"address (start) — {inst.type!r} is not a fixture this "
-                           f"knows, so its footprint cannot be looked up")
-    # ⭐ The LAMP says whether this is an LED fixture, not a list of family names
-    # typed here. A hand-written list is a second place for the truth to live,
-    # and it goes stale the first time a fixture is added to the photometrics.
-    is_led = str(spec.get("ref_lamp", "")).upper().startswith("LED")
-    if not is_led:
-        # A Source Four on a dimmer occupies the one address of that dimmer.
-        # There is no profile and nothing to look up.
-        return str(addr), "address — a conventional fixture is one address"
-
-    model, assumed = dmx.resolve_model(spec.get("family"), inst.model)
-    if model is None:
-        return str(addr), f"address (start) — {assumed}"
-    n, why = dmx.channels(model, inst.profile)
-    if assumed:
-        why = f"{why} ({assumed})"
-    if not n:
-        return str(addr), f"address (start) — {why}"
-    rng = dmx.span(addr, n)
-    if rng is None:
-        # ⚠ Known footprint, unusable range: the span runs past 512, or the
-        # address is not a number. Saying "start" and stopping would hide a
-        # patch that cannot physically exist.
-        return str(addr), (f"address (start) — {why}, but {n} channels from here "
-                           f"runs past the end of the universe. Check the patch.")
-    return rng, f"address, {why}"
+    """Thin wrapper: the decision lives in `dmx.patch_cell`, which the CSV
+    exports call too. It was here once, and the exports quietly wrote a bare
+    start address while this returned a range."""
+    text, why, _n = dmx.patch_cell(ph.FIXTURES.get(inst.type), inst.type,
+                                   inst.address, inst.dimmer,
+                                   inst.model, inst.profile)
+    return text, why
 
 
 @app.get("/dmx")
@@ -231,6 +193,9 @@ def dmx_table() -> Dict[str, Any]:
     which is the mistake docs/SYMBOLS.md exists to warn about.
     """
     return {"family_models": dmx.FAMILY_MODELS,
+            # ⭐ Belongs to no model, so it cannot travel in `profiles`. A dimmer
+            # is one address of intensity and any unit can be on one.
+            "universal": sorted(dmx.UNIVERSAL),
             "profiles": {m: sorted(t) for m, t in dmx.MODELS.items()},
             "unpublished": {m: sorted(v) for m, v in dmx.UNPUBLISHED.items()},
             "suggested": dmx.SUGGESTED,
@@ -277,8 +242,18 @@ def compute(req: ComputeRequest) -> Dict[str, Any]:
         if inst.type not in ph.FIXTURES:
             row["note"] = f"{inst.type} is not in the fixture table"
             results.append(row); continue
-        if inst.trim is None or inst.focus_x is None or inst.focus_y is None:
-            row["note"] = "needs a trim height and a focus point"
+        # ⭐ NAME WHAT IS MISSING, AND ONLY THAT. This said "needs a trim height
+        # and a focus point" whenever EITHER was absent, so a unit on a pipe
+        # trimmed at 30' with no focus yet was told it had no trim — Jerry,
+        # 2026.10.09, on a converted rep plot: "the electrics are saying they
+        # don't have a trim height — but they do."
+        missing = []
+        if inst.trim is None:
+            missing.append("a trim height")
+        if inst.focus_x is None or inst.focus_y is None:
+            missing.append("a focus point")
+        if missing:
+            row["note"] = "needs " + " and ".join(missing)
             results.append(row); continue
 
         a = ph.aim((inst.x, inst.y, inst.trim),
@@ -385,6 +360,16 @@ class ExportRequest(BaseModel):
     # way to issue a clean plan was to delete the focus points.
     # Defaulting to True keeps every existing caller — and every saved plot —
     # drawing exactly what it drew before.
+    # 🔴 THE BASE PLAN NEVER REACHED THE PAPER. plot_pdf has always taken a
+    # dxf_path and export_pdf has never passed one, so an imported ground plan
+    # was drawn on screen and silently absent from the PDF. Found 2026.09.30
+    # while adding the raster backdrop — the same hole swallowed both kinds.
+    #
+    # ⭐ THE BROWSER SENDS WHAT IT DREW, already transformed into stage feet.
+    # The alternative is sending a transform and applying it again here, which
+    # is two copies of the same arithmetic and exactly how the screen and the
+    # paper drift apart — see test_agreement.py.
+    base: Optional[Dict[str, Any]] = None
     showPools: bool = True
     showFocus: bool = True
     showLabels: bool = True
@@ -463,13 +448,22 @@ def export_pdf(req: ExportRequest) -> Response:
     """
     with tempfile.TemporaryDirectory() as d:
         pdf = os.path.join(d, "plot.pdf")
-        sheet, _ = exports.plot_pdf(req.plot, pdf, scale=req.scale,
-                                    page=req.page, landscape=req.landscape,
-                                    show_pools=req.showPools,
-                                    show_focus=req.showFocus,
-                                    show_labels=req.showLabels,
-                                    pool_plane=req.poolPlane,
-                                    rulers=req.rulers)
+        try:
+            sheet, _ = exports.plot_pdf(req.plot, pdf, scale=req.scale,
+                                        page=req.page, landscape=req.landscape,
+                                        show_pools=req.showPools,
+                                        show_focus=req.showFocus,
+                                        show_labels=req.showLabels,
+                                        pool_plane=req.poolPlane,
+                                        rulers=req.rulers,
+                                        base=req.base)
+        # ⚠ A scale this plot cannot be drawn at is a BAD REQUEST, not a crash.
+        # It used to be a bare KeyError deep in units.py, surfacing as a 500 with
+        # a stack trace — found by asking for "3/16", which the PDF importer
+        # offers because the scale a borrowed drawing was made at is a different
+        # question from the scale this plot is drawn at.
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
         # ⚠ Refuse only what makes the drawing WRONG. A clipped sheet is
         # unusable, so it is a 422. Everything else — a grazing pool, an
         # unrecognised accessory — is a true note ABOUT the plot, and refusing
@@ -483,6 +477,50 @@ def export_pdf(req: ExportRequest) -> Response:
     r = _attach(body, "application/pdf", f"{_stem(req.plot)} — Plot.pdf")
     if notes:
         # latin-1 only in a header, and one line — the full text is in the logs.
+        r.headers["X-Plot-Notes"] = " | ".join(notes)[:900].encode(
+            "ascii", "replace").decode("ascii")
+    return r
+
+
+@app.post("/export/section")
+def export_section(req: ExportRequest) -> Response:
+    """The lighting SECTION — RP-2 §3: how low can a pipe go, and does the light
+    reach the actor's face.
+
+    ⭐ It cuts ON CENTRELINE and says so in the title block. A section needs a cut
+    line and the plot does not carry one, so rather than ask before anything can
+    be drawn, it takes the obvious cut and states it — §3 requires a "definition
+    of where the section is cut" on the sheet anyway, so the default is visible
+    rather than assumed. Issue #92.
+
+    ⚠ What the drawing CANNOT prove is printed on the drawing: no audience sight
+    point means no sightline, no masking means trims are not proven to clear, no
+    scenery means nothing is checked for obstruction. That block is the most
+    valuable thing on the sheet and it survives the move into the UI.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        pdf = os.path.join(d, "section.pdf")
+        try:
+            sheet, drawn = exports.section_pdf(req.plot, pdf, scale=req.scale,
+                                               page=req.page,
+                                               landscape=req.landscape)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        # 🔴 A SECTION WITH NO POSITIONS IS A PICTURE OF AN EMPTY ROOM. The plot
+        # export is still worth drawing with nothing on it; this one is not, and
+        # returning a blank sheet would read as the feature being broken.
+        if not drawn:
+            raise HTTPException(
+                status_code=422,
+                detail="No position has a unit with a trim, so there is nothing to "
+                       "draw a section of. Set a trim on at least one position.")
+        fatal = [w for w in sheet.warnings if w.startswith("CLIPPED")]
+        if fatal:
+            raise HTTPException(status_code=422, detail=fatal[0])
+        notes = [w for w in sheet.warnings if not w.startswith("CLIPPED")]
+        body = open(pdf, "rb").read()
+    r = _attach(body, "application/pdf", f"{_stem(req.plot)} — Section.pdf")
+    if notes:
         r.headers["X-Plot-Notes"] = " | ".join(notes)[:900].encode(
             "ascii", "replace").decode("ascii")
     return r
@@ -575,6 +613,39 @@ async def import_pdf_pages(file: UploadFile = File(...)) -> Dict[str, Any]:
                                        "scales": list(pdf_bridge.SCALES)})
 
 
+@app.post("/import/pdf/raster")
+async def import_pdf_raster(
+    file: UploadFile = File(...),
+    page: int = Form(1),
+) -> Response:
+    """One page of a PDF as a PNG, for a plan with no vectors in it.
+
+    ⭐ THE ANSWER TO "MY GROUND PLAN IS A PHOTOGRAPH". Tracing it would invent
+    walls; showing it does not. The designer draws over the picture and the
+    drawing is theirs.
+
+    🔴 A BACKDROP, NEVER A MEASUREMENT. Nothing read off this image may reach
+    the paperwork: the room's dimensions are still typed in by whoever measured
+    them. Calibration decides how big the picture is DRAWN and nothing else.
+
+    Returned as the image itself rather than base64 in JSON — a 150dpi page is
+    around 200KB, and base64 would add a third to that for no gain.
+    """
+    # ⚠ NOT async. _with_temp calls its callback synchronously, so a coroutine
+    # here would be returned as the response body.
+    def _go(path):
+        png, w_in, h_in = pdf_bridge.raster(path, page)
+        return Response(content=png, media_type="image/png", headers={
+            # ⚠ The page's own size travels in the headers, because the browser
+            # needs the aspect ratio before it can place the image and cannot
+            # get it from a PNG drawn at an arbitrary dpi.
+            "X-Page-Width-In": str(w_in),
+            "X-Page-Height-In": str(h_in),
+            "Access-Control-Expose-Headers": "X-Page-Width-In, X-Page-Height-In",
+        })
+    return await _with_temp(file, ".pdf", _go)
+
+
 @app.post("/import/pdf")
 async def import_pdf(
     file: UploadFile = File(...),
@@ -653,7 +724,8 @@ def _prims_json(shape) -> List[Dict[str, Any]]:
 
 
 @app.get("/symbols")
-def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[str, Any]:
+def symbol_geometry(types: str, lens_rotation: Optional[float] = None,
+                    angle_in_barrel: bool = False) -> Dict[str, Any]:
     """RP-2 symbol outlines for a comma-separated list of fixture types.
 
     ⭐ The geometry lives in ONE place — symbols.py — and both the PDF and the
@@ -664,24 +736,39 @@ def symbol_geometry(types: str, lens_rotation: Optional[float] = None) -> Dict[s
     Local coordinates, in feet: +a is toward the back of the instrument, -a the
     front, c is across. The origin is the yoke — the hanging point.
 
-    An entry may carry accessories after a pipe: `S4 26|top hat+gobo`. The key
-    in the reply is the WHOLE entry, so the browser looks a symbol up by the
-    same string it asked for and two units of one type with different
-    accessories stay distinct. Unknown accessories come back in `warnings`
-    rather than being dropped — a barn door nobody drew is a barn door nobody
-    hangs.
+    An entry may carry accessories after a pipe, and the LAMP after a second:
+    `S4 26|top hat+gobo|Source 4WRD II`. The key in the reply is the WHOLE
+    entry, so the browser looks a symbol up by the same string it asked for and
+    two units of one type stay distinct when they differ. Unknown accessories
+    come back in `warnings` rather than being dropped — a barn door nobody drew
+    is a barn door nobody hangs.
+
+    ⭐ THE LAMP IS PART OF THE KEY because a retrofit changes the symbol: a
+    Source Four with a 4WRD in it gets §6.16 source dots. Keying on type alone
+    would let a retrofitted unit and a tungsten one share a cache entry, and
+    whichever was asked for first would draw both.
     """
     out: Dict[str, Any] = {}
     warnings: List[str] = []
+    two_point: List[str] = []
     for t in [x.strip() for x in types.split(",") if x.strip()]:
-        base, _, acc_s = t.partition("|")
-        acc = [a.strip() for a in acc_s.split("+") if a.strip()]
-        shape = sym.for_type(base.strip(), lens_rotation)
+        # base | accessories | lamp. Accessories are split on "+", so they can
+        # never contain a pipe and the three parts stay unambiguous.
+        parts = t.split("|")
+        base = parts[0].strip()
+        acc = [a.strip() for a in (parts[1] if len(parts) > 1 else "").split("+") if a.strip()]
+        lamp = parts[2].strip() if len(parts) > 2 else None
+        shape = sym.for_type(base, lens_rotation, lamp, angle_in_barrel=angle_in_barrel)
         if acc:
             shape, unknown = sym.with_accessories(shape, acc)
-            warnings += [f"{base.strip()}: {u}" for u in unknown]
+            warnings += [f"{base}: {u}" for u in unknown]
         out[t] = _prims_json(shape)
-    return {"symbols": out, "warnings": warnings,
+        if sym.is_two_point(base):
+            two_point.append(t)
+    # ⭐ A SEPARATE LIST, not a field inside each entry. `symbols[t]` is an array
+    # of primitives and has been since the first release; wrapping it in an
+    # object to carry one boolean would break every reader for no gain. #113.
+    return {"symbols": out, "twoPoint": two_point, "warnings": warnings,
             "source": "USITT RP-2 (2006), plates pp.4-9"}
 
 
@@ -692,10 +779,120 @@ class SaveRequest(BaseModel):
     plot: Dict[str, Any]
 
 
+@app.get("/pages")
+def paper_sizes() -> Dict[str, Any]:
+    """The sheets a plot can be issued on, largest last, split by system.
+
+    ⭐ SERVED, NOT TYPED INTO THE BROWSER. The sizes live in scaled_pdf.PAGES and
+    a second copy in TypeScript is how the lamp list ended a whole release behind
+    the table it was meant to mirror.
+
+    ⚠ Split imperial/metric for the same reason the scale menu is split: a
+    drawing issued on a sheet the reader does not stock is no more use than one
+    at a ratio their rule does not have.
+    """
+    def _rows(names, metric=False):
+        # ⚠ LABEL A METRIC SHEET IN MILLIMETRES. A2 is 420 x 594 mm to everyone
+        # who asks for A2; "16.54 x 23.39 in" is the same sheet described in
+        # units its user does not think in — the same error as offering ARCH D
+        # on a metric plot, one layer down. The inches stay in w_in/h_in because
+        # that is what the renderer works in.
+        out = []
+        for n in names:
+            w, h = sp.PAGES[n]
+            size = (f"{round(w * 25.4)} x {round(h * 25.4)} mm" if metric
+                    else f"{w:g} x {h:g} in")
+            out.append({"name": n, "w_in": w, "h_in": h,
+                        "label": f"{n.replace('_', ' ')} ({size})"})
+        return out
+    return {"imperial": _rows(sp.PAGES_IMPERIAL),
+            "metric": _rows(sp.PAGES_METRIC, metric=True),
+            "default": "ARCH_D"}
+
+
+# ⭐ WHAT SHIPPED WITH IT, kept separate from what the designer has saved.
+# A beta tester asked, 2026.09.30, whether there was a way to open the demo file
+# again — there was not. The demo lives in samples/ and Open… lists the plots
+# folder, so pressing New put it permanently out of reach.
+# 🔴 They stay two lists rather than one. A sample is not your work, and
+# offering to overwrite it from Save would be worse than not offering it at all.
+SAMPLES = Path(__file__).resolve().parents[2] / "samples"
+
+
+@app.get("/samples")
+def list_samples() -> Dict[str, Any]:
+    """The plots bundled with the program."""
+    out = []
+    for f in sorted(SAMPLES.glob("*.plot.json")):
+        try:
+            show = json.loads(f.read_text()).get("show", "")
+        except (OSError, ValueError):
+            show = "— will not parse —"
+        out.append({"name": f.name, "show": show})
+    return {"samples": out}
+
+
+@app.get("/samples/{name}")
+def read_sample(name: str) -> Dict[str, Any]:
+    """One bundled plot.
+
+    ⚠ The name is matched against the listing rather than joined onto a path.
+    "../plots/whatever.json" is a name too, and resolve() in store.py exists
+    because that is not a theoretical concern.
+    """
+    for f in sorted(SAMPLES.glob("*.plot.json")):
+        if f.name == name:
+            return {"name": name, "plot": json.loads(f.read_text())}
+    raise HTTPException(status_code=404, detail=f"no sample called {name}")
+
+
 @app.get("/plots")
 def list_plots() -> Dict[str, Any]:
     """Every plot in the plots folder, newest first."""
-    return {"plots": plotstore.listing(), "folder": str(plotstore.root())}
+    return {"plots": plotstore.listing(), "folder": str(plotstore.root()),
+            "canPickFolder": folderpick.available()}
+
+
+@app.post("/plots/folder")
+def pick_plots_folder() -> Dict[str, Any]:
+    """Ask the person where plots should live, in their own folder dialog.
+
+    ⭐ Jerry, 2026-10-01: "folder picking should work just like ground plan."
+    Same feel — a native dialog — but it cannot be the same mechanism: a browser
+    will not tell a page a real path, by design. Checked in the running app:
+    `"path" in File.prototype` is False. Ground plan works because the browser
+    hands over a file's CONTENTS; a plots folder needs a PATH, because the server
+    is what writes there.
+
+    🔴 SO THIS TAKES NO INPUT. The client asks the server to ask the person; the
+    only string that reaches the filesystem is one chosen in the operating
+    system's own dialog. There is no path from the browser to validate, and no
+    traversal to defend against.
+
+    ⚠ And it moves the FENCE, not the gate: `plotstore.resolve` still requires
+    every plot name to sit inside whatever the folder now is.
+    """
+    try:
+        chosen = folderpick.choose(plotstore.root())
+    except folderpick.PickerUnavailable as e:
+        # 🔴 Say so. A button that opens nothing looks broken, and the answer
+        # (set PLOTEDIT_PLOTS) is not one anybody guesses.
+        raise HTTPException(
+            status_code=501,
+            detail=f"This machine has no folder dialog ({e}). Set PLOTEDIT_PLOTS "
+                   f"to the folder you want and restart plotedit.") from e
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(
+            status_code=504,
+            detail="The folder dialog was not answered. It may be behind another "
+                   "window.") from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if chosen is None:
+        return {"changed": False, "folder": str(plotstore.root())}
+    plotstore.set_root(chosen)
+    return {"changed": True, "folder": str(plotstore.root()),
+            "plots": plotstore.listing()}
 
 
 @app.get("/plots/{name}")
@@ -751,6 +948,8 @@ class BoomRequest(BaseModel):
     # LABEL beside each unit is written. Without it a metric plot showed its
     # boom heights in feet and inches on screen while the paper said metres.
     units: Optional[str] = None
+    # The plot's `angleInBarrel`, so the elevations agree with the plan.
+    angleInBarrel: bool = False
 
 
 @app.post("/booms")
@@ -776,7 +975,7 @@ def boom_layout(req: BoomRequest) -> Dict[str, Any]:
     for b in out:
         # §6.12: "hatch or shade acceptable for top view of boom." ONE symbol
         # standing for the stack — four drawn on top of each other is a blob.
-        shape = sym.for_type(b["plan"]["type"])
+        shape = sym.for_type(b["plan"]["type"], angle_in_barrel=req.angleInBarrel)
         b["plan"]["prims"] = _prims_json(shape)
         b["plan"]["hatch"] = _prims_json(sym.hatch(shape))
         # ⚠ Each unit carries its OWN outline, accessories included. The browser
@@ -784,7 +983,7 @@ def boom_layout(req: BoomRequest) -> Dict[str, Any]:
         # the bare type would quietly draw a unit without its top hat, or fall
         # back to a plain ring when the cache had no bare-type entry at all.
         for u in b["units"]:
-            us = sym.for_type(u["type"])
+            us = sym.for_type(u["type"], angle_in_barrel=req.angleInBarrel)
             if u.get("accessories"):
                 us, _ = sym.with_accessories(us, u["accessories"])
             u["prims"] = _prims_json(us)

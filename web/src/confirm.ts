@@ -39,3 +39,113 @@ export function describeUnit(
   if (inst.type) tail.push(inst.type);
   return tail.length ? `${bits.join(" ")} (${tail.join(", ")})` : bits.join(" ");
 }
+
+/** What to say when a new position is given a name already in use.
+ *
+ *  ⭐ NOT A REFUSAL. Jerry, 2026.09.30: "let the user name the position... Then
+ *  if its the same name, say there is already a position with that name - let
+ *  them use the same name if they want."
+ *
+ *  Two positions sharing a name is a REAL DRAFTING OBJECT, not a mistake — a
+ *  V-shaped or L-shaped run is one position made of two straight segments, and
+ *  it should be one heading in the schedule and one run of unit numbers. The
+ *  plot already behaves that way, because everything joins by name.
+ *
+ *  ⚠ So the dialog says what sharing MEANS rather than warning against it. The
+ *  one thing that follows is the numbering: units are unique per name, so the
+ *  segments number as one run.
+ */
+export function sharedNameMessage(name: string, existing: number): string {
+  const other = existing === 1 ? "another position" : `${existing} other positions`;
+  return [
+    `There is already ${other} called "${name}".`,
+    "",
+    "Using the same name makes them ONE position: one heading in the schedule",
+    "and the hookup, and one run of unit numbers across all of them. That is",
+    "what you want for a V or an L — two straight segments, one position.",
+    "",
+    "Use the same name?",
+  ].join("\n");
+}
+
+/** Ask before sharing a name. True means go ahead. */
+export function confirmSharedName(name: string, existing: number): boolean {
+  return window.confirm(sharedNameMessage(name, existing));
+}
+
+/** What to add to the renumber question when the name is shared by two legs.
+ *
+ *  🔴 MEASURED, not inferred. A '>' shaped cove named once across two legs,
+ *  four units on each, no two at the same coordinate — renumber returned NO
+ *  warning and produced this:
+ *
+ *      leg A  x=0,4,8,12   → units 1, 3, 5, 7
+ *      leg B  x=14,10,6,2  → units 8, 6, 4, 2
+ *
+ *  Odds down one leg and evens back up the other. Nobody could hang that. It
+ *  happens because ONE sort key is worked out from ONE leg's geometry — stage
+ *  left to stage right, per RP-2 §2.3.2 — and then applied to every unit on the
+ *  name. When the legs overlap along that axis they interleave. `number()`'s own
+ *  guard misses it: it only fires when two units share a coordinate exactly,
+ *  which at the apex they often do and elsewhere they do not.
+ *
+ *  ⭐ AND THIS IS STILL THE READER'S CALL. Jerry, 2026.09.30: "you can allow the
+ *  user to do it, but doing automatically is bad." So this is a sentence in the
+ *  dialog above the moves, not a refusal — a V that runs one way across both
+ *  legs numbers correctly, and the reader can see the moves and judge.
+ *
+ *  ⚠ How a multi-leg run SHOULD number — walking the pipe, leg by leg, rather
+ *  than sorting the whole name on one axis — is an open question for Jerry, not
+ *  something to guess at here. See `docs/NEXT.md`.
+ */
+export function sharedNameRenumberNote(name: string, legs: number): string {
+  return [
+    `⚠ "${name}" is ${legs} positions sharing one name, and the order below was`,
+    `worked out along the FIRST of them. Where the legs cover the same ground the`,
+    `numbers alternate between them — check the moves before applying.`,
+  ].join("\n");
+}
+
+
+/** What to say before throwing away everything since the file was opened.
+ *
+ *  ⚠ NAMES WHAT GOES, like every other dialog here. "Are you sure?" asks the
+ *  reader to remember what they just clicked, which is exactly what someone
+ *  about to lose an afternoon has got wrong.
+ *
+ *  ⭐ And it says the one thing that makes it safe to press: this can be undone.
+ *  `Store.revertTo` puts a snapshot on the undo stack, so ⌘Z brings the work
+ *  back. A revert nobody dares press is no more use than no revert.
+ */
+export function revertMessage(name: string | null): string {
+  return [
+    name ? `Reload ${name} from disk?` : "Go back to the plot as you opened it?",
+    "",
+    "Every change since then is dropped — positions, units, focus, the lot.",
+    "",
+    "This can be undone with ⌘Z.",
+  ].join("\n");
+}
+
+/** Why an export did not happen, as a dialog.
+ *
+ *  ⭐ Jerry, 2026.10.09: "I saw nothing." The commonest refusal is the sheet
+ *  declining to clip, and its reason — with the scale that WOULD fit — went to
+ *  the small status text in the title bar, nowhere near the Export menu he had
+ *  just used. It is a dialog now. The server's own words are kept: they name
+ *  the overrun and the fix.
+ */
+export function exportFailedMessage(detail: string): string {
+  const clipped = detail.startsWith("CLIPPED:");
+  return [
+    clipped ? "The plot does not fit on this sheet at this scale." : "The export did not work.",
+    "",
+    clipped ? detail.replace(/^CLIPPED:\s*/, "") : detail,
+    ...(clipped ? ["", "Change the Sheet or the Scale under Export, then export again."] : []),
+  ].join("\n");
+}
+
+/** Ask before reverting. True means go ahead. */
+export function confirmRevert(name: string | null): boolean {
+  return window.confirm(revertMessage(name));
+}

@@ -10,12 +10,19 @@
  * seeing at once — unlike instruments, where a list of sixty would be a wall.
  */
 import type { Plot, Position } from "./plot.js";
-import { isVertical, resolveEnds, runOf } from "./plot.js";
+import { isVertical, resolveEnds, runOf, lengthOf, angleOf,
+         endsFromLengthAngle, duplicateNames, duplicateUnits,
+         nextPositionName } from "./plot.js";
 import type { Store } from "./store.js";
 import { renumber } from "./api.js";
-import { confirmDelete } from "./confirm.js";
+import { confirmDelete, confirmSharedName, sharedNameRenumberNote } from "./confirm.js";
 import { parseFeet } from "./feet.js";
 import { fmtFt } from "./geometry.js";
+import { button } from "./button.js";
+
+/** Two decimals, for a box a human types into. A pipe at 11.999999 degrees is
+ *  at twelve degrees, and showing the noise invites someone to retype it. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const TYPES = ["electric", "pipe", "grid", "catwalk", "truss",
                "boom", "box-boom", "ladder", "tormentor"] as const;
@@ -23,6 +30,21 @@ const MOUNTS = ["", "boom-base", "floor-plate", "flange"] as const;
 
 export interface PositionDeps {
   onChange: () => void;
+  /** Put the plan into "click one end, then the other" for this position.
+   *  ⭐ The panel does not do the picking — the plan does, because that is
+   *  where the room is. This just says which pipe is being drawn.
+   *
+   *  🔴 THE POSITION ITSELF, NOT ITS NAME. The first cut passed the name and
+   *  looked it up again on the second click, and NAMES ARE NOT UNIQUE —
+   *  "+ Add position" names a new one `Electric ${count+1}`, which collides
+   *  with an existing "Electric 7" as soon as anything has been deleted. Two
+   *  rows called the same thing meant `find` returned the FIRST, so drawing on
+   *  one pipe silently moved a different one. Jerry found it in a minute:
+   *  "it seems to have blown away the last US electric in the plot." */
+  onDrawPipe?: (pos: Position) => void;
+  /** Start numbering this run by clicking the units in order. Optional so a
+   *  caller without a plan to click on still compiles — see `onDrawPipe`. */
+  onNumberSeq?: (pos: Position, start: number) => void;
   /** Say something the user needs to read — a refusal, or a nudge to renumber.
    *  Optional so a caller that does not have a status line still compiles. */
   onStatus?: (msg: string, bad?: boolean) => void;
@@ -63,8 +85,8 @@ export function nextBoomHeight(
   if (below >= MIN_BOOM_GAP) return below;
 
   // No room underneath. Fall back to the widest gap BETWEEN units — the same
-  // rule a pipe uses. The new unit will be numbered last and out of order, so
-  // the caller says to press renumber.
+  // rule a pipe uses. The new unit is numbered last and so sits out of order on
+  // the boom; the caller states that, and leaves the fix to the designer.
   let best: number | undefined;
   let widest = MIN_BOOM_GAP;
   for (let k = 0; k < heights.length - 1; k++) {
@@ -86,7 +108,7 @@ function field(
   opts?: { options?: readonly string[]; step?: number; hint?: string; feet?: boolean },
 ): HTMLElement {
   const wrap = document.createElement("label");
-  wrap.className = "pos-field";
+  wrap.className = "card-field";
   const cap = document.createElement("span");
   cap.textContent = label;
   if (opts?.hint) cap.title = opts.hint;
@@ -117,6 +139,116 @@ function field(
   return wrap;
 }
 
+
+/**
+ * Everything a position card has to SAY about itself, in reading order.
+ *
+ * ⭐ Extracted so the shut card and the open card cannot disagree. #88 rolls a
+ * card up to one line, and a warning that only appears once you open the card is
+ * a warning nobody reads — a pipe hung through the ceiling would go quiet
+ * exactly when the panel got easier to work in. `redOnly()` picks the ones that
+ * must survive the roll-up.
+ *
+ * Pure: it reads the plot and returns strings. No DOM, which is what lets
+ * positions.test.ts check it at all.
+ */
+/**
+ * Which cards are rolled up, by position NAME. #88: "it makes it annoying to
+ * work" — eleven open cards is a panel you scroll rather than read.
+ *
+ * 🔴 SESSION ONLY, DELIBERATELY NOT IN THE PLOT FILE. Rolling a card up is a
+ * thing you do to your screen, not a change to the drawing, and putting it in
+ * the file would mark the plot unsaved for tidying the panel — which is the one
+ * complaint the layers release already earned. Nothing here survives a reload,
+ * and that is the right trade.
+ *
+ * ⚠ Keyed by name rather than index, because an index moves when a position is
+ * deleted and the wrong cards would shut. A rename resets that card to open,
+ * which is harmless; two positions sharing a name share a state, which is
+ * consistent with their being one position everywhere else.
+ */
+const shut = new Set<string>();
+const keyOf = (p: Position) => p.name.trim().toLowerCase();
+let seeded = false;
+/** The position the panel has already scrolled to, so it only scrolls on a CHANGE. */
+let lastScrolled: number | null | undefined;
+
+/** Forget it all when a different show is opened. Called from adoptPlot(). */
+export function resetPositionCards(): void {
+  shut.clear(); seeded = false; lastScrolled = undefined;
+}
+
+export function positionNotes(
+  p: Position, plot: Plot, clashes: Set<string>,
+): string[] {
+  const bits: string[] = [];
+
+    // ⭐ SHARING A NAME IS ALLOWED, and is how you say "these two segments are
+    // one position" — a V or an L. So this states the consequence rather than
+    // warning against it. Everything joins by name, so the segments are already
+    // one heading in the schedule and one run of unit numbers.
+    //
+    // ⚠ The thing that DOES go wrong is the numbering, and it is checked below.
+    const sharing = clashes.has(p.name.trim().toLowerCase());
+    if (sharing) {
+      bits.push(`shares its name with another position — they are one position `
+        + `in the schedule and number as one run`);
+    }
+
+    // 🔴 THIS is the thing that actually breaks when a name is shared. RP-2
+    // §2.3.2 numbers units per POSITION, so unit 1 on two different pipes is
+    // right — but a shared name makes those pipes one position, and then two
+    // unit 1s are two lights the paperwork cannot tell apart. The schedule, the
+    // hookup and the focus chart all address a light as "position, number".
+    //
+    // ⚠ It is not automatic. `+ unit` takes max+1 across every segment of the
+    // name, so it stays unique going forward — but MERGING two pipes that each
+    // already had units 1-5 gives 1,1,2,2,3,3,4,4,5.
+    //
+    // 🔴 AND THE NOTE DOES NOT SEND THE READER TO RENUMBER, which is what it
+    // used to do. Jerry, 2026.09.30: "you can't just renumber the units […] you
+    // can allow the user to do it, but doing automatically is bad." A unit
+    // number is not a label the file owns. It is spiked on the pipe, written in
+    // the hookup the electrician is holding, and called out in the dark. Renumber
+    // rewrites all of them in the file and none of them in the room. Changing
+    // ONE number by hand is the small fix; renumbering the run is a decision
+    // about a document that may already have gone out.
+    const dupUnits = duplicateUnits(plot.instruments, p.name);
+    if (dupUnits.length) {
+      bits.push(`🔴 ${dupUnits.length > 1 ? "UNITS" : "UNIT"} `
+        + `${dupUnits.join(", ")} ${dupUnits.length > 1 ? "are" : "is"} used twice `
+        + `on this position — the paperwork cannot tell them apart. `
+        + `Give one of each pair a free number in the inspector`);
+    }
+
+    // ⭐ A trim above the ceiling cannot be hung. Nothing checked until
+    // 2026.09.24, when a pipe was raised to 18' in a room with a 15' grid and
+    // the tool drew it, computed levels from it and printed it without a word.
+    const grid = plot.room.gridHeight;
+    const foh = p.foh ?? (plot.room.plasterLine !== undefined && p.y1 < plot.room.plasterLine);
+    if (p.trim !== undefined && grid !== undefined && !foh) {
+      if (p.trim > grid) {
+        bits.push(`🔴 ABOVE THE ${grid}' CEILING — this cannot be hung`);
+      } else if (p.trim > grid - 1.5) {
+        bits.push(`under 1'-6" below the ${grid}' grid — a Source Four and its clamp need about that`);
+      }
+    }
+    if (isVertical(p)) bits.push("vertical — a POINT in plan; units differ by height");
+    if (foh) bits.push("front of house — downstage of the plaster line, over the audience");
+    if (p.circuits?.length) bits.push(`${p.circuits.length} circuits recorded`);
+    else bits.push("no circuits recorded — no load table can be built");
+  return bits;
+}
+
+/**
+ * The ones that cannot be hidden: a trim through the ceiling, two units sharing
+ * a number. ⚠ Keyed off the 🔴 the note itself carries, so a new red note
+ * reaches the shut card without anybody remembering to come back here.
+ */
+export function redOnly(bits: string[]): string[] {
+  return bits.filter(b => b.includes("\u{1F534}"));
+}
+
 export function renderPositions(
   host: HTMLElement, store: Store, deps: PositionDeps,
 ): void {
@@ -126,9 +258,84 @@ export function renderPositions(
   // forEach, not an index loop: `noUncheckedIndexedAccess` is on, so
   // positions[i] is Position | undefined and every read needs a guard. The
   // callback hands back a Position that is known to exist.
-  plot.positions.forEach((p) => {
+  // ⭐ ONCE for the whole panel, not once per row. Every row asks whether its
+  // name clashes, and rebuilding the set eleven times to answer eleven
+  // questions is the kind of thing that makes a panel feel slow on a big plot.
+  const clashes = duplicateNames(plot.positions);
+
+  // ⭐ A PLOT OPENS WITH EVERY CARD ROLLED UP, so the panel is a list you can
+  // read before it is a form you have to scroll. Opening all of them by default
+  // would leave the complaint in #88 exactly where it was until a designer shut
+  // eleven cards by hand, which nobody is going to do.
+  if (!seeded) {
+    for (const p of plot.positions) shut.add(keyOf(p));
+    seeded = true;
+  }
+
+  plot.positions.forEach((p, i) => {
     const box = document.createElement("div");
-    box.className = "pos-row";
+    // ⭐ #78: "it's hard to tell when a position is selected." The card says so
+    // now, and so does the pipe on the plan — the two are the same selection.
+    const isSel = store.selectedPosition === i;
+    box.className = "card" + (isSel ? " selected" : "");
+    if (isSel) box.setAttribute("aria-current", "true");
+    // ⚠ On POINTERDOWN, not click, so selecting a card does not wait for the
+    // mouse to come back up — and on the card, so clicking into any field in it
+    // also makes that position current. Typing in a card you have not selected
+    // is how you lose track of which pipe you are editing.
+    box.addEventListener("pointerdown", () => store.selectPosition(i));
+
+    // ⭐ #88. The head is always there, open or shut, so the panel reads as a
+    // list of positions rather than a stack of forms. Name, type and trim,
+    // because trim is the number you scan a rig for.
+    const bits = positionNotes(p, plot, clashes);
+    const isShut = shut.has(keyOf(p));
+    if (isShut) box.classList.add("shut");
+
+    // ⭐ THROUGH button(), like every other control in the panel — `text`, the
+    // quietest emphasis M3 publishes, because opening a card is the most
+    // ordinary thing you can do here and must not compete with `Add unit`.
+    // store.test.ts pins this: a panel that builds a button by hand is how
+    // seven controls ended up with no hierarchy at all.
+    const head = button({
+      label: p.name || "(unnamed)",
+      variant: "text",
+      icon: isShut ? "chevron_right" : "expand_more",
+      title: isShut ? "Open this position" : "Roll this position up",
+      // ⚠ CLICK, not pointerdown. The card already selects on pointerdown, and
+      // toggling on the same event made a drag off the head shut the card you
+      // were reaching into.
+      onClick: () => {
+        if (isShut) shut.delete(keyOf(p)); else shut.add(keyOf(p));
+        deps.onChange();
+      },
+    });
+    head.classList.add("card-head");
+    head.setAttribute("aria-expanded", String(!isShut));
+    // The type and the trim sit at the far end of the row. Trim is the number
+    // you scan a rig for, so it earns its place on a one-line card.
+    const what = document.createElement("span");
+    what.className = "muted";
+    what.textContent = [p.type ?? "electric",
+                        p.trim !== undefined ? fmtFt(p.trim) : undefined]
+      .filter(Boolean).join(" \u00b7 ");
+    head.appendChild(what);
+    box.appendChild(head);
+
+    // 🔴 A SHUT CARD STILL CARRIES ITS RED WARNINGS. A trim through the ceiling
+    // and two units sharing a number are the two things that cost money in the
+    // room, and hiding them is how this feature would do damage rather than
+    // save scrolling.
+    if (isShut) {
+      for (const red of redOnly(bits)) {
+        const warn = document.createElement("p");
+        warn.className = "card-note shut-warning";
+        warn.textContent = red;
+        box.appendChild(warn);
+      }
+      host.appendChild(box);
+      return;
+    }
 
     const set = (patch: Partial<Position>) => {
       store.begin(null);
@@ -148,7 +355,31 @@ export function renderPositions(
       return v;
     };
 
-    box.appendChild(field("Name", p.name, v => set({ name: v })));
+    // ⭐ RENAMING A PIPE TAKES ITS RIG WITH IT, for the same reason changing its
+    // trim does — a unit says which position it is on by NAME, so a rename that
+    // leaves the units behind orphans every light on the pipe. They keep
+    // pointing at a name no position has any more, and drop out of the
+    // schedule, the hookup and the focus chart without a word.
+    //
+    // 🔴 FOUND BY THE WARNING BELOW TELLING PEOPLE TO DO IT. The duplicate-name
+    // note says "Rename one" — which, before this, was advice that broke the
+    // plot it was trying to fix.
+    box.appendChild(field("Name", p.name, v => {
+      const from = p.name.trim().toLowerCase();
+      const to = v.trim();
+      if (!to || to.toLowerCase() === from) { set({ name: v }); return; }
+      store.begin(null);
+      p.name = v;
+      let moved = 0;
+      for (const inst of plot.instruments) {
+        if ((inst.position ?? "").trim().toLowerCase() !== from) continue;
+        inst.position = to;
+        moved++;
+      }
+      store.commit();
+      deps.onChange();
+      if (moved) deps.onStatus?.(`${to} — ${moved} unit${moved === 1 ? "" : "s"} came with it.`);
+    }, { hint: "Every unit on this position is renamed with it" }));
     box.appendChild(field("Type", p.type ?? "electric",
       v => set({ type: v as Position["type"] }), { options: TYPES }));
     // ⭐ Moving a pipe MOVES ITS RIG. Setting the trim alone changed only the
@@ -213,40 +444,74 @@ export function renderPositions(
       box.appendChild(end("Y1", p.y1, "y1"));
       box.appendChild(end("X2", p.x2, "x2"));
       box.appendChild(end("Y2", p.y2, "y2"));
+
+      // ⭐ THE SAME PIPE, SAID THE OTHER WAY. A truss tower is specified as
+      // "20 foot truss, 12 degrees off the wall", not as two coordinates — and
+      // working the far end out by hand, then again for every nudge of the
+      // angle, is the reason #62 was raised:
+      //
+      //   "My towers are set at a slight angle to follow the walls... there is
+      //    no way to enter an angle for that, without doing some math."
+      //
+      // These write x2/y2, the same fields the four boxes above write. There is
+      // no new state and nothing to keep in step — the length and the angle are
+      // READ BACK from the ends every time the panel is built, so whichever way
+      // you type, both halves agree.
+      const _ends = { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2 };
+      box.appendChild(field("Length", round2(lengthOf(_ends)), v => {
+        const n = num(v);
+        if (n === null || n === undefined) return;
+        set(endsFromLengthAngle(p.x1, p.y1, n, angleOf(_ends)));
+        deps.onStatus?.(`${p.name} is ${fmtFt(n)} long, ${runOf({ ...p, ...endsFromLengthAngle(p.x1, p.y1, n, angleOf(_ends)) })}.`);
+      }, { feet: true, hint: "Swings the far end about X1/Y1 — the end you measured from" }));
+
+      // ⚠ NOT parseFeet. An angle is degrees, and "12" must not be read as
+      // twelve feet by the length parser sitting next to it.
+      box.appendChild(field("Angle", round2(angleOf(_ends)), v => {
+        const a = Number(v.trim().replace(/[°\s]/g, ""));
+        if (!Number.isFinite(a)) {
+          deps.onStatus?.(`"${v}" is not an angle — degrees, so 0 runs across and 90 runs up the deck`, true);
+          return;
+        }
+        const len = lengthOf(_ends);
+        if (len < 0.01) {
+          deps.onStatus?.("Give the position a length before turning it.", true);
+          return;
+        }
+        set(endsFromLengthAngle(p.x1, p.y1, len, a));
+        deps.onStatus?.(`${p.name} is at ${round2(a)}°, ${runOf(endsFromLengthAngle(p.x1, p.y1, len, a))}.`);
+      }, { hint: "Degrees. 0 runs across, 90 runs up and downstage. Keeps the length" }));
       if ((p.type ?? "") === "catwalk" || (p.type ?? "") === "truss")
         box.appendChild(field("Width", p.width, v => { const n = num(v);
           if (n === null) return; set({ width: n }); }, { feet: true }));
     }
 
     const note = document.createElement("p");
-    note.className = "muted pos-note";
-    const bits: string[] = [];
-
-    // ⭐ A trim above the ceiling cannot be hung. Nothing checked until
-    // 2026.09.24, when a pipe was raised to 18' in a room with a 15' grid and
-    // the tool drew it, computed levels from it and printed it without a word.
-    const grid = plot.room.gridHeight;
-    const foh = p.foh ?? (plot.room.plasterLine !== undefined && p.y1 < plot.room.plasterLine);
-    if (p.trim !== undefined && grid !== undefined && !foh) {
-      if (p.trim > grid) {
-        bits.push(`🔴 ABOVE THE ${grid}' CEILING — this cannot be hung`);
-      } else if (p.trim > grid - 1.5) {
-        bits.push(`under 1'-6" below the ${grid}' grid — a Source Four and its clamp need about that`);
-      }
-    }
-    if (isVertical(p)) bits.push("vertical — a POINT in plan; units differ by height");
-    if (foh) bits.push("front of house — downstage of the plaster line, over the audience");
-    if (p.circuits?.length) bits.push(`${p.circuits.length} circuits recorded`);
-    else bits.push("no circuits recorded — no load table can be built");
+    note.className = "muted card-note";
     note.textContent = bits.join(" · ");
     box.appendChild(note);
 
     const actions = document.createElement("div");
-    actions.className = "pos-actions";
+    actions.className = "card-actions";
 
-    const addUnit = document.createElement("button");
-    addUnit.textContent = "+ unit";
-    addUnit.title = "Hang a unit on this position, at its trim";
+    // ⭐ DRAW IT, rather than compute it. Six boxes describe a pipe exactly and
+    // none of them is how anybody thinks about where a tower goes — you point
+    // at the two ends. #62's real ask.
+    if (!isVertical(p) && deps.onDrawPipe) {
+      const drawBtn = button({
+        label: "Draw", variant: "text", icon: "timeline", dense: true,
+        title: "Click one end on the plan, then the other",
+        onClick: () => deps.onDrawPipe!(p),
+      });
+      actions.appendChild(drawBtn);
+    }
+
+    // ⭐ TONAL, because hanging a unit is the thing you come to a position row
+    // to do. Everything else here is occasional, and now looks it.
+    const addUnit = button({
+      label: "Add unit", variant: "tonal", icon: "add", dense: true,
+      title: "Hang a unit on this position, at its trim",
+    });
     addUnit.addEventListener("click", () => {
       const name = p.name.trim().toLowerCase();
       const on = plot.instruments.filter(
@@ -330,19 +595,24 @@ export function renderPositions(
       });
       if (outOfOrder) {
         // ⚠ Say it. A unit numbered 5 sitting between 2 and 3 on the elevation
-        // is a paperwork error waiting to happen, and the fix is one button
-        // away — but only if the reader knows to press it.
+        // is a paperwork error waiting to happen.
+        //
+        // It used to end "press renumber on X". It no longer tells anyone to do
+        // that — see the note on duplicate units above. State the fact and let
+        // the designer decide whether the order is worth rewriting the run for;
+        // on a boom that is still being built it usually is not.
         deps.onStatus?.(
-          `Unit ${nextUnit} went in above a lower one, so the numbers are out of `
-          + `order — press renumber on ${p.name}.`);
+          `Unit ${nextUnit} went in above a lower one, so ${p.name} is not in `
+          + `numerical order down the boom.`);
       }
       deps.onChange();
     });
     actions.appendChild(addUnit);
 
-    const del = document.createElement("button");
-    del.textContent = "delete";
-    del.className = "danger";
+    const del = button({
+      label: "Delete", variant: "danger", icon: "delete", dense: true,
+      title: "Remove this position. Units on it are kept.",
+    });
     del.addEventListener("click", () => {
       const idx = plot.positions.indexOf(p);
       const name = p.name.trim().toLowerCase();
@@ -366,9 +636,10 @@ export function renderPositions(
     });
     actions.appendChild(del);
 
-    const renumberBtn = document.createElement("button");
-    renumberBtn.textContent = "renumber";
-    renumberBtn.title = "Renumber the units on this position, per RP-2 §2.3.2";
+    const renumberBtn = button({
+      label: "Renumber", variant: "text", icon: "sort", dense: true,
+      title: "Order the units by geometry, per RP-2 §2.3.2. Shows every move first.",
+    });
     renumberBtn.addEventListener("click", async () => {
       try {
         const r = await renumber(plot, p);
@@ -381,7 +652,13 @@ export function renderPositions(
         const lines = r.moves.slice(0, 12)
           .map(m => `   unit ${m.from} → ${m.to}`).join("\n");
         const more = r.moves.length > 12 ? `\n   …and ${r.moves.length - 12} more` : "";
-        if (!confirm(`${r.convention}\n\n${r.changed} of ${r.count} units change:\n${lines}${more}\n\nApply?`)) return;
+        // 🔴 A shared name is two legs ordered by ONE leg's geometry, which
+        // interleaves them when they cover the same ground. Say so above the
+        // moves — the reader still decides. See `sharedNameRenumberNote`.
+        const legs = plot.positions.filter(
+          q => q.name.trim().toLowerCase() === p.name.trim().toLowerCase()).length;
+        const shared = legs > 1 ? `${sharedNameRenumberNote(p.name, legs)}\n\n` : "";
+        if (!confirm(`${shared}${r.convention}\n\n${r.changed} of ${r.count} units change:\n${lines}${more}\n\nApply?`)) return;
         store.begin(null);
         const byPos = new Map(r.instruments.map(i => [`${i.x},${i.y},${i.height ?? ""}`, i.unit]));
         const name = p.name.trim().toLowerCase();
@@ -398,17 +675,106 @@ export function renderPositions(
       }
     });
     actions.appendChild(renumberBtn);
+
+    // ⭐ Jerry, 2026.09.30: "pick a starting sequence number and then letting the
+    // user fix the sequence by selecting units." It sits BESIDE renumber rather
+    // than replacing it: renumber is one click when §2.3.2's order is the right
+    // one, and this is for when it is not — a V, a curved cove, or a rig
+    // somebody else hung. See `sequence.ts`.
+    if (deps.onNumberSeq) {
+      const seqBtn = button({
+        label: "Number by clicking", variant: "text", icon: "pin", dense: true,
+        title: "Pick a starting number, then click the units in hanging order",
+      });
+      seqBtn.addEventListener("click", () => {
+        const units = plot.instruments.filter(
+          i => (i.position ?? "").trim().toLowerCase() === p.name.trim().toLowerCase()).length;
+        if (!units) { alert(`${p.name} has no units on it.`); return; }
+        // ⚠ Default 1, not max+1. A pass usually renumbers a run from the top;
+        // offering the number after the highest would silently continue a run
+        // the designer is trying to rewrite.
+        const raw = window.prompt(
+          `Number ${units} unit${units > 1 ? "s" : ""} on ${p.name}, starting at:`, "1");
+        if (raw === null) return;
+        const start = Number(raw.trim());
+        if (!Number.isInteger(start) || start < 1) {
+          alert(`"${raw.trim()}" is not a unit number. Give a whole number, 1 or more.`);
+          return;
+        }
+        deps.onNumberSeq?.(p, start);
+      });
+      actions.appendChild(seqBtn);
+    }
+
     box.appendChild(actions);
 
     host.appendChild(box);
   });
 
-  const addPos = document.createElement("button");
-  addPos.textContent = "+ Add position";
+  // 🔴 THE OTHER HALF OF #88, and the half that was actually broken: "when a
+  // position is selected, its card may not be visible." Selecting a pipe on the
+  // plan scrolled nothing, so on a rig with eleven positions the panel went on
+  // showing somewhere else entirely.
+  //
+  // ⚠ `block: "nearest"` scrolls the PANEL and only as far as it has to. "start"
+  // or "center" would yank a card that is already perfectly visible, and on a
+  // nested scroller it can drag the whole page with it.
+  // ⚠ ONLY WHEN THE SELECTION CHANGED. This panel re-renders on every edit, and
+  // scrolling on each one would drag the view back the moment a designer
+  // scrolled away from the card they had selected — a fix that becomes its own
+  // annoyance.
+  if (store.selectedPosition !== lastScrolled) {
+    lastScrolled = store.selectedPosition;
+    // 🔴 NEXT FRAME, AND RE-QUERY INSIDE IT. Two separate reasons, and missing
+    // either one leaves the panel exactly where it was:
+    //
+    // Deferring, because drawInspector() calls this and THEN rebuilds the
+    // inspector below it in the same scroller — that changes the panel's height
+    // and undoes any scroll made here. Measured: the card stayed at 3516px in a
+    // 768px window.
+    //
+    // Re-querying, because selecting a pipe repaints MORE THAN ONCE, and
+    // host.replaceChildren() detaches the card found a moment ago.
+    // scrollIntoView on a node that is no longer in the document is silent — it
+    // does nothing and reports nothing, which is why this took a measurement
+    // rather than a read-through to find.
+    requestAnimationFrame(() => {
+      host.querySelector(".card.selected")?.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  // ⭐ FILLED: the one primary action in the Positions panel. M3 puts the most
+  // important action at the top of the emphasis ladder, and until now this
+  // looked exactly like `renumber`.
+  const addPos = button({
+    label: "Add position", variant: "filled", icon: "add",
+    title: "Create a hanging position — you name it",
+  });
   addPos.addEventListener("click", () => {
+    // ⭐ THE USER NAMES IT. The old button invented `Electric ${count + 1}`,
+    // which is one delete away from a collision — the demo ships seven
+    // positions, one called "Electric 7", so deleting any of them and pressing
+    // add produced a second "Electric 7" silently.
+    //
+    // ⚠ And a clash is ALLOWED, because it is a real thing to want. A V or an L
+    // is one position made of two straight segments; sharing the name is how
+    // you say so, and the plot already treats them as one for numbering and
+    // paperwork. So: suggest a free name, say plainly when the typed one is
+    // taken and what that means, and let them go ahead.
+    const suggested = nextPositionName(plot.positions);
+    const typed = window.prompt("Name this position", suggested);
+    if (typed === null) return;                       // cancelled; add nothing
+    const wanted = typed.trim();
+    if (!wanted) {
+      deps.onStatus?.("A position needs a name.", true);
+      return;
+    }
+    const clashes = plot.positions.filter(
+      q => q.name.trim().toLowerCase() === wanted.toLowerCase()).length;
+    if (clashes && !confirmSharedName(wanted, clashes)) return;
     const n = plot.positions.length + 1;
     store.addPosition({
-      name: `Electric ${n}`,
+      name: wanted,
       type: "electric",
       x1: 0, y1: Math.min(plot.room.depth - 2, 8 + n * 4),
       x2: plot.room.width, y2: Math.min(plot.room.depth - 2, 8 + n * 4),

@@ -6,21 +6,52 @@
  * no proxies, nothing to debug at two in the morning during a tech.
  */
 import type { Plot, Instrument, Position, Room } from "./plot.js";
+import { LAYERS, visibilityOf, type LayerId } from "./layers.js";
 
 export type Listener = () => void;
 
 /** A snapshot is the plot plus which unit was selected when it was taken, so
- *  undo puts the selection back where the eye expects it. */
-interface Snapshot { plot: Plot; selected: number | null }
+ *  undo puts the selection back where the eye expects it — and the revision it
+ *  was taken at, which is what lets `dirty` answer honestly. See `_seq`. */
+interface Snapshot { plot: Plot; selected: number | null; seq: number }
+
+/** Is this patch actually saying anything new?
+ *
+ *  ⚠ null and undefined are the SAME ANSWER here. The inspector writes
+ *  `undefined` for an emptied box and the .plot.json may hold `null` for a
+ *  field nobody filled, so treating them as different would make clearing an
+ *  already-empty field count as an edit — which is the exact bug this guards. */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if ((a === undefined || a === null) && (b === undefined || b === null)) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+  return false;
+}
 
 const HISTORY_LIMIT = 200;
 
 export class Store {
   private _plot: Plot;
   private _selected: number | null = null;      // index into instruments
+  private _selectedPosition: number | null = null;   // index into positions
   private _undo: Snapshot[] = [];
   private _redo: Snapshot[] = [];
-  private _dirty = false;
+  // ⭐ DIRTY IS A DIFFERENCE, NOT AN ACTIVITY. `_seq` counts real changes to the
+  // document and `_savedSeq` remembers where it stood when the file was
+  // written, so `dirty` asks "does this differ from disk?" rather than "did the
+  // user touch something?". Undo restores the seq along with the plot, which is
+  // what makes undoing back to the saved state go clean again.
+  //
+  // Jerry, 2026.09.29: "if someone selects a light and does nothing to it,
+  // should the plot be considered changed?" No — and nor should setting a field
+  // to the value it already had. See docs/DECISIONS.md.
+  private _seq = 0;
+  private _savedSeq = 0;
+  // What the last begin() did, so an edit that turns out to change nothing can
+  // put the history back exactly as it found it.
+  private lastBegin: { pushed: boolean; prevKey: string | null; redo: Snapshot[] } | null = null;
   private listeners = new Set<Listener>();
 
   constructor(plot: Plot) {
@@ -29,10 +60,19 @@ export class Store {
 
   get plot(): Plot { return this._plot; }
   get selected(): number | null { return this._selected; }
+
+  /** Which POSITION is current, as an index into `positions`.
+   *
+   *  ⭐ #78: "it's hard to tell when a position is selected." There was nothing
+   *  to tell — `_selected` has always been an index into INSTRUMENTS, and a
+   *  position could not be selected, clicked or pointed at. This is the missing
+   *  half, not a colour change.
+   */
+  get selectedPosition(): number | null { return this._selectedPosition; }
   get selectedInstrument(): Instrument | null {
     return this._selected === null ? null : this._plot.instruments[this._selected] ?? null;
   }
-  get dirty(): boolean { return this._dirty; }
+  get dirty(): boolean { return this._seq !== this._savedSeq; }
   get canUndo(): boolean { return this._undo.length > 0; }
   get canRedo(): boolean { return this._redo.length > 0; }
 
@@ -44,7 +84,29 @@ export class Store {
   private emit(): void { for (const fn of this.listeners) fn(); }
 
   private snapshot(): Snapshot {
-    return { plot: structuredClone(this._plot), selected: this._selected };
+    return { plot: structuredClone(this._plot), selected: this._selected, seq: this._seq };
+  }
+
+  /** One real change happened. */
+  private touch(): void {
+    this._seq++;
+    this.lastBegin = null;   // that begin() is spoken for; it cannot be undone now
+  }
+
+  /** The edit after begin() turned out to change nothing — put history back.
+   *
+   *  ⚠ If that push evicted the oldest entry at HISTORY_LIMIT, the eviction
+   *  stands: popping our own entry cannot bring it back. Two hundred edits deep
+   *  it is not worth a second data structure to avoid. */
+  private cancelBegin(): void {
+    const b = this.lastBegin;
+    this.lastBegin = null;
+    if (!b) return;
+    if (b.pushed) {
+      this._undo.pop();
+      this._redo = b.redo;
+    }
+    this.lastKey = b.prevKey;
   }
 
   /**
@@ -55,28 +117,70 @@ export class Store {
    */
   private lastKey: string | null = null;
   begin(coalesceKey: string | null = null): void {
-    if (coalesceKey !== null && coalesceKey === this.lastKey) return;
+    const prevKey = this.lastKey;
+    if (coalesceKey !== null && coalesceKey === this.lastKey) {
+      this.lastBegin = { pushed: false, prevKey, redo: this._redo };
+      return;
+    }
+    const redo = this._redo;
     this._undo.push(this.snapshot());
     if (this._undo.length > HISTORY_LIMIT) this._undo.shift();
-    this._redo.length = 0;
+    // ⚠ A NEW ARRAY, not `.length = 0`. cancelBegin() hands the old one back,
+    // so an edit that changes nothing must not have emptied it on the way past:
+    // undo, then tab through a field without altering it, and redo still works.
+    this._redo = [];
     this.lastKey = coalesceKey;
+    this.lastBegin = { pushed: true, prevKey, redo };
   }
 
   /** End a coalescing run, so the next edit starts a fresh undo entry. */
   commit(): void { this.lastKey = null; }
 
   select(index: number | null): void {
-    if (this._selected === index) return;
+    // ⚠ ONE THING IS CURRENT AT A TIME. A unit and a pipe highlighted together
+    // leaves two answers to "what am I looking at", and the inspector can only
+    // show one of them anyway. Picking a unit means you are now on the unit.
+    //
+    // 🔴 THE EARLY RETURN HAS TO ASK ABOUT BOTH. `if (this._selected === index)
+    // return` alone skipped the clearing whenever the unit was ALREADY current
+    // — which `add()` makes the normal case, since adding a unit selects it. So
+    // selecting a pipe, adding a unit to it, then clicking that unit left the
+    // pipe lit as well. Caught by the test, not by reading.
+    const same = this._selected === index
+      && !(index !== null && this._selectedPosition !== null);
+    if (same) return;
     this._selected = index;
+    if (index !== null) this._selectedPosition = null;
     this.emit();
   }
 
-  /** Change fields on one instrument. Caller calls begin() first. */
+  /** Make a position current. Mutually exclusive with the instrument selection,
+   *  for the reason in `select`. */
+  selectPosition(index: number | null): void {
+    if (this._selectedPosition === index) return;
+    this._selectedPosition = index;
+    if (index !== null) this._selected = null;
+    this.emit();
+  }
+
+  /** Change fields on one instrument. Caller calls begin() first.
+   *
+   *  ⭐ A PATCH THAT SAYS NOTHING NEW IS NOT AN EDIT. Typing a value back the
+   *  way it was, tabbing out of a field you only looked at, or dragging a unit
+   *  and dropping it where it started all arrive here — and all used to mark
+   *  the plot changed, push a dead undo entry and throw away the redo stack.
+   *  The undo entry was the worst of the three: you press undo, nothing moves,
+   *  and you press it again. */
   update(index: number, patch: Partial<Instrument>): void {
     const inst = this._plot.instruments[index];
     if (!inst) return;
+    const keys = Object.keys(patch) as (keyof Instrument)[];
+    if (keys.every(k => same(inst[k], patch[k]))) {
+      this.cancelBegin();
+      return;
+    }
     Object.assign(inst, patch);
-    this._dirty = true;
+    this.touch();
     this.emit();
   }
 
@@ -84,7 +188,7 @@ export class Store {
     this.begin(null);
     this._plot.instruments.push(inst);
     this._selected = this._plot.instruments.length - 1;
-    this._dirty = true;
+    this.touch();
     this.emit();
     return this._selected;
   }
@@ -98,7 +202,7 @@ export class Store {
   addPosition(pos: Position): number {
     this.begin(null);
     this._plot.positions.push(pos);
-    this._dirty = true;
+    this.touch();
     this.emit();
     return this._plot.positions.length - 1;
   }
@@ -107,6 +211,10 @@ export class Store {
    *  orphaned and reported, because losing a unit because a pipe was deleted is
    *  a much worse surprise than a unit with no position. */
   removePosition(index: number): string[] {
+    // ⚠ A stale index outlives the thing it pointed at. Clearing it here rather
+    // than at the call site means every route to delete is covered.
+    if (this._selectedPosition === index) this._selectedPosition = null;
+    else if (this._selectedPosition !== null && this._selectedPosition > index) this._selectedPosition--;
     const pos = this._plot.positions[index];
     if (!pos) return [];
     const name = pos.name.trim().toLowerCase();
@@ -118,7 +226,7 @@ export class Store {
     for (const inst of this._plot.instruments) {
       if ((inst.position ?? "").trim().toLowerCase() === name) inst.position = undefined;
     }
-    this._dirty = true;
+    this.touch();
     this.emit();
     return orphaned;
   }
@@ -134,7 +242,7 @@ export class Store {
   setMeta(patch: Partial<Plot>): void {
     this.begin(null);
     Object.assign(this._plot, patch);
-    this._dirty = true;
+    this.touch();
     this.emit();
   }
 
@@ -157,7 +265,7 @@ export class Store {
     }
     // An empty override block is noise in the file; drop it.
     if (Object.keys(w).length === 0) delete this._plot.lineWeights;
-    this._dirty = true;
+    this.touch();
     this.emit();
   }
 
@@ -165,10 +273,41 @@ export class Store {
    *  width and depth resize it, the grid height and house ceiling are what
    *  trims are checked against, and the plaster line decides which positions
    *  are front of house. The caller has to recompute, not just redraw. */
+  /**
+   * Switch a layer on or off.
+   *
+   * ⚠ THIS MARKS THE PLOT UNSAVED, and that is a real consequence of putting
+   * layers in the file rather than an oversight. Peek at the plot with the
+   * pools off and the plot is now dirty. The alternative — visibility held
+   * only in the browser — was rejected by the decision it has to follow:
+   * "the plot file needs to have the layers, because we would need to display
+   * them when we bring it into the app." A state that does not survive
+   * reopening is not in the file, and every CAD package stores it.
+   *
+   * ⭐ It is undoable like any other edit, so an accidental toggle costs one
+   * undo rather than a reload.
+   *
+   * 🔴 A LAYER THE FILE DOES NOT CARRY still has to be settable, or the
+   * first toggle on an old plot writes one layer and implies the other seven
+   * are off. So the whole set is seeded from `visibilityOf` — which applies
+   * each layer's default — before the one being changed is written.
+   */
+  setLayerVisible(id: LayerId, visible: boolean): void {
+    const now = visibilityOf(this._plot);
+    if (now[id] === visible) return;        // doing nothing is not a change
+    this.begin(null);
+    this._plot.layers = LAYERS.map(l => ({
+      id: l.id,
+      visible: l.id === id ? visible : now[l.id],
+    }));
+    this.touch();
+    this.emit();
+  }
+
   setRoom(patch: Partial<Room>): void {
     this.begin(null);
     Object.assign(this._plot.room, patch);
-    this._dirty = true;
+    this.touch();
     this.emit();
   }
 
@@ -179,7 +318,7 @@ export class Store {
     if (this._selected !== null && this._selected >= this._plot.instruments.length) {
       this._selected = this._plot.instruments.length ? this._plot.instruments.length - 1 : null;
     }
-    this._dirty = true;
+    this.touch();
     this.emit();
   }
 
@@ -189,7 +328,12 @@ export class Store {
     this._redo.push(this.snapshot());
     this._plot = s.plot;
     this._selected = s.selected;
-    this._dirty = true;
+    // ⭐ The revision comes back with the plot, so stepping back to where the
+    // file was written reports CLEAN. It used to assert dirty unconditionally:
+    // you could undo your way to exactly what was on disk and still be told
+    // there was something to lose.
+    this._seq = s.seq;
+    this.lastBegin = null;
     this.lastKey = null;
     this.emit();
   }
@@ -200,12 +344,49 @@ export class Store {
     this._undo.push(this.snapshot());
     this._plot = s.plot;
     this._selected = s.selected;
-    this._dirty = true;
+    // ⭐ The revision comes back with the plot, so stepping back to where the
+    // file was written reports CLEAN. It used to assert dirty unconditionally:
+    // you could undo your way to exactly what was on disk and still be told
+    // there was something to lose.
+    this._seq = s.seq;
+    this.lastBegin = null;
     this.lastKey = null;
     this.emit();
   }
 
-  markSaved(): void { this._dirty = false; this.emit(); }
+  markSaved(): void { this._savedSeq = this._seq; this.emit(); }
+
+  /**
+   * Put the plot back to `plot`, which is what is on disk.
+   *
+   * ⭐ #56: "a revert to return the file to the way it was before we touched it
+   * in this session - save the state before we open it." Most of it was already
+   * here: `adoptPlot` builds a fresh Store from the loaded plot and `dirty` is
+   * literally `_seq !== _savedSeq`. What was missing is KEEPING that plot, so
+   * going back is one step rather than a walk up the undo stack.
+   *
+   * ⚠ IT IS UNDOABLE. A revert that cannot be taken back is a second way to
+   * lose an afternoon, and this store already has the machinery — so the
+   * snapshot goes on the undo stack like any other edit.
+   *
+   * 🔴 AND IT ENDS CLEAN. `_savedSeq` is moved to meet `_seq`, because the plot
+   * now matches the file. Bumping the sequence without that would leave the
+   * editor claiming unsaved changes against a document it had just restored —
+   * and "Revert" that leaves you dirty is not a word that means anything.
+   */
+  revertTo(plot: Plot): void {
+    this._undo.push(this.snapshot());
+    if (this._undo.length > HISTORY_LIMIT) this._undo.shift();
+    this._redo = [];
+    this.lastKey = null;
+    this.lastBegin = null;
+    this._plot = structuredClone(plot);
+    this._seq++;
+    this._savedSeq = this._seq;
+    this._selected = null;
+    this._selectedPosition = null;
+    this.emit();
+  }
 }
 
 /**

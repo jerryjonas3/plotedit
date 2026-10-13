@@ -52,12 +52,24 @@ def _mirror(pts):
 ERS_MARKS = {
     90: "rings", 70: "rings", 50: "wedge", 40: None, 36: None,
     30: "diagonal", 26: "diagonal", 20: "cross", 19: "cross",
-    15: "long", 14: "long", 10: "long", 5: "long",
+    15: "long", 10: "long", 5: "long",
+    # ⭐ 2025 USITT Lighting Documentation RP, Figure 3.1.4.0.4: the 14° gets its
+    # own mark — three lines parallel to the beam, standing proud of the face —
+    # where RP-2 drew the narrow lenses by body length alone. The same mark RP-2
+    # already used for its 12° (6x22) and 3.5x12 units.
+    14: "lines",
 }
 
 
-def enhanced_ers(angle=26, length=1.667, width=0.625):
+def enhanced_ers(angle=26, length=1.667, width=0.625, angle_in_barrel=False):
     """§6.1.6. Defaults are a Source Four: 20" long, 7.5" across the body.
+
+    ⭐ `angle_in_barrel` writes the beam angle in the lens housing INSTEAD of
+    the mark — the 2025 USITT RP's alternative (Figure 3.1.4.0.4, right-hand
+    column). One setting for the whole plot (Jerry, 2026.10.09). Asked for on
+    a house rep rig, where every unit is a Shakespeare on the same body and
+    a 40° and a 10° both carry no mark: at plot size they could not be told
+    apart.
 
     Shape grammar traced from the plate. Reading from the FRONT backwards:
 
@@ -97,6 +109,10 @@ def enhanced_ers(angle=26, length=1.667, width=0.625):
     ]
     out = [("poly", _mirror(upper), True)]
 
+    if angle_in_barrel:
+        # Where the mark would go, so the number replaces it and nothing else
+        # moves: the unit number stays in the body behind it.
+        return out + [("text", ((face + flare_end) / 2, 0.0), f"{angle:g}", 0.26)]
     mark = ERS_MARKS.get(int(angle))
     if mark == "cross":                                   # 19°-20°
         out += [("line", (flare_end, neck_w), (face, -face_w)),
@@ -105,6 +121,10 @@ def enhanced_ers(angle=26, length=1.667, width=0.625):
         out += [("line", (flare_end, -neck_w), (face, face_w))]
     elif mark == "wedge":                                 # 50°
         out += [("poly", [(face, face_w), (flare_end, 0.0), (face, -face_w)], False)]
+    elif mark == "lines":                                 # 14° (2025 RP)
+        reach = 0.12 * length
+        for c in (0.6 * face_w, 0.0, -0.6 * face_w):
+            out += [("line", (face, c), (face - reach, c))]
     elif mark == "rings":                                 # 70°-90°
         for t in (0.34, 0.68):
             x = face + t * (flare_end - face)
@@ -112,10 +132,64 @@ def enhanced_ers(angle=26, length=1.667, width=0.625):
     return out
 
 
+# Altman Shakespeare (S6), from the datasheet's dimension drawings. The body is
+# 7 3/4" across on every lens; the length is the barrel's — 24"-26 1/4" for
+# 20-50°, 29 1/4"-31 1/2" for the 10°, 38 1/4"-40 1/2" for the 5° — so the middle
+# of each range is used. RP-2's shape grammar is kept: the 10° and 5° have a far
+# wider front in life (12" and 14" accessory frames), which this does not draw.
+# The house's own Vectorworks shapes were set aside on purpose (Jerry,
+# 2026.10.09: "RP-2 symbols at Shakespeare size").
+SHAKESPEARE_LENGTH_IN = {5: 39.375, 10: 30.375, 20: 25.125, 30: 25.125, 40: 25.125, 50: 25.125}
+SHAKESPEARE_WIDTH_IN = 7.75
+
+
+def shakespeare(angle=30, angle_in_barrel=False):
+    """§6.1.6 enhanced ERS at Altman Shakespeare size."""
+    a = int(angle)
+    length = SHAKESPEARE_LENGTH_IN.get(a, SHAKESPEARE_LENGTH_IN[30]) / 12.0
+    return enhanced_ers(a, length=length, width=SHAKESPEARE_WIDTH_IN / 12.0,
+                        angle_in_barrel=angle_in_barrel)
+
+
 def ers_zoom(angle=30, **kw):
     """§6.1.11 variable focus — the same body carrying a Z."""
     out = enhanced_ers(angle, **kw)
     return out + [("text", (0.0, 0.0), "Z", 0.30)]
+
+
+# Chroma-Q Color Force II Plus 72, spec sheet v1.1: 1,759 x 165 mm in plan.
+COLOR_FORCE_72_IN = (69.25, 6.5)
+
+
+def led_batten(length=69.25 / 12, depth=6.5 / 12, colors=4):
+    """2025 USITT RP, Figure 3.1.4.0.4, CYC LIGHTS: "LED Batten".
+
+    A plain rectangle at the unit's real length and depth, with a small cluster
+    of §6.16 source dots in ONE END — the RP's mark that this is LED, the same
+    dots plotedit draws in an LED's lamp housing, so their count is the number
+    of colours (four for RGBA). The RP also shows the batten divided into its
+    cells; a Color Force has 24 at 3", which at 1/4" scale is under a point
+    apiece, so the plain form is drawn.
+
+    Like striplight(): the length runs ACROSS the symbol (along the pipe), the
+    front faces -a.
+    """
+    a, c = depth / 2, length / 2
+    out = [("poly", [(a, -c), (a, c), (-a, c), (-a, -c)], True)]
+    n = max(1, int(colors))
+    r = depth * 0.06
+    per_row = 1 if n == 1 else 2
+    rows = math.ceil(n / per_row)
+    end = -c + depth * 0.30                     # just inside the stage-left end
+    placed = 0
+    for row in range(rows):
+        k = min(per_row, n - placed)
+        aa = (row - (rows - 1) / 2) * r * 3.0
+        for i in range(k):
+            cc = end + (0 if k == 1 else (i - (k - 1) / 2) * r * 3.0)
+            out.append(("circle", (aa, cc), r, True))
+            placed += 1
+    return out
 
 
 # --------------------------------------------------------------- §6.2 Fresnel
@@ -465,6 +539,40 @@ def _extent(prims):
     return (min(vals), max(vals)) if vals else (0.0, 0.0)
 
 
+def with_led_source(prims, colors, width=0.625):
+    """Add §6.16 source dots at the LAMP HOUSING of an existing symbol.
+
+    ⭐ THE SYMBOL DOES NOT CHANGE. A Source Four with a 4WRD in it is the same
+    barrel, the same lens tube and the same beam angle — so it keeps the same
+    outline and gains the dots that say what is making the light. That is how
+    USITT's Lighting Documentation Recommended Practice (February 2025) draws
+    it: its fixture key lists "CONVENTIONAL ERS 26-DEGREE" and "LED ERS
+    26-DEGREE" as the same body, one with dots at the back.
+
+    ⚠ AT THE BACK, WHICH IS WHERE THE LAMP IS. +a is toward the lamp housing;
+    the lens is at -a. Putting them at the front would be drawing the source at
+    the end the light comes out of, and would also land them on top of §6.1.11's
+    gate mark for a gobo.
+    """
+    n = max(1, int(colors))
+    front_a, back_a = _extent(prims)
+    span = back_a - front_a
+    # Just inside the tapered back — far enough forward that the dots sit on
+    # full-width body rather than in the chamfer.
+    a = back_a - 0.10 * span
+    r = width * 0.045
+    w = width / 2
+    out = list(prims)
+    if n == 1:
+        out.append(("circle", (a, 0.0), r, True))
+        return out
+    # More than one: a row across the body, the way the §6.16 plate lays them.
+    for i in range(n):
+        c = -w * 0.45 + i * (w * 0.9 / (n - 1))
+        out.append(("circle", (a, c), r, True))
+    return out
+
+
 def with_accessories(prims, accessories, size=0.5):
     """Return prims plus every accessory, each drawn where RP-2 puts it.
 
@@ -718,11 +826,40 @@ def _black():
 
 # ------------------------------------------------------ §6.14 luminaire notation
 
-def for_type(kind, lens_rotation=None):
+def is_two_point(k: str) -> bool:
+    """Is this fixture hung at TWO points, so it cannot pan?
+
+    🔴 Jerry, 2026.10.12: "A strip light is mounted in two places and can only
+    be focused in one plane." A Source Four hangs on one yoke and swings about
+    it, which is why every symbol is drawn rotated to face its focus point. A
+    strip is bolted along the pipe at both ends. It tilts on knobs at the
+    mounting and it does not turn, so a focus point off to one side describes an
+    aim it physically cannot take. (#113.)
+
+    ⭐ Matched by NAME, the same way `for_type` picks the shape, so there is no
+    second list to keep in step. A fixture that draws as a strip is a strip.
+    """
+    low = (k or "").lower()
+    return ("strip" in low
+            or "color force" in low or "colorforce" in low
+            or "batten" in low
+            or "cyc" in low)
+
+
+def for_type(kind, lens_rotation=None, lamp=None, angle_in_barrel=False):
     """Pick a symbol from a fixture-table key like "S4 26" or "Lustr 26 EDLT".
 
     lens_rotation (degrees) is used by oval-beam units — a PARNel's lens turns,
     and the angle is information the electrician needs, not decoration.
+
+    ⭐ `lamp` is here because a RETROFIT changes what is making the light without
+    changing the fixture (Jerry, 2026.09.29). Pull the HPL out of a Source Four,
+    drop a 4WRD in, and the plot used to draw a tungsten unit — indistinguishable
+    from the one beside it that still has an HPL. The barrel is the same; the
+    source is not, and §6.16 has a way to say so.
+
+    `angle_in_barrel` is the plot's `angleInBarrel`: ellipsoidals write their
+    beam angle instead of carrying the mark. Every other family ignores it.
     """
     k = (kind or "").strip()
     # Resolve a paperwork name to a table key first — "ETC Source4 36deg" should
@@ -744,6 +881,9 @@ def for_type(kind, lens_rotation=None):
     n = _re.findall(r"(\d+(?:\.\d+)?)\s*(?:deg|°)?", cleaned)
     deg = float(n[0]) if n else 26.0
 
+    # ⚠ Before "cyc": the Color Force's cyc LENS row is still a batten.
+    if "color force" in low or "colorforce" in low:
+        return led_batten(COLOR_FORCE_72_IN[0] / 12, COLOR_FORCE_72_IN[1] / 12, colors=4)
     if "cyc" in low:
         return cyc_unit(3)
     if "lustr" in low or "colorsource" in low or "clrsrc" in low or "led" in low:
@@ -766,27 +906,51 @@ def for_type(kind, lens_rotation=None):
         return striplight()
     if "mac" in low or "mover" in low or "moving" in low or "aura" in low:
         return moving_head("wash")
+    if "shakespeare" in low:
+        return _with_lamp(shakespeare(deg, angle_in_barrel=angle_in_barrel), lamp)
     if "zoom" in low:
-        return ers_zoom(deg)
+        # ⚠ A zoom's angle is not fixed and it already carries its Z, so it
+        # keeps the Z rather than claiming the one angle in its name.
+        return _with_lamp(ers_zoom(deg), lamp)
     # default: an ellipsoidal at whatever angle the name carries
-    return enhanced_ers(deg)
+    return _with_lamp(enhanced_ers(deg, angle_in_barrel=angle_in_barrel), lamp)
+
+
+def _with_lamp(prims, lamp):
+    """Dots at the lamp housing when the lamp is an LED retrofit.
+
+    ⚠ HOW MANY comes from photometrics, not from a list here — the same reason
+    the footprint and the multipliers do. A second copy of "a 4WRD is one
+    colour" is a second thing to keep in step.
+    """
+    if not lamp:
+        return prims
+    try:
+        from . import photometrics as _ph
+        n = _ph.lamp_colors(lamp)
+    except Exception:
+        return prims
+    return with_led_source(prims, n) if n else prims
 
 
 # §6.14.1 gives THREE house control models, and they are notated differently.
 # Jerry, 2026.09.23: "most houses have circuit per dimmer" — so that is the
 # default here, and it is the one where the third container is WRONG rather than
 # merely absent.
-CONTROL_MODELS = ("dimmer-per-circuit", "hard-and-soft-patch", "no-soft-patch")
+CONTROL_MODELS = ("dimmer-per-circuit", "hard-and-soft-patch", "no-soft-patch",
+                  "dimmer-is-address")
 
 
-def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
+def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None, address=None,
              color=None, purpose=None, unit=None, wattage=None,
              control="dimmer-per-circuit", rotate_deg=0.0, body_center=0.0,
              size=0.42, gap=0.30, above=1.0):
     """§6.14.1 — the SHAPE of the container carries the meaning.
 
-        hexagon    circuit
-        rectangle  dimmer (in a patch-panel house)
+        hexagon    circuit — or, on a unit with an address and no dimmer, the
+                   ADDRESS, because that is what controls it (see below)
+        rectangle  dimmer (in a patch-panel house), or the circuit when the
+                   hexagon has been given to an address
         circle     channel
 
     ⭐ How many containers there are depends on the HOUSE, per §6.14.1:
@@ -802,6 +966,17 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
       `no-soft-patch`        Hexagon (circuit) and circle (dimmer). The console
                              addresses dimmers directly; there is no channel
                              number distinct from the dimmer.
+      `dimmer-is-address`    Jerry, 2026.09.29: "in ETC world, a dimmer is a DMX
+                             shape — basically one address with the value of
+                             intensity." The dimmer NUMBER stops being a
+                             separate fact: it is the address, so the hexagon
+                             carries the address and the rectangle the circuit,
+                             exactly as it does for an LED. ⭐ The consequence
+                             is that a conventional rig and an LED rig are
+                             notated the same way, which is the point — on a
+                             mixed plot the reader stops having to know which
+                             kind of unit they are looking at to read the
+                             number.
 
     §6.14.2 stacks them below the symbol, with focus and color above it.
 
@@ -916,6 +1091,37 @@ def notation(sheet, x, y, *, channel=None, circuit=None, dimmer=None,
             circuit, dimmer = dimmer, None
         elif dimmer is not None and str(dimmer) == str(circuit):
             dimmer = None
+
+    # ⭐ In a dimmer-is-address house the dimmer number IS the address, so a unit
+    # that carries both is stating one fact twice. The address is the one that
+    # gets drawn — it is universe-qualified, so it cannot be misread as a
+    # dimmer — and the dimmer is dropped rather than given a second container.
+    #
+    # ⚠ A unit with a dimmer and NO address still draws its dimmer. The house
+    # being addressable does not mean every unit's address was recorded, and
+    # drawing nothing would be worse than drawing the number we have.
+    if control == "dimmer-is-address" and address is not None:
+        dimmer = None
+
+    # ⭐ THE HEXAGON CARRIES WHAT CONTROLS THE UNIT, THE RECTANGLE WHAT POWERS
+    # IT. Jerry, 2026.09.28: "hexagon carries dimmer or address. rectangle
+    # carries circuit — which would be an exception."
+    #
+    # RP-2 §6.14.1 reads the other way round, and it held until LEDs. The plates
+    # assume the circuit and the dimmer ARE the control path, which is why a
+    # dimmer-per-circuit house collapses them into one hexagon above. A unit on a
+    # circuit for POWER and an address for CONTROL is two facts about two
+    # different things, and the standard has one container for them.
+    #
+    # ⚠ Before this, an addressed unit drew NOTHING here. On an all-LED plot the
+    # drawing said nothing at all about what anything was plugged into.
+    #
+    # ⚠ The address arrives universe-qualified from `dmx.plot_number`, which is
+    # the disambiguation: a hexagon reading "45" is dimmer 45 and one reading
+    # "1/45" is an address. The instrument key names both, so a stranger reading
+    # the sheet is told rather than left to infer.
+    if address is not None and dimmer is None:
+        circuit, dimmer = address, (circuit if circuit is not None else None)
 
     # The containers themselves stay UPRIGHT and the text horizontal (RP-2 p.1:
     # "the associated text should be properly oriented with the rest of the text

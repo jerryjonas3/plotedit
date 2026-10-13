@@ -27,13 +27,34 @@ print("  ok   all six modules")
 
 print("\nphotometrics — figures from ETC datasheets")
 check("S4 26 field angle", ph.FIXTURES["S4 26"]["field"], 25.0)
-check("gels.csv found beside the module", len(ph.GELS), 11)
+check("gels.csv found beside the module", len(ph.GELS) > 250, True)
 check("R119 transmission", ph.GELS["R119"]["t"], 0.893)
 
 print("\ngel notation — + stacks, / splits")
 check("R52+R119 stacked", round(ph.gel_factor("R52+R119")[0], 3), 0.232)
 check("R52/R119 split -> first gel only", round(ph.gel_factor("R52/R119")[0], 3), 0.26)
-check("unknown gel -> no guess", ph.gel_factor("L201")[0], None)
+# ⭐ LEE ARRIVED 2026.09.29 — 259 colour filters, so L201 is no longer unknown.
+check("a LEE number resolves", round(ph.gel_factor("L201")[0], 3), 0.350)
+check("...and mixes with a Rosco one",
+      round(ph.gel_factor("R52+L201")[0], 3), 0.091)
+check("a gel nobody has entered still refuses", ph.gel_factor("R9999")[0], None)
+
+# 🔴 THE COLLISION THAT MAKES THE PREFIX MANDATORY. R119 is Light Hamburg Frost
+# at 89%; L119 is Dark Blue at 2%. Same digits, opposite filters — a factor of
+# forty between them. A bare number must refuse and say why, because guessing a
+# house's preferred maker is how a plot promises light it will never deliver.
+check("R119 is the frost", ph.GELS["R119"]["t"], 0.893)
+check("L119 is a dark blue", ph.GELS["L119"]["t"] < 0.05, True)
+_none, _why = ph.gel_factor("119")
+check("a bare number refuses", _none, None)
+check("...and names both makers", "R119" in _why and "L119" in _why, True)
+
+# ⚠ LEE publish a daylight figure and a tungsten figure and they differ. The
+# tungsten one is stored, because the candela these multiply is measured against
+# a tungsten source. L002 is 32.7 daylight and 34.2 tungsten.
+check("the TUNGSTEN figure was taken, not the daylight one",
+      ph.GELS["L002"]["t"], 0.342)
+check("...and the source says so", "Tungsten" in ph.GELS["L002"]["source"], True)
 
 print("\nscaled_pdf -> photometrics -> gels")
 s = Sheet(os.devnull, page="TABLOID", scale="1/4")
@@ -97,9 +118,12 @@ print("\nline weights — RP-2 6.18, three and only three")
 from plotedit.scaled_pdf import LINE_STYLES, LIGHT, MEDIUM, HEAVY
 check("exactly three weights are used",
       sorted({w for w, _ in LINE_STYLES.values()}), [LIGHT, MEDIUM, HEAVY])
-check("a batten is heavy", LINE_STYLES["batten"][0], HEAVY)
+check("a batten is medium (2025 RP §2.2.3)", LINE_STYLES["batten"][0], MEDIUM)
 check("a luminaire is heavy", LINE_STYLES["luminaire"][0], HEAVY)
-check("architecture is heavy", LINE_STYLES["architecture"][0], HEAVY)
+check("architecture is medium (2025 RP §2.2.3)", LINE_STYLES["architecture"][0], MEDIUM)
+from plotedit.scaled_pdf import STYLE_COLOURS
+from reportlab.lib.colors import black as _black
+check("...and drawn gray, not black", STYLE_COLOURS["architecture"] != _black, True)
 check("scenery is light", LINE_STYLES["scenery"][0], LIGHT)
 check("a dimension is light", LINE_STYLES["dimension"][0], LIGHT)
 check("the center line is a 4-part chain dash", len(LINE_STYLES["centerline"][1]), 4)
@@ -310,9 +334,16 @@ check("...and the twofer it made is named",
 
 print("\ndimmer-per-circuit: the circuit and the dimmer are ONE number")
 # Jerry, 2026.09.23: "most houses have circuit per dimmer." RP-2 6.14.1 notates
-# the three control models differently, and in this one a second container tells
-# the electrician there is a patch to make when there is not.
-check("the three models are named", len(sym.CONTROL_MODELS), 3)
+# the control models differently, and in this one a second container tells the
+# electrician there is a patch to make when there is not.
+#
+# ⚠ NAMED, NOT COUNTED. This was `len(...) == 3` and it had one job — to fail
+# when the set changed — which it did, on the day a fourth model was added. A
+# count would also have passed happily through a rename, which is the failure it
+# could not see.
+check("the models are named", sorted(sym.CONTROL_MODELS),
+      ["dimmer-is-address", "dimmer-per-circuit", "hard-and-soft-patch",
+       "no-soft-patch"])
 _pp = [{"name": "E1", "x1": 0, "y1": 16, "x2": 33, "y2": 16,
         "circuits": [3, 4], "circuitSource": "rep plot"}]
 _ii = [{"unit": 1, "position": "E1", "circuit": 3, "dimmer": 3},
@@ -335,6 +366,47 @@ check("the long-life 575X is still 575", ph.lamp_watts("HPL 575X"), 575.0)
 check("an LED mode is NOT a lamp", ph.lamp_watts("Regulated 3200K"), None)
 check("nor is a bare colour temperature", ph.lamp_watts("5600K"), None)
 check("nor is a mode with no number", ph.lamp_watts("Boost"), None)
+
+# ⭐ A RETROFIT LED BURNER IS A LAMP. A Source Four with a 4WRD in it is still an
+# S4 26 — same lens tube, same angles, same symbol — so it belongs in the lamp
+# table and not in FIXTURES. Nothing in the name is a wattage, so the figure has
+# to be published like any other.
+check("a retrofit burner has a published wattage",
+      ph.lamp_watts("Source 4WRD II"), 150.0)
+check("...and the fixture answers with it, not the HPL",
+      ph.watts_for("S4 26", lamp="Source 4WRD II")[0], 150.0)
+check("...where the default is still 575",
+      ph.watts_for("S4 26")[0], 575.0)
+# ⚠ AND IT STILL REFUSES TO COMPUTE LEVELS. The datasheet publishes LUMENS per
+# lens, not candela, and LAMP_MF is a candela multiplier — ETC's own "Cd MF"
+# columns. A lumen ratio through the same lens is not the same number, because
+# an LED source and a filament do not fill a lens the same way: across the
+# barrel range that ratio runs 1.17 to 1.62, which is the proof it is not one
+# multiplier. The candela is in the separate Photometry Guide, unfetched.
+# ⭐ AND NOW IT DOES COMPUTE THEM, from ETC's own IES measurements.
+_fc, _why = ph.footcandles("S4 26", 20, lamp="Source 4WRD II")
+check("a retrofit now gives a level", round(_fc), 246)
+check("...naming the lamp and its multiplier", "MF 0.56" in _why, True)
+
+# ⚠ THE 90+ CRI COSTS LIGHT, and that is the trade worth being able to see.
+_gal = ph.footcandles("S4 26", 20, lamp="Source 4WRD II Gallery")[0]
+check("the Gallery is dimmer than the standard array", _gal < _fc, True)
+check("...by about 15%", round(_gal / _fc, 2), 0.86)
+check("...while drawing the same watts",
+      ph.watts_for("S4 26", lamp="Source 4WRD II Gallery")[0], 150.0)
+
+# 🔴 THE ERROR THIS TABLE EXISTS TO AVOID. The datasheet's lumen columns give
+# 8941 / 13690 = 0.65 for the 26°, and the candela ratio is 0.56 — a 16% gap.
+# Had the multiplier been derived from lumens, every level on a retrofitted
+# plot would read high by that much, in the flattering direction.
+check("the candela multiplier is NOT the lumen ratio",
+      abs(ph.LAMP_MF["Source 4WRD II"]["S4 26"] - 8941 / 13690) > 0.05, True)
+
+# A lens with no HPL candela on file cannot have a ratio, and must not invent one.
+check("a lens with no reference candela has no multiplier",
+      ph.LAMP_MF["Source 4WRD II"].get("S4 90"), None)
+check("...so it refuses rather than guessing",
+      ph.footcandles("S4 90", 20, lamp="Source 4WRD II")[0], None)
 
 _load = [{"unit": u, "position": "E1", "circuit": 3, "type": "S4 26", "lamp": "HPL 575"}
          for u in (1, 2, 3, 4)]
@@ -1082,6 +1154,51 @@ _sec_up = _S.render(_SAMPLE, os.path.join(_tmp, "sec-up.pdf"), scale="3/4")[0]
 check("...and is zoomed in as far as it goes (3/4in clips)",
       any("CLIPPED" in w for w in _sec_up.warnings), True)
 
+# ⭐ EVERY RECOMMENDATION THE GUARD MAKES, RE-RENDERED AND MEASURED.
+#
+# 🔴 This is the test #57 needed and did not have. The guard's advice names a
+# sheet to move to and a scale that would fit, and nothing checked that either
+# was true. Adding A2 exposed it: A2 is 387 sq in, so it sorts between TABLOID
+# and ARCH C in the area-ordered list the advice walks, and it started being
+# recommended for a drawing it does not hold.
+#
+# The single case above catches one combination. This catches all of them, which
+# is what it takes — the failure was a SIZE that sorts into the MIDDLE of the
+# list, so it can only be found by walking the list.
+#
+# ⚠ USE `_render`, NOT A NEW HELPER. The first cut of this defined its own and
+# called `_S.render` — but `_S` is rebound to plot_to_section further down this
+# file, so it rendered SECTIONS and reported five failures that were not real.
+# A name collision in a long file, found only because the failures disagreed
+# with a check run by hand.
+print()
+print("every recommendation the guard makes is true")
+import itertools as _it
+
+_bad = []
+_recs = 0
+for _page, _land, _scale in _it.product(
+        ["LETTER", "TABLOID", "ARCH_C", "ARCH_D", "A4", "A3", "A2", "A1"],
+        [True, False], ["1/8", "1/4", "1/2"]):
+    _w = _render(_page, _land, _scale)
+    if not _w:
+        continue
+    _m = _re.search(r"Or keep .*? on (\w+) (portrait|landscape)", _w[0])
+    if _m:
+        _recs += 1
+        if _render(_m.group(1), _m.group(2) == "landscape", _scale):
+            _bad.append(f"{_page}/{_land}/{_scale} -> sheet {_m.group(1)} {_m.group(2)}")
+    _sc = _re.search(r'fits this sheet: ([\d/]+)"', _w[0])
+    if _sc:
+        _recs += 1
+        if _render(_page, _land, _sc.group(1)):
+            _bad.append(f"{_page}/{_land}/{_scale} -> scale {_sc.group(1)}")
+
+check("the guard made recommendations worth checking", _recs > 20, True)
+check("...and every one of them really does fit", _bad, [])
+print(f"       ({_recs} recommendations re-rendered and measured)")
+
+
 print()
 print("the build says which build it is")
 # ⭐ Jerry, 2026.09.26: "I'd like to print the version number on the UI so they
@@ -1132,9 +1249,94 @@ _ign = open(_os.path.join(_os.path.dirname(__file__), "..", ".gitignore"),
             encoding="utf-8").read()
 check("VERSION is gitignored", "server/plotedit/VERSION" in _ign, True)
 
+# ⭐ A RETROFIT IS THE SAME BARREL WITH A DIFFERENT SOURCE (Jerry, 2026.09.29).
+# USITT's Lighting Documentation Recommended Practice (Feb 2025) draws an LED
+# ellipsoidal as the ordinary ERS body with §6.16 dots at the lamp housing — its
+# own key lists "CONVENTIONAL ERS 26-DEGREE" and "LED ERS 26-DEGREE" as one
+# shape, one with dots.
+print("\na 4WRD draws the same barrel with a source mark")
+_plain = sym.for_type("S4 26")
+_wrd = sym.for_type("S4 26", None, "Source 4WRD II")
+_hpl = sym.for_type("S4 26", None, "HPL 575")
+
+check("a tungsten lamp changes nothing", _hpl, _plain)
+check("an unknown lamp changes nothing", sym.for_type("S4 26", None, "FEL 1000"), _plain)
+check("the 4WRD adds exactly one mark", len(_wrd) - len(_plain), 1)
+# 🔴 THE OUTLINE MUST NOT MOVE. Same barrel, same lens tube, same beam angle —
+# if the body changed, the plot would be claiming a different fixture hangs there.
+check("...and the body is untouched", _wrd[:len(_plain)], _plain)
+
+_dot = _wrd[-1]
+check("the mark is a filled dot", (_dot[0], _dot[3]), ("circle", True))
+# ⚠ AT THE LAMP END. +a is the back; the lens is at -a. A dot at the front would
+# be drawing the source where the light comes out, and would land on top of
+# §6.1.11's gate mark for a gobo.
+_lo, _hi = sym._extent(_plain)
+check("...at the lamp housing, not the lens", _dot[1][0] > (_lo + _hi) / 2, True)
+check("...and inside the body", _dot[1][0] < _hi, True)
+check("...on the axis", _dot[1][1], 0.0)
+
+# ⚠ The gobo mark and the source dot must not land on each other — the reason
+# the yoke dot was dropped on the same day.
+_gobo, _ = sym.with_accessories(_plain, ["gobo"])
+_gate = [p for p in _gobo if p[0] == "circle"][0]
+check("the gobo mark sits clear of the source dot",
+      round(abs(_gate[1][0] - _dot[1][0]), 2) > 0.4, True)
+
+# ⭐ The COUNT comes from photometrics, so one table decides it.
+check("one colour, one dot", ph.lamp_colors("Source 4WRD II"), 1)
+check("Gallery too", ph.lamp_colors("Source 4WRD II Gallery"), 1)
+check("an HPL is not a source to draw", ph.lamp_colors("HPL 575"), None)
+
+# ⭐ THE MANUAL PDF IS GENERATED, NEVER COMMITTED (Jerry, 2026.09.29: "make it a
+# PDF too"). docs/MANUAL.md is the manual; make_manual.py is a second view of
+# it, built at release time so it cannot drift.
+print("\nthe manual builds as a PDF")
+import importlib.util as _ilu
+import tempfile as _tf
+_spec = _ilu.spec_from_file_location(
+    "make_manual", _os.path.join(_os.path.dirname(__file__), "make_manual.py"))
+_mm = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_mm)
+
+with _tf.TemporaryDirectory() as _d:
+    _pdf = _mm.build(_os.path.join(_d, "m.pdf"))
+    import pymupdf as _mu
+    _doc = _mu.open(_pdf)
+    _txt = "\n".join(pg.get_text() for pg in _doc)
+    check("it has pages", _doc.page_count > 3, True)
+    # ⚠ Every section of the source must survive the conversion. A parser that
+    # silently drops what it does not recognise is the failure mode here.
+    _heads = [h for h in _re.findall(r"^#{2,3} (.+)$",
+                                     open(_mm.SRC, encoding="utf-8").read(), _re.M)
+              if h != "Contents"]
+    _lost = [h for h in _heads
+             if _re.sub(r"[^A-Za-z0-9 ]", "", h).split()[0] not in _txt]
+    check("every heading survives", _lost, [])
+    # 🔴 The two bugs the first build shipped: bold around a code span left its
+    # asterisks showing, and Cmd/Shift had no glyph and printed as black boxes.
+    check("no stray markdown", "**" in _txt, False)
+    check("keystrokes are readable", "Cmd-Z" in _txt and "Shift-Cmd-S" in _txt, True)
+    _doc.close()
+
+# 🔴 The release guard allows exactly ONE pdf, by full path. A pattern could one
+# day match somebody else's document, which is the thing it exists to stop —
+# docs/reference/ holds a bought copy of USITT RP-2.
+_rel = open(_os.path.join(_os.path.dirname(__file__), "..", ".github",
+                          "workflows", "release.yml"), encoding="utf-8").read()
+check("the manual is generated into the download",
+      "server/make_manual.py out/plotedit/plotedit-manual.pdf" in _rel, True)
+check("...and allowed by exact path, not a pattern",
+      "grep -vx 'plotedit/plotedit-manual.pdf'" in _rel, True)
+check("...and its absence fails the build",
+      "the manual PDF was not generated into the download" in _rel, True)
+check("docs/reference is still excluded from the package",
+      "--exclude 'reference/'" in _rel, True)
+
 print()
 if FAILS:
     print(f"{len(FAILS)} FAILED")
+
     for f in FAILS:
         print("   ", f)
     sys.exit(1)
