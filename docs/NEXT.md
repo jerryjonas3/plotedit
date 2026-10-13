@@ -1300,7 +1300,7 @@ as x decreases**, consistently, on every position. Against that rule:
    reader even though they compute the same: blank says nobody has decided, 5.5
    says head height on purpose. **Jerry's call which the sample should say.**
 
-### 🔴 The question underneath 2 and 3: should a unit number be `10A`?
+### ✅ The question underneath 2 and 3: should a unit number be `10A`? YES
 
 **Inserting a unit between 10 and 11 is ordinary, and in the theatre it is
 ordinarily numbered 10A** — that is how it goes on a hang sheet when a unit is
@@ -1311,9 +1311,10 @@ So the alternative is renumbering the whole position every time a unit is added,
 which is 19 changed records on one pipe and a hang sheet that no longer matches
 the one the electrician has in their hand.
 
-⚠ **This is a feature question and not a data fix, so it is Jerry's.** It also
-bears directly on **number by clicking** (#74) and on the bent-run numbering
-above: a click order can produce 10A; a geometry sort cannot.
+**Jerry, 2026.10.13: "yes 10A should be allowed - thats the standard".** Built —
+see the section below. It bears directly on **number by clicking** (#74) and on
+the bent-run numbering above: a click order can produce 10A; a geometry sort
+cannot.
 
 ### Two things found while writing the tests, both left alone
 
@@ -1332,3 +1333,70 @@ The pass is a CLI and a suite, nothing more. Gating CI on it today would go red
 immediately, because Sample Big House has three errors and fixing them needs the
 decisions above. **Where this surfaces — a CI gate on the samples, a panel in the
 app, a check before export — is undecided.**
+
+---
+
+## A unit number can be "10A" — 2026.10.13
+
+Asked by the QC pass above, answered by Jerry the same day: *"yes 10A should be
+allowed - thats the standard"*.
+
+`unit` now holds **a number or a string**: `Optional[Union[int, str]]` in
+`api.py`, `UnitNumber = number | string` in `plot.ts`. Six functions, three in
+each language and deliberately mirrored:
+
+| | |
+|---|---|
+| `unit_key` / `unitKey` | the sort key. `10 → (10, "")`, `"10A" → (10, "A")` |
+| `unit_label` / `unitLabel` | the canonical text. `"10a" → "10A"`, `10.0 → "10"` |
+| `next_unit` / `nextUnit` | one past the highest, **ignoring suffixes** |
+
+🔴 **SORTING IS THE WHOLE POINT.** If 10A sorted last, the schedule would be in a
+different order from the rig and the number may as well have been 19 on the end
+of the run. `exports._sorted_for_schedule` used `_num()`, which reads "10A" as
+unreadable and sends it to the end of the pipe — that is the line that would
+have been noticed, and `test_unit_numbers.py` pins it.
+
+⚠ **NOT a text sort**, which is the obvious wrong answer: `"10" < "9"` as text,
+so a text sort puts unit 10 before unit 9 and the hang sheet is unusable.
+
+### Where a number could become two lights, and does not
+
+**Everything that identifies a unit keys on the LABEL, not the raw value**, so
+`10` and `"10"` are one light and `"10a"` and `"10A"` are one light. The
+paperwork addresses a light as *position, number*; two spellings of one number
+is two lights to whoever is reading it. That is `duplicateUnits` in `plot.ts`,
+`duplicate_units` in `qc.py`, `seqReport`'s tally in `sequence.ts`, and the boom
+elevation's click target in `render.ts` — where one side comes from the server
+and the other from the file.
+
+⚠ And `Union[int, str]` **accepts the string `"10"` as a string**, so the API
+normalises at the door: bare digits become an int, a suffix is folded up, and
+anything else is passed through untouched. **Passed through, not refused** — the
+QC pass is what says a cell is wrong, and rejecting here would lose a whole plot
+over one bad cell.
+
+### What a suffix is NOT
+
+- **It does not take a slot.** A pipe holding 10, 10A and 11 offers **12** next.
+  A suffix shares its number with the unit it was added beside; `qc.py`'s
+  `unit-out-of-range` check reads the numeric part only, or every insertion
+  would report as an error.
+- **Renumber and number-by-clicking still write plain integers**, which replaces
+  a suffix like any other number. A geometry sort cannot know that one unit went
+  in later. That is the human fact the suffix records, and #74 is the path that
+  can express it.
+- **Digits and at most one letter.** `10AB`, `A10` and `10.5` are refused, and
+  the inspector puts back what was there rather than clearing the field —
+  silently clearing a unit number leaves a light the schedule, the hookup and
+  the focus chart cannot address.
+
+### ⚠ One thing fixed in a contributor's test, and why
+
+`interact.test.ts` (#124) asserts a record is untouched with an inline object
+literal. `assert.deepEqual` is declared `asserts actual is T`, so that literal
+**narrows `store.plot.instruments[0]` to itself for the rest of the file** — and
+once `unit` could be a string, every later assertion about a field the literal
+does not mention (`focusX`, `focusY`) stopped compiling. The expected value is
+now a named `Instrument`, with a comment saying why, so it does not get tidied
+back.

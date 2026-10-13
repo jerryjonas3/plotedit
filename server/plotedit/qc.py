@@ -28,6 +28,7 @@ import sys
 
 from . import fixture_names
 from . import photometrics as ph
+from . import positions
 
 #: How far off its pipe a unit may sit before it counts as misplaced, in feet.
 #: Six inches. A boom is a single point in plan and its units are drawn to the
@@ -45,7 +46,7 @@ Finding = collections.namedtuple("Finding", "level check says units")
 
 def _label(inst):
     pos = (inst.get("position") or "").strip() or "no position"
-    return f"{pos} unit {inst.get('unit')}"
+    return f"{pos} unit {positions.unit_label(inst.get('unit')) or '—'}"
 
 
 def _channel(inst):
@@ -82,9 +83,12 @@ def duplicate_units(plot):
     """
     seen = collections.defaultdict(list)
     for inst in plot.get("instruments") or []:
-        key = ((inst.get("position") or "").strip(), inst.get("unit"))
-        if key[1] is not None:
-            seen[key].append(inst)
+        # ⚠ The LABEL, not the raw value: 10 and "10" are one unit, and so are
+        # "10a" and "10A". Keying on the raw value would let a plot hold two
+        # unit 10s that the paperwork cannot tell apart and this check calls fine.
+        label = positions.unit_label(inst.get("unit"))
+        if label:
+            seen[((inst.get("position") or "").strip(), label)].append(inst)
     out = []
     for (pos, unit), group in sorted(seen.items(), key=lambda kv: str(kv[0])):
         if len(group) > 1:
@@ -227,11 +231,16 @@ def unit_numbering(plot):
     """
     byp = collections.defaultdict(list)
     for inst in plot.get("instruments") or []:
-        if isinstance(inst.get("unit"), int):
-            byp[(inst.get("position") or "").strip()].append(inst)
+        n = positions.unit_key(inst.get("unit"))[0]
+        if n != float("inf"):
+            byp[(inst.get("position") or "").strip()].append((n, inst))
     out = []
     for pos, group in sorted(byp.items()):
-        over = [i for i in group if not 1 <= i["unit"] <= len(group)]
+        # ⭐ The NUMERIC part only, so 10A on a pipe of nineteen is in range. A
+        # suffixed unit shares its number with the one it was added beside; that
+        # is what the suffix is for, and counting it as a separate slot would
+        # report every insertion as an error.
+        over = [i for n, i in group if not 1 <= n <= len(group)]
         if over:
             out.append(Finding("warning", "unit-out-of-range",
                                f"{pos or 'no position'} carries {len(group)} "
@@ -239,8 +248,9 @@ def unit_numbering(plot):
                                f"{len(over)} of them "
                                f"{'is' if len(over) == 1 else 'are'} outside "
                                f"that range",
-                               [f"unit {i['unit']}" for i in
-                                sorted(over, key=lambda i: i["unit"])]))
+                               [f"unit {positions.unit_label(i['unit'])}" for i
+                                in sorted(over, key=lambda i:
+                                          positions.unit_key(i.get("unit")))]))
     return out
 
 
