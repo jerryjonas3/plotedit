@@ -1680,3 +1680,68 @@ different one from the page read in the dark.
 Real membership on the instrument, many layers per unit, for what `purpose`
 cannot say — **rental is ownership** and **the act two additions is a decision**.
 That is the half that changes the plot file, and it is untouched.
+
+---
+
+## The Shakespeare's lamps, and a load table that was wrong — 2026.10.13
+
+**Closes #123.** Jerry produced a clean copy of the Altman Shakespeare datasheet
+(rev 111003). `LAMP_MF` had carried the GLC alone, with a note saying the sheet's
+other factors "do not line up cleanly enough to read them safely".
+
+**The clean copy reads perfectly — and then poses a different problem.** The
+Correction Factor column prints **1.00 against GKV**, and a **dash against the
+GLC**, which is the lamp the entire photometric chart was measured with. Two
+baselines on one page, apparently unconnected, and the factors unusable.
+
+### ⭐ The detail that resolves it
+
+Jerry, 2026.10.13: *"the GKV is probably for Europe - its 230V"*.
+
+| | GLC | GKV |
+|---|---|---|
+| | 575 W / **115 V** | 600 W / **230 V** |
+| rated lumens | 15,500 | 15,000 |
+| colour temp | 3200 K | 3200 K |
+| rated life | 400 hr | 400 hr |
+
+**GKV is the GLC's 230-volt twin.** Its 1.00 says *"on 230 V mains fit this and
+nothing changes"*; the GLC's dash says *"this is the reference"*. So the column
+**is** anchored to the chart, and the factors transfer directly — no assumption,
+no fudge factor.
+
+### What went in
+
+**GLC 1.00 · GKV 1.00 · HX604 1.14 · HX400 0.69 · HX401 0.59**
+
+⚠ **And they cannot be derived, which is why the sheet was worth waiting for.**
+HX604 has the **same 15,500 rated lumens as the GLC** and a factor of **1.14** —
+that is filament geometry, how much of the output the ellipsoidal's gate
+collects, not lumens. No arithmetic recovers it.
+
+🔴 **Four lamps the sheet dashes are NOT offered** — HX605, GLA, and *both* 750 W
+lamps, on a fixture the same page calls a "750 WATT SHAKESPEARE". Altman did not
+measure them. Offering one would promise light nobody has measured, which is the
+fault `lamps_for()` exists to prevent.
+
+### 🔴 And it exposed a load table that was wrong for every lamp but one
+
+`"Shakespeare"` was **not** in `_TUNGSTEN_FAMILIES`, so `watts_for` fell through
+to `FAMILY_WATTS` and answered **575 W whatever was fitted**.
+
+An HX754 (750 W) and an HX400 (375 W) on the same pipe both counted 575 — **175 W
+low and 200 W high, on the same circuit.** The family figure was right for the
+GLC and wrong for everything else, and nothing offered anything else until this
+afternoon, which is why it never showed.
+
+⚠ Same shape as the 65Q's fault earlier the same day: a family in
+`_TUNGSTEN_FAMILIES` with no fixture in it, and a family with fixtures that was
+not in it. Both found by adding the first real lamp list.
+
+### Also confirmed, and not changed
+
+All six fixtures' candela, beam and field match the sheet **to the digit** — the
+first independent check those figures have had since they were entered.
+
+⚠ **Efficiency is in the sheet and still not stored** — 68/60/48/54/59/55% for
+the 5° through 50°. Nothing reads it today, so nothing was added for it.

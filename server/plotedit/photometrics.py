@@ -293,12 +293,43 @@ LAMP_MF = {
                 # the candela was measured at, so every factor there is 1.00.
                 "S4 EA PAR VNSP": 1.00, "S4 EA PAR NSP": 1.00,
                 "S4 EA PAR MFL": 1.00, "S4 EA PAR WFL": 1.00},
-    # Altman Shakespeare: the GLC is the lamp the performance chart was MEASURED
-    # with, so every factor is 1.00 — the same arrangement as HPL 750 for the
-    # Source Four. The datasheet's lamp table lists correction factors for other
-    # lamps, but its columns do not line up cleanly enough to read them safely;
-    # left out until somebody checks them against a clean copy.
+    # ⭐ ALTMAN SHAKESPEARE. The GLC is the lamp the performance chart was
+    # MEASURED with, so every factor is 1.00 — the same arrangement as HPL 750
+    # for the Source Four.
+    #
+    # 🔴 THE REST CAME OFF A CLEAN COPY OF THE DATASHEET, 2026.10.13, and the
+    # reading turns on one detail. The "Correction Factor" column prints 1.00
+    # against **GKV**, not against the GLC, whose cell is a dash — which reads at
+    # first like a second baseline the sheet never connects to its own chart.
+    #
+    # ⭐ It is not. GKV IS THE GLC'S 230-VOLT TWIN (Jerry, 2026.10.13: "the GKV
+    # is probably for Europe - its 230V"). GLC is 575 W at 115 V, 15,500 lm,
+    # 3200 K, 400 hr; GKV is 600 W at 230 V, 15,000 lm, 3200 K, 400 hr. Same
+    # lamp, different mains. Its 1.00 says "on 230 V fit this and nothing
+    # changes", and the GLC's dash says "this is the reference". So the column
+    # IS anchored to the chart, and the factors transfer directly.
+    #
+    # ⚠ And they cannot be derived, which is why the sheet is the only source:
+    # HX604 has the SAME 15,500 rated lumens as the GLC and a factor of 1.14.
+    # That is filament geometry — how much of the output the ellipsoidal's gate
+    # collects — not lumens, and no arithmetic recovers it.
     "GLC": {f"Altman Shakespeare {d}": 1.00 for d in (5, 10, 20, 30, 40, 50)},
+    # The 230 V equivalent. ⚠ Offered because a European plot is a real plot;
+    # fitting one on 115 V mains is a different mistake and not one this table
+    # can catch.
+    "GKV": {f"Altman Shakespeare {d}": 1.00 for d in (5, 10, 20, 30, 40, 50)},
+    # 575 W, 3250 K, 400 hr — hotter and brighter through the gate than the GLC
+    # despite identical rated lumens.
+    "HX604": {f"Altman Shakespeare {d}": 1.14 for d in (5, 10, 20, 30, 40, 50)},
+    # 375 W, the low-wattage burners. The same trick as the HPL 375 on a Source
+    # Four: half the load, about two thirds of the light.
+    "HX400": {f"Altman Shakespeare {d}": 0.69 for d in (5, 10, 20, 30, 40, 50)},
+    "HX401": {f"Altman Shakespeare {d}": 0.59 for d in (5, 10, 20, 30, 40, 50)},
+    # 🔴 AND NOT HX605, GLA, HX754 OR HX755. The sheet lists all four and prints
+    # a DASH in the correction column for every one — including both 750 W
+    # lamps, on a fixture the same page calls a "750 WATT SHAKESPEARE". Altman
+    # did not measure them. Offering one would promise light nobody has
+    # measured, which is the fault lamps_for() exists to prevent.
     # ⭐ THE 6" FRESNEL'S FOUR LAMPS, and unlike the Shakespeare's this table
     # reads cleanly: the datasheet's LAMP INFORMATION block gives an explicit
     # "correction factor" column. The BTN is the lamp the chart was measured
@@ -493,7 +524,14 @@ DEFAULT_LAMP = "HPL 575"
 #: its published chart was measured with — the same rule footcandles() has always
 #: used. (Jerry, 2026.10.13: assume the reference lamp.)
 ASSUME_DEFAULT_LAMP = ("S4", "S4 Zoom", "S4 PAR", "PAR")
-_TUNGSTEN_FAMILIES = ("S4", "S4 Zoom", "S4 PAR", "PAR", "Fresnel", "Strip", "Cyc Tungsten")
+# ⚠ "Shakespeare" joined this list on 2026.10.13, with its lamps. Before that it
+# fell through to FAMILY_WATTS and every Shakespeare reported 575 W whatever was
+# in it — so an HX754 (750 W) and an HX400 (375 W) counted the same on a load
+# table, a 375 W error in each direction on the same pipe. The family wattage was
+# right for the GLC and wrong for everything else, and nothing offered anything
+# else until today.
+_TUNGSTEN_FAMILIES = ("S4", "S4 Zoom", "S4 PAR", "PAR", "Fresnel", "Strip",
+                      "Cyc Tungsten", "Shakespeare")
 
 
 def watts_for(kind, lamp=None, mode=None):
@@ -554,6 +592,19 @@ def watts_for(kind, lamp=None, mode=None):
 # is the source inside it. So it belongs here and NOT in FIXTURES, and the load
 # table is the only place it changes the answer.
 LAMP_WATTS = {
+    # ⭐ The Altman Shakespeare's nine lamps, from the same LAMP DATA table.
+    # ⚠ ALL NINE, not just the five with a multiplier: a plot may already hold an
+    # HX754, and its LOAD is known even though its output is not. The load table
+    # answers; the footcandles stay blank and say why.
+    "GLC": (575.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — GLC, 575 W / 115 V, 3200 K, 400 hr, 15,500 lm. The lamp the performance chart was measured with.'),
+    "GKV": (600.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — GKV, 600 W / 230 V, 3200 K, 400 hr, 15,000 lm. The GLC\'s 230 V twin.'),
+    "GLA": (575.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — GLA, 575 W / 115 V, 3100 K, 1500 hr, 13,500 lm. Long life; no correction factor published.'),
+    "HX400": (375.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — 375 W / 115 V, 3200 K, 300 hr, 10,000 lm.'),
+    "HX401": (375.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — 375 W / 115 V, 3050 K, 1500 hr, 8,500 lm.'),
+    "HX604": (575.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — 575 W / 115 V, 3250 K, 400 hr, 15,500 lm.'),
+    "HX605": (575.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — 575 W / 115 V, 3100 K, 1500 hr, 13,500 lm. No correction factor published.'),
+    "HX754": (750.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — 750 W / 115 V, 3200 K, 300 hr, 21,500 lm. No correction factor published.'),
+    "HX755": (750.0, 'Altman Shakespeare 750W ellipsoidal datasheet (altmanlighting.com, rev 111003), "LAMP DATA" correction factor column — 750 W / 115 V, 3050 K, 1500 hr, 18,250 lm. No correction factor published.'),
     # ⚠ AN ANSI CODE CARRIES NO WATTAGE. "HPL 575" says 575 and lamp_watts can
     # read it; "BTN" says nothing at all, and the number is in the datasheet like
     # any other figure. All four from the 65Q sheet's LAMP INFORMATION table.
