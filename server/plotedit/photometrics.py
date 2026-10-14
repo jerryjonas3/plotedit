@@ -54,6 +54,14 @@ FIXTURES = {
     # ⭐ ALTMAN 65Q / 165Q 6" FRESNEL — the first Fresnel in this table, though
     # symbols.fresnel() has been able to draw one all along.
     #
+    # ⚠ THE KEY SAYS "Fresnel" ON PURPOSE. It read "Altman 65Q @spot" for half a
+    # day and drew an ELLIPSOIDAL, because symbols.for_type matches on a word in
+    # the name and 65Q contains neither "fresnel" nor "fres" (Jerry found it by
+    # adding one to a plot and looking at it). for_type now also checks the
+    # family, so the symbol no longer depends on this — but a designer reading
+    # the type dropdown or the instrument schedule still needs to be told what
+    # the thing is, and "Altman 65Q" does not tell them.
+    #
     # ⚠ TWO ROWS FOR ONE FIXTURE, because a Fresnel is continuously variable and
     # the sheet publishes the two ends. Same arrangement as the S4 Zoom's @15 /
     # @23 / @30 — but named @spot and @flood rather than by angle, because a
@@ -66,9 +74,9 @@ FIXTURES = {
     #
     # 65Q and 165Q share one chart; they differ in the focus mechanism (thumb
     # screw against rear screw feed) and in weight, not in light.
-    "Altman 65Q @spot":  dict(field=16.0, beam=9.0, cd=92500, ref_lamp="BTN", family="Fresnel",
+    "Altman 65Q Fresnel @spot":  dict(field=16.0, beam=9.0, cd=92500, ref_lamp="BTN", family="Fresnel",
                    source='Altman 65Q/165Q 6" Fresnel datasheet (altmanlighting.com, 65Q.pdf, rev 022904), "65Q AND 165Q PHOTOMETRIC DATA WITH BTN LAMP": spot focus — beam 9°, field 16°, 92,500 cd, efficiency 14.8%'),
-    "Altman 65Q @flood": dict(field=70.0, beam=59.0, cd=8800, ref_lamp="BTN", family="Fresnel",
+    "Altman 65Q Fresnel @flood": dict(field=70.0, beam=59.0, cd=8800, ref_lamp="BTN", family="Fresnel",
                    source='Altman 65Q/165Q 6" Fresnel datasheet (altmanlighting.com, 65Q.pdf, rev 022904), "65Q AND 165Q PHOTOMETRIC DATA WITH BTN LAMP": flood focus — beam 59°, field 70°, 8,800 cd, efficiency 47.3%'),
     # Standard lens tubes the modern US datasheets do not cover — from the ETC Europe
     # "Source Four Beam Spread Table", data issued 13-11-2000 (on file). Angles only;
@@ -338,10 +346,10 @@ LAMP_MF = {
     # ⚠ The factor applies to BOTH ends of the focus — it is the lamp's output,
     # not the lens position — so each lamp carries the same number for @spot and
     # @flood.
-    "BTN": {"Altman 65Q @spot": 1.00, "Altman 65Q @flood": 1.00},      # 750 W, 3050 K, 17,000 lm — the reference
-    "BTP": {"Altman 65Q @spot": 1.20, "Altman 65Q @flood": 1.20},      # 750 W, 3200 K, 20,000 lm, 200 hr
-    "BTM": {"Altman 65Q @spot": 0.76, "Altman 65Q @flood": 0.76},      # 500 W, 3200 K, 13,000 lm, 100 hr
-    "BTL": {"Altman 65Q @spot": 0.65, "Altman 65Q @flood": 0.65},      # 500 W, 3050 K, 11,000 lm, 500 hr
+    "BTN": {"Altman 65Q Fresnel @spot": 1.00, "Altman 65Q Fresnel @flood": 1.00},      # 750 W, 3050 K, 17,000 lm — the reference
+    "BTP": {"Altman 65Q Fresnel @spot": 1.20, "Altman 65Q Fresnel @flood": 1.20},      # 750 W, 3200 K, 20,000 lm, 200 hr
+    "BTM": {"Altman 65Q Fresnel @spot": 0.76, "Altman 65Q Fresnel @flood": 0.76},      # 500 W, 3200 K, 13,000 lm, 100 hr
+    "BTL": {"Altman 65Q Fresnel @spot": 0.65, "Altman 65Q Fresnel @flood": 0.65},      # 500 W, 3050 K, 11,000 lm, 500 hr
     # 🔴 AND NOT THE HPL. The same table lists 90-HPL575 and 90-HPL750 — Altman
     # sells HPL-socket versions of this fixture — but prints NO correction factor
     # and no rated lumens for either. So an HPL physically fits a 65Q and there

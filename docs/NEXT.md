@@ -1745,3 +1745,52 @@ first independent check those figures have had since they were entered.
 
 ⚠ **Efficiency is in the sheet and still not stored** — 68/60/48/54/59/55% for
 the 5° through 50°. Nothing reads it today, so nothing was added for it.
+
+---
+
+## The Fresnel drew an ellipsoidal, and defaulted to a hot spot — 2026.10.13
+
+Both found the same evening, by Jerry adding one to a plot and looking at it.
+Two faults, both mine, both from the morning's #129.
+
+### 🔴 It drew an ERS
+
+`symbols.for_type` picks a shape by matching a word in the fixture key —
+`"fresnel" in low or "fres" in low`. The key was **`Altman 65Q @spot`**, which
+contains neither. So the first Fresnel in the table drew an **ellipsoidal**, barrel
+line and all.
+
+**Two fixes, and both are kept:**
+
+1. **`for_type` asks the fixture table for the family**, not just the name. The
+   server has known this fixture is a `Fresnel` since the morning; the symbol
+   picker was guessing from a string beside it. ⚠ The name match stays as an OR
+   — it still catches a paperwork name for a fixture that is not in the table at
+   all, which the family lookup cannot.
+2. **The keys say what they are:** `Altman 65Q Fresnel @spot` / `@flood`. The
+   symbol no longer depends on it, but a designer reading the type dropdown or
+   the instrument schedule still needs telling, and "Altman 65Q" does not tell
+   them.
+
+### 🔴 And a bare name pointed at the WRONG END
+
+`65Q` resolved to **@spot**, following `s4 parnel → S4 PARNel @25` and the
+argument — written into the source that morning — that *"spot is the safer error
+on a drawing: it draws a smaller pool than the unit may be giving."*
+
+⚠ **That argument is wrong for a Fresnel.** Racked fully in it is 16°:
+
+| | field | pool at a 10 ft throw |
+|---|---|---|
+| `@spot` | 16° | **2.9 ft** — tighter than an S4 26 |
+| `@flood` | 70° | 14.6 ft |
+
+**Nobody hangs a 6" Fresnel to get a three-foot hot spot.** It is a soft wash
+unit, and defaulting it to its tightest setting makes it look broken — which is
+exactly how it looked. A bare name is **@flood** now; spot is the end you ask
+for.
+
+⭐ **Worth keeping as a lesson about the precedent, not just the number.** The
+PARNel rule was followed because it was there, and a PARNel and a Fresnel are not
+the same kind of thing. A convention copied without asking what it is for is a
+guess wearing a citation.
