@@ -19,6 +19,31 @@ import { unitLabel } from "./plot.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
+/** How dark an imported ground plan is drawn when nobody has said.
+ *
+ *  ⭐ 0.5 is not a taste: `baseInk(0.5)` is EXACTLY #8c8c8c, the fixed colour
+ *  this setting replaced. A plot that never touches the slider looks the same
+ *  as it did before the slider existed, which is the only honest default when
+ *  the previous value was itself the answer to a bug report. */
+export const BASE_INK_DEFAULT = 0.5;
+
+/** The grey an imported ground plan is stroked with, at darkness `k`.
+ *
+ *  ⚠ A FLAT GREY, NOT AN OPACITY. The raster backdrop fades with `opacity`
+ *  because an image's colours are not ours to change; a vector plan's are, and
+ *  opacity would darken every place two of its lines cross. On a venue grid
+ *  plan — a lattice crossing itself a hundred times — that reads as dirt on the
+ *  drawing rather than as one weight of line.
+ *
+ *  ⚠ The dark end stops at #323232, lighter than the #222 the rig is drawn in.
+ *  The venue's drawing is their claim and it stays underneath Jerry's; a slider
+ *  that could put it level with the pipes would let the plot be read wrong. */
+export function baseInk(k: number): string {
+  const g = Math.min(230, Math.max(50, Math.round(230 - 180 * k)));
+  const h = g.toString(16).padStart(2, "0");
+  return `#${h}${h}${h}`;
+}
+
 /** What the server said about each instrument, keyed by array index. */
 export interface Computed {
   /** Load, in watts, and where the figure came from. Present even when the unit
@@ -87,6 +112,8 @@ export interface RenderOptions {
   selectedPosition?: number | null;
   /** A venue's DXF, already in feet. Drawn under everything, in gray. */
   basePaths?: { layer: string; points: [number, number][] }[];
+  /** How dark that plan is drawn, 0.1 to 1. Absent means `BASE_INK_DEFAULT`. */
+  baseInk?: number;
   /** A ground plan that has no vectors in it — a photograph, a scan, a planner's
    *  layout — placed as a BACKDROP to draw over.
    *
@@ -214,12 +241,22 @@ export function render(
   // ⭐ #8c8c8c measures 3.36:1 against that white and 4.73:1 against the pipes
   // at #222 — over the floor, and still obviously subordinate to the rig drawn
   // on top of it, which is the whole point of drawing it quietly. Measured by
-  // basePlan.test.ts against the svg rule in index.html, so neither this colour
-  // nor that background can drift under the floor unnoticed.
+  // basePlan.test.ts against the svg rule in index.html, so neither the DEFAULT
+  // colour nor that background can drift under the floor unnoticed.
+  //
+  // 🔴 AND IT IS NOW A SETTING, because one value cannot be right for every
+  // drawing. Reported again by Jerry, 2026.10.14, on a venue grid plan whose
+  // own lattice sits almost exactly under the rig: against a sparse plan
+  // #8c8c8c reads as a quiet underlay, against a dense one it reads as nothing
+  // at all. The first report got a darker constant and the tester's actual
+  // words were "he did not find a setting" — so this time it is a setting.
+  // `baseInk` is what the bar's slider writes, the same control the raster
+  // backdrop has always had for the same reason.
+  const ink = baseInk(opts.baseInk ?? BASE_INK_DEFAULT);
   for (const path of (vis.base ? opts.basePaths ?? [] : [])) {
     const d = path.points.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ");
     gBase.appendChild(el("path", {
-      d, fill: "none", stroke: "#8c8c8c", "stroke-width": W.dim * 2,
+      d, fill: "none", stroke: ink, "stroke-width": W.dim * 2,
       "vector-effect": "non-scaling-stroke",
     }));
   }
