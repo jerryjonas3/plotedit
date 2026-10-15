@@ -21,11 +21,18 @@ const NS = "http://www.w3.org/2000/svg";
 
 /** How dark an imported ground plan is drawn when nobody has said.
  *
- *  ⭐ 0.5 is not a taste: `baseInk(0.5)` is EXACTLY #8c8c8c, the fixed colour
- *  this setting replaced. A plot that never touches the slider looks the same
- *  as it did before the slider existed, which is the only honest default when
- *  the previous value was itself the answer to a bug report. */
-export const BASE_INK_DEFAULT = 0.5;
+ *  🔴 0.65 is #717171, and it is DELIBERATELY DARKER THAN THE CONSTANT IT
+ *  REPLACED. The first draft of this defaulted to 0.5 — exactly the old
+ *  #8c8c8c — on the reasoning that a plot which never moves the slider should
+ *  look unchanged. Jerry moved it the same afternoon (2026.10.14): a default
+ *  that reproduces the value two people in a row called too faint is a setting
+ *  nobody needed, because everybody has to move it.
+ *
+ *  ⚠ Picked against both neighbours, not by eye. #717171 is 4.88:1 on the white
+ *  the drawing sits on — up from 3.36:1, and past the 4.5:1 asked of body text
+ *  — while holding 3.26:1 against the #222 of the rig, so it is still plainly
+ *  the thing underneath. Those are the two numbers basePlan.test.ts pins. */
+export const BASE_INK_DEFAULT = 0.65;
 
 /** The grey an imported ground plan is stroked with, at darkness `k`.
  *
@@ -238,11 +245,12 @@ export function render(
   // page. He did not find a setting; he found a workaround. (Reported
   // 2026.10.05.)
   //
-  // ⭐ #8c8c8c measures 3.36:1 against that white and 4.73:1 against the pipes
-  // at #222 — over the floor, and still obviously subordinate to the rig drawn
-  // on top of it, which is the whole point of drawing it quietly. Measured by
-  // basePlan.test.ts against the svg rule in index.html, so neither the DEFAULT
-  // colour nor that background can drift under the floor unnoticed.
+  // ⭐ The default, #717171, measures 4.88:1 against that white and 3.26:1
+  // against the pipes at #222 — well over the floor, and still obviously
+  // subordinate to the rig drawn on top of it, which is the whole point of
+  // drawing it quietly. Measured by basePlan.test.ts against the svg rule in
+  // index.html, so neither the DEFAULT colour nor that background can drift
+  // under the floor unnoticed.
   //
   // 🔴 AND IT IS NOW A SETTING, because one value cannot be right for every
   // drawing. Reported again by Jerry, 2026.10.14, on a venue grid plan whose

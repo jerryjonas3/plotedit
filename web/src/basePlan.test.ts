@@ -79,9 +79,13 @@ console.log(`       default ${ink} on ${paper} measures ${round2(ratio)}:1`);
 // cannot see carries all of it.
 check("the DEFAULT clears the 3:1 floor for non-text graphics", ratio >= 3, true);
 check("...and #c9c9c9, which did not, is gone", ink.toLowerCase() === "#c9c9c9", false);
-// 🔴 The default is the colour this setting replaced, exactly. A plot that
-// never touches the slider has to look like it did before the slider existed.
-check("...and it is still exactly #8c8c8c", ink.toLowerCase(), "#8c8c8c");
+// 🔴 AND IT CLEARS THE OLD CONSTANT TOO. #8c8c8c was itself the answer to the
+// 2026.10.05 report and got reported again on 2026.10.14, so a default that
+// merely reproduced it would be a setting everybody has to move before using.
+check("...and it is darker than the #8c8c8c it replaced",
+      luminance(ink) < luminance("#8c8c8c"), true);
+// Past what WCAG asks of body text, which #8c8c8c at 3.36:1 was not.
+check("...and clears 4.5:1, the text threshold", ratio >= 4.5, true);
 
 // ⚠ The other half of the bug report is the reason this is not simply black.
 // The venue's drawing is their claim, not Jerry's measurement, and it has to
