@@ -250,6 +250,11 @@ DXF_FOR_PDF = {v: k for k, v in PDF_FOR_DXF.items()}
 # holding a drawing that says what it is and what scale it is at.
 FRAME = "frame"
 
+# The title block's size in INCHES, declared once. Anything that has to stay
+# clear of it — the scale bar and the one-inch check, today — reads it from
+# here rather than repeating the number and drifting (issue #131).
+TITLE_BLOCK_IN = (4.0, 2.0)
+
 
 def credits(plot):
     """The title block's three credit lines, read off the plot and nowhere else.
@@ -1589,7 +1594,7 @@ class Sheet:
         # edge that does not move: the block is anchored at the sheet margin and
         # grows upward. Writing them from the top meant every offset changed the
         # day the height did.
-        tb_w, tb_h = 4.0 * inch, 2.0 * inch
+        tb_w, tb_h = (d * inch for d in TITLE_BLOCK_IN)
         x0, y0 = W - m - tb_w, m
         FOOT_T, CTRL_T, CRED_T = 16, 40, 88        # band ceilings, above y0
         c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
@@ -1677,17 +1682,34 @@ class Sheet:
         if self.meta["studio"]:
             c.drawString(x0 + 6, y0 + 6, self.meta["studio"])
         c.drawRightString(x0 + tb_w - 6, y0 + 6, "print at 100% / Actual size")
-        # scale bar: 0 to 10 ft in 1-ft ticks, left of title block
+        # scale bar, left of the title block, with the one-inch check above it
         # ⚠ Positioned from the bar's REAL width. It used to be placed as though
         # it were ten feet wide and then drawn ten metres wide, so on a metric
         # sheet it started in the right place and ended a long way past the edge.
-        sx, sy = x0 - 0.4 * inch - self.scale_bar_plan()[2], m + 0.35 * inch
+        #
+        # 🔴 THE TWO BARS ARE ONE CLUSTER, placed from the WIDER of them — issue
+        # #131, and the reason is the mirror of the bug above. The check bar's
+        # caption is a fixed length in PAPER POINTS while the scale bar shrinks
+        # with the scale, so reserving room for the scale bar alone reserves the
+        # wrong amount. Measured against the room the old placement left:
+        #
+        #     3/8"   4.7 pt over      3/4"   31.7 pt over     1:50   108.9 pt over
+        #
+        # Jerry, 2026.10.27, off a 24" x 36" print: "100% bleeds into the title".
+        # ⚠ 1:50 is not in the issue and is five times the worst case in it. A
+        # metric sheet was never printed to find out.
+        if self.is_metric_scale:
+            bar_pt, bar_says = 50.0 / 25.4 * inch, "this bar is 50 mm when printed at 100%"
+        else:
+            bar_pt, bar_says = 72.0, 'this bar is 1" when printed at 100%'
+        _check_w = bar_pt + 4 + stringWidth(bar_says, "Helvetica", 6)
+        divs, step, total, per_div = self.scale_bar_plan()
+        sx, sy = x0 - 0.4 * inch - max(total, _check_w), m + 0.35 * inch
         c.setStrokeColor(black); c.setFillColor(black); c.setLineWidth(1)
         # ⚠ The bar is divided in the unit the sheet is DRAWN in — ten feet on an
         # imperial sheet, ten metres on a metric one. A metric drawing with a
         # bar ticked in feet is the one thing on the page somebody would measure
         # against, and it would be lying.
-        divs, step, total, per_div = self.scale_bar_plan()
         for i in range(divs):
             c.rect(sx + i * step, sy, step, 5, stroke=1, fill=(i % 2 == 0))
         c.setFont("Helvetica", 6)
@@ -1704,10 +1726,6 @@ class Sheet:
         # printer at 100% rather than fitted to the page. 50 mm on a metric sheet
         # because nobody reaches for an inch rule to check a 1:50 drawing.
         cx, cy = sx, sy + 0.32 * inch
-        if self.is_metric_scale:
-            bar_pt, bar_says = 50.0 / 25.4 * inch, "this bar is 50 mm when printed at 100%"
-        else:
-            bar_pt, bar_says = 72.0, 'this bar is 1" when printed at 100%'
         c.setLineWidth(1); c.rect(cx, cy, bar_pt, 4, stroke=1, fill=0)
         c.drawString(cx + bar_pt + 4, cy, bar_says)
         if self.layered:
