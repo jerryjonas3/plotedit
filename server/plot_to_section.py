@@ -23,7 +23,7 @@ import math
 import os
 import sys
 
-from plotedit.scaled_pdf import Sheet, ft
+from plotedit.scaled_pdf import Sheet, ft, credits, revision
 from plotedit import photometrics as ph
 from plotedit import positions as P
 from plotedit import symbols as sym
@@ -138,11 +138,12 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
                 else f"at {ph.fmt_ft(cut_at)} from stage left")
 
     house = Sheet.foh_extent(plot.get("positions"))
+    _rev, _rev_note = revision(plot)
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=f"Section — cut {cut_desc}, looking stage left",
-              rev=str(plot.get("revision", "0"))[:3],
-              designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
+              rev=_rev, rev_note=_rev_note,
+              **credits(plot),
               studio=plot.get("studio", ""), date=plot.get("date", ""))
     s.angle_in_barrel = _barrel = bool(plot.get("angleInBarrel"))
     # ⭐ MEASURED AND CENTRED — see place_for(). The left margin has to absorb
