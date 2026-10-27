@@ -1174,6 +1174,39 @@ _K.render(_key_src, _key_pdf)
 check("the symbol key prints no bare 'Design:' either",
       "Design:" in _fz.open(_key_pdf)[0].get_text(), False)
 
+# ---------------------------------------------- one field, two facts
+# 🔴 `revision` held a designator AND a note, and every consumer took a slice.
+# plot_to_pdf passed the WHOLE string as the sheet name — so the slot that
+# should read "Light Plot" carried a sentence about what changed, truncated
+# with an ellipsis — and the designator beside Rev was revision[:3]. On the
+# shipped samples that prints "Rev ver"; on a string beginning "Rev H" it
+# prints "Rev Rev". Jerry, 2026.10.27, off a 24" x 36" print.
+from plotedit.scaled_pdf import revision as _rev_split
+
+print("\nthe revision splits into a designator and a note")
+for _raw, _want in [
+        ("I. Colour settled 27 Oct — front ERS regelled", ("I", "Colour settled 27 Oct — front ERS regelled")),
+        ("0 — test data, not a design", ("0", "test data, not a design")),
+        # ⚠ The LABEL is not the designator. All three of these used to print
+        # the label's own first letters where the revision belongs.
+        ("Rev H — pipes retrimmed", ("H", "pipes retrimmed")),
+        ("version 1", ("1", "")),
+        # ⚠ A designator is as long as it is. [:3] turned this into "Pre".
+        ("Prelim", ("Prelim", "")),
+        ("A", ("A", "")),
+        ("", ("0", "")),
+]:
+    check(f"{_raw!r} splits", _rev_split({"revision": _raw}), _want)
+
+_t4 = _pdf_text({**_anon, "revision": "H — pipes retrimmed, boom 3 struck"}, "revised")
+check("the sheet slot names the PLATE", "Light Plot" in _t4, True)
+check("...and the revision note is printed in full, not truncated",
+      "boom 3 struck" in _t4, True)
+check("...and the designator is the designator", "Rev H" in _t4, True)
+# 🔴 The failure this replaces: the note printed where the plate name goes.
+check("...and the note is NOT standing in for the plate name",
+      "Rev pip" in _t4 or "Rev H —" in _t4, False)
+
 # The SECTION fits itself too — it is the drawing trims are read off, so a
 # bigger scale is a more useful drawing.
 import plot_to_section as _S

@@ -272,10 +272,38 @@ def credits(plot):
                 scenic=_line("Scenic Design", "scenicDesigner"))
 
 
+def revision(plot):
+    """Split the plot's `revision` into a designator and a note.
+
+    🔴 ONE FIELD HOLDING TWO FACTS, and every consumer took a slice of it. The
+    title block printed `revision[:3]` as the designator and the WHOLE string
+    again in the sheet slot — so a plot revised with a sentence had that
+    sentence printed where the plate's own name belongs, truncated with an
+    ellipsis, while `Rev` showed its first three characters. On the shipped
+    samples that reads "Rev ver"; on a string beginning "Rev H" it reads
+    "Rev Rev".
+
+    ⚠ The designator is the FIRST TOKEN, not the first three characters. A
+    designator is as long as it is — "Prelim" is one, and so is "0".
+
+    ⚠ A leading "Rev", "Revision" or "version" is the LABEL, not the
+    designator. The title block supplies the word itself.
+    """
+    import re
+    raw = str(plot.get("revision") or "").strip()
+    if not raw:
+        return "0", ""
+    label = re.match(r"(?:rev(?:ision)?|ver(?:sion)?|v)\.?\s+", raw, re.I)
+    if label:
+        raw = raw[label.end():].strip() or raw
+    head, _, tail = raw.partition(" ")
+    return head.rstrip(".:,;-—–") or head, tail.strip().lstrip("—–-:·|").strip()
+
+
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
                  show="", venue="", sheet="", rev="A", designer="", studio="", date="",
-                 director="", scenic="",
+                 director="", scenic="", rev_note="",
                  margin_in=0.5, dxf=None, weights=None, units=None, layered=True):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
@@ -340,7 +368,7 @@ class Sheet:
         # claim of authorship. Both now come from the plot file or stay blank.
         self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev,
                          designer=designer, studio=studio, date=date,
-                         director=director, scenic=scenic)
+                         director=director, scenic=scenic, rev_note=rev_note)
         # The plot's `angleInBarrel`, set by whoever builds the sheet from a
         # plot. Every symbol this sheet draws asks for it, so the plan, the boom
         # elevations and the key cannot disagree about how an angle is shown.
@@ -1563,7 +1591,7 @@ class Sheet:
         # day the height did.
         tb_w, tb_h = 4.0 * inch, 2.0 * inch
         x0, y0 = W - m - tb_w, m
-        FOOT_T, CTRL_T, CRED_T = 16, 40, 96        # band ceilings, above y0
+        FOOT_T, CTRL_T, CRED_T = 16, 40, 88        # band ceilings, above y0
         c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
 
         def _rule(dy):
@@ -1586,7 +1614,15 @@ class Sheet:
                      _fitted(self.meta["show"] or "Untitled", "Helvetica-Bold", 11))
         c.setFillColor(black); c.setFont("Helvetica", 8)
         for i, key in enumerate(("venue", "sheet")):
-            c.drawString(x0 + 6, y0 + tb_h - 30 - 12 * i, _fitted(self.meta[key]))
+            c.drawString(x0 + 6, y0 + tb_h - 29 - 12 * i, _fitted(self.meta[key]))
+        # ⚠ WHAT THIS REVISION IS, under the plate's name and not instead of it.
+        # `sheet` used to be handed the whole revision string, so a plot revised
+        # with a sentence printed that sentence where "Light Plot" belongs —
+        # ellipsis and all — and the designator beside Rev was its first three
+        # characters. revision() splits the one field the plot actually has.
+        if self.meta["rev_note"]:
+            c.setFillColor(grey); c.setFont("Helvetica", 7)
+            c.drawString(x0 + 6, y0 + tb_h - 52, _fitted(self.meta["rev_note"], size=7))
         _rule(CRED_T)
 
         # ── who made it ───────────────────────────────────────────────────
@@ -1600,13 +1636,13 @@ class Sheet:
         _credits = [(self.meta["designer"], BROWN, "Helvetica-Bold"),
                     (self.meta["director"], black, "Helvetica"),
                     (self.meta["scenic"], black, "Helvetica")]
-        _cy = CRED_T - 14
+        _cy = CRED_T - 12
         for _text, _colour, _font in _credits:
             if not _text:
                 continue
             c.setFillColor(_colour); c.setFont(_font, 8)
             c.drawString(x0 + 6, y0 + _cy, _fitted(_text, _font))
-            _cy -= 13
+            _cy -= 12
         _rule(CTRL_T)
 
         # ── scale, revision, date ─────────────────────────────────────────

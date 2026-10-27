@@ -137,7 +137,11 @@ export function renderDetails(host: HTMLElement, store: Store, deps: DetailDeps)
           v => { store.setMeta({ scenicDesigner: v }); deps.onChange(); },
           { hint: "Printed in the title block under the director. Left blank, "
                 + "no line is printed at all." }),
-    field("Revision", p.revision, v => { store.setMeta({ revision: v }); deps.onChange(); }),
+    field("Revision", p.revision, v => { store.setMeta({ revision: v }); deps.onChange(); },
+          { wide: true,
+            hint: "The designator, then what changed — \"H — pipes retrimmed\". The "
+                + "first word prints beside Rev in the title block; the rest prints "
+                + "under the sheet name. One word on its own is fine." }),
     field("Date", p.date, v => { store.setMeta({ date: v }); deps.onChange(); },
           { hint: "The date on the plot, printed in the title block. Blank prints the day it is exported." }),
   ]);
