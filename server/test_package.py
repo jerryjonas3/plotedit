@@ -1207,6 +1207,46 @@ check("...and the designator is the designator", "Rev H" in _t4, True)
 check("...and the note is NOT standing in for the plate name",
       "Rev pip" in _t4 or "Rev H —" in _t4, False)
 
+# ---------------------------------------------- the note wraps, and the block grows
+# Jerry, 2026.10.27: "wrap the note to two lines." A revision note is a sentence
+# and the block is four inches wide, so one line was never going to hold one.
+#
+# ⚠ THE HEIGHT FOLLOWS THE NOTE. Reserving both lines on every sheet would
+# leave a plot with no revision note carrying an inch of white where a note
+# would have gone — so the block grows by a line when the note needs one, and
+# never drops below the 2.0" it is otherwise.
+from plotedit.scaled_pdf import TITLE_BLOCK_IN as _TB
+
+def _tb_height(path):
+    """The title block's drawn height in points, measured off the border."""
+    page = _fz.open(path)[0]
+    rects = [d["rect"] for d in page.get_drawings()
+             if abs(d["rect"].width - _TB[0] * 72) < 1
+             and d["rect"].x1 > page.rect.width - 40]
+    return max(r.height for r in rects) if rects else None
+
+_LONG = ("Colour settled 27 Oct — FRONT ERS R53+R119, ROOM TONE R08 x8, "
+         "HOUSE WASH NC, ch 12 L202 out, ch 43 uppercase")
+_p_two = os.path.join(_tmp, "two.pdf")
+_t5 = _pdf_text({**_anon, "revision": "I. " + _LONG}, "two")
+check("a long note wraps rather than truncating", "ch 43 uppercase" in _t5.replace("\n", " "), True)
+check("...with no ellipsis, because it all fitted", "…" in _t5, False)
+
+_h2 = _tb_height(os.path.join(_tmp, "two.pdf"))
+_h1 = _tb_height(os.path.join(_tmp, "revised.pdf"))       # "H — pipes retrimmed, boom 3 struck"
+_pdf_text({**_anon, "revision": "J"}, "nonote")
+_h0 = _tb_height(os.path.join(_tmp, "nonote.pdf"))
+check("two lines is taller than one", _h2 > _h1, True)
+check("...and one is taller than none", _h1 > _h0, True)
+check("...and none is still the 2.0\" minimum", round(_h0 / 72, 2), round(_TB[1], 2))
+check("...and the growth is one 11pt line each time", (_h1 - _h0, _h2 - _h1), (5.0, 11.0))
+
+# 🔴 THE ELLIPSIS GOES ON THE LAST LINE, not the first. A note cut short has to
+# say so where the reader stops; trimming line one would leave line two reading
+# like the end of a complete sentence.
+_t6 = _pdf_text({**_anon, "revision": "K. " + " ".join(["overrun"] * 60)}, "overrun")
+check("a note too long for two lines is marked as cut", "…" in _t6, True)
+
 # The SECTION fits itself too — it is the drawing trims are read off, so a
 # bigger scale is a more useful drawing.
 import plot_to_section as _S

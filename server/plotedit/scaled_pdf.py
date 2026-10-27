@@ -250,9 +250,13 @@ DXF_FOR_PDF = {v: k for k, v in PDF_FOR_DXF.items()}
 # holding a drawing that says what it is and what scale it is at.
 FRAME = "frame"
 
-# The title block's size in INCHES, declared once. Anything that has to stay
-# clear of it — the scale bar and the one-inch check, today — reads it from
-# here rather than repeating the number and drifting (issue #131).
+# The title block, in INCHES, declared once. Anything that has to stay clear
+# of it — the scale bar and the one-inch check, today — reads it from here
+# rather than repeating the number and drifting (issue #131).
+#
+# ⚠ The HEIGHT is a minimum, not the height. The block grows by a line when
+# the revision note wraps to a second one; it never shrinks below this.
+# Only the width is fixed, and only the width is what anything else needs.
 TITLE_BLOCK_IN = (4.0, 2.0)
 
 
@@ -1594,24 +1598,54 @@ class Sheet:
         # edge that does not move: the block is anchored at the sheet margin and
         # grows upward. Writing them from the top meant every offset changed the
         # day the height did.
-        tb_w, tb_h = (d * inch for d in TITLE_BLOCK_IN)
-        x0, y0 = W - m - tb_w, m
-        FOOT_T, CTRL_T, CRED_T = 16, 40, 88        # band ceilings, above y0
-        c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
-
-        def _rule(dy):
-            c.setLineWidth(0.6); c.line(x0, y0 + dy, x0 + tb_w, y0 + dy)
-
+        tb_w = TITLE_BLOCK_IN[0] * inch
+        x0 = W - m - tb_w
         from reportlab.pdfbase.pdfmetrics import stringWidth
 
         def _fitted(t, font="Helvetica", size=8, room=None):
             """Trim to the block's width, since a show's name is free text."""
             room = (tb_w - 12) if room is None else room
+            t = str(t or "")
             if stringWidth(t, font, size) <= room:
                 return t
             while t and stringWidth(t + "…", font, size) > room:
                 t = t[:-1]
             return t + "…"
+
+        def _wrapped(t, size=7, limit=2):
+            """The revision note, broken on spaces over at most `limit` lines.
+
+            ⚠ The LAST line carries the ellipsis, not the first. Anything that
+            did not fit is appended to it before trimming, so a note cut short
+            says so where the reader stops rather than looking complete.
+            """
+            room, words = tb_w - 12, str(t or "").split()
+            out, cur, i = [], "", 0
+            while i < len(words) and len(out) < limit:
+                trial = f"{cur} {words[i]}".strip()
+                if cur and stringWidth(trial, "Helvetica", size) > room:
+                    out.append(cur); cur = ""
+                    continue
+                cur, i = trial, i + 1
+            if cur and len(out) < limit:
+                out.append(cur); cur = ""
+            if i < len(words) and out:
+                out[-1] = " ".join([out[-1]] + words[i:])
+            return [_fitted(o, size=size) for o in out]
+
+        # ⭐ THE BLOCK GROWS BY A LINE WHEN THE NOTE NEEDS ONE. Jerry,
+        # 2026.10.27: "wrap the note to two lines." Reserving both lines on
+        # every sheet would leave a plot with no revision note carrying an inch
+        # of white where a note would have gone, so the height follows the note
+        # and nothing else — and never drops below the 2.0" already agreed.
+        _note = _wrapped(self.meta["rev_note"])
+        tb_h = max(TITLE_BLOCK_IN[1] * inch, 138 + 11 * len(_note))
+        y0 = m
+        FOOT_T, CTRL_T, CRED_T = 18, 42, 90        # band ceilings, above y0
+        c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
+
+        def _rule(dy):
+            c.setLineWidth(0.6); c.line(x0, y0 + dy, x0 + tb_w, y0 + dy)
 
         # ── identity ──────────────────────────────────────────────────────
         c.setFillColor(GREEN); c.setFont("Helvetica-Bold", 11)
@@ -1625,9 +1659,9 @@ class Sheet:
         # with a sentence printed that sentence where "Light Plot" belongs —
         # ellipsis and all — and the designator beside Rev was its first three
         # characters. revision() splits the one field the plot actually has.
-        if self.meta["rev_note"]:
-            c.setFillColor(grey); c.setFont("Helvetica", 7)
-            c.drawString(x0 + 6, y0 + tb_h - 52, _fitted(self.meta["rev_note"], size=7))
+        c.setFillColor(grey); c.setFont("Helvetica", 7)
+        for i, _line in enumerate(_note):
+            c.drawString(x0 + 6, y0 + tb_h - 53 - 11 * i, _line)
         _rule(CRED_T)
 
         # ── who made it ───────────────────────────────────────────────────
