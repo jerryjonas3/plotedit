@@ -10,7 +10,7 @@ import json
 import os
 import sys
 
-from plotedit.scaled_pdf import Sheet, ft, check, largest_scale, FIT_SCALES
+from plotedit.scaled_pdf import Sheet, ft, check, largest_scale, FIT_SCALES, credits
 from plotedit import photometrics as ph
 from plotedit import positions as _P
 
@@ -89,7 +89,7 @@ def render(plot_path, pdf_path, scale="fit", page="ARCH_D", landscape=True, dxf=
     s = Sheet(pdf_path, page=page, scale=scale, landscape=landscape,
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=plot.get("revision", ""), rev=plot.get("revision", "0")[:3],
-              designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
+              **credits(plot),
               studio=plot.get("studio", ""), date=plot.get("date", ""), dxf=dxf,
               # ⭐ Line weights come off the PLOT, not off an export option.
               # "the pipes are too thick" is a property of the drawing, so it

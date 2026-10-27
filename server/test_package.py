@@ -1144,6 +1144,36 @@ check("a plot that names someone prints THEM", "Design: A N Other" in _t2, True)
 check("...and their shop", "Some Other Shop" in _t2, True)
 check("...and still nobody else", "Jerry" in _t2 or "Twin Oaks" in _t2, False)
 
+# ⭐ THE OTHER TWO CREDITS. Jerry, 2026.10.27: "a space should be put in the
+# title block for the director and scenic designer." Same rule as the designer —
+# printed from the file or not printed at all.
+#
+# 🔴 THE ABSENCE CHECK IS THE ONE THAT MATTERS. A labelled blank is the failure
+# this whole section exists to prevent, wearing a different label: a plot that
+# names no director would be printing the word DIRECTOR over an empty space,
+# asserting a role the file never filled. Checking only that a named director
+# appears would pass just as happily with the label hardcoded.
+check("a plot that names no director says nothing about one", "Director" in _t, False)
+check("...and nothing about scenic design either", "Scenic" in _t, False)
+
+_t3 = _pdf_text({**_anon, "director": "D Irector", "scenicDesigner": "S Cenic"}, "credits")
+check("a plot that names a director prints them", "Director: D Irector" in _t3, True)
+check("...and the scenic designer", "Scenic Design: S Cenic" in _t3, True)
+check("...and still invents no lighting designer", "Design: A" in _t3 or "Jerry" in _t3, False)
+
+# ⚠ THE SYMBOL KEY TOO, not just the plan. It built its credit with an f-string
+# of its own and printed a bare "Design: " on every plot that named nobody —
+# the identical bug, one file over, passing because nothing looked. All three
+# renderers now read the same credits().
+import plot_to_key as _K
+_key_src = os.path.join(_tmp, "key-anon.json")
+with open(_key_src, "w") as _fh:
+    _json.dump(_anon, _fh)
+_key_pdf = os.path.join(_tmp, "key-anon.pdf")
+_K.render(_key_src, _key_pdf)
+check("the symbol key prints no bare 'Design:' either",
+      "Design:" in _fz.open(_key_pdf)[0].get_text(), False)
+
 # The SECTION fits itself too — it is the drawing trims are read off, so a
 # bigger scale is a more useful drawing.
 import plot_to_section as _S

@@ -23,7 +23,7 @@ import math
 import os
 import sys
 
-from plotedit.scaled_pdf import Sheet, ft
+from plotedit.scaled_pdf import Sheet, ft, credits
 from plotedit import photometrics as ph
 from plotedit import positions as P
 from plotedit import symbols as sym
@@ -142,7 +142,7 @@ def render(plot_path, pdf_path, cut_at=None, axis="y", scale="fit",
               show=plot["show"], venue=plot.get("venue", ""),
               sheet=f"Section — cut {cut_desc}, looking stage left",
               rev=str(plot.get("revision", "0"))[:3],
-              designer=(f"Design: {plot['designer']}" if plot.get("designer") else ""),
+              **credits(plot),
               studio=plot.get("studio", ""), date=plot.get("date", ""))
     s.angle_in_barrel = _barrel = bool(plot.get("angleInBarrel"))
     # ⭐ MEASURED AND CENTRED — see place_for(). The left margin has to absorb

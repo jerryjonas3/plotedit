@@ -251,9 +251,31 @@ DXF_FOR_PDF = {v: k for k, v in PDF_FOR_DXF.items()}
 FRAME = "frame"
 
 
+def credits(plot):
+    """The title block's three credit lines, read off the plot and nowhere else.
+
+    ⭐ ONE PLACE, because there are three sheets. The plan, the section and the
+    symbol key each build their own Sheet, so a credit assembled at each call
+    site is a credit three renderers can disagree about — and they already did:
+    plot_to_key.py printed a bare "Design: " on every plot that named nobody,
+    which is the exact thing test_package forbids on the plan.
+
+    ⚠ Blank unless the file names someone. Jerry, 2026.09.24: "I don't want to
+    print anything that is hardcoded." A label with nothing after it asserts a
+    role the plot never filled, so an absent credit prints no line at all.
+    """
+    def _line(label, key):
+        name = str(plot.get(key) or "").strip()
+        return f"{label}: {name}" if name else ""
+    return dict(designer=_line("Design", "designer"),
+                director=_line("Director", "director"),
+                scenic=_line("Scenic Design", "scenicDesigner"))
+
+
 class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
                  show="", venue="", sheet="", rev="A", designer="", studio="", date="",
+                 director="", scenic="",
                  margin_in=0.5, dxf=None, weights=None, units=None, layered=True):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
@@ -317,7 +339,8 @@ class Sheet:
         # came out with his name on it — in the title block, in brown, as a
         # claim of authorship. Both now come from the plot file or stay blank.
         self.meta = dict(show=show, venue=venue, sheet=sheet, rev=rev,
-                         designer=designer, studio=studio, date=date)
+                         designer=designer, studio=studio, date=date,
+                         director=director, scenic=scenic)
         # The plot's `angleInBarrel`, set by whoever builds the sheet from a
         # plot. Every symbol this sheet draws asks for it, so the plan, the boom
         # elevations and the key cannot disagree about how an angle is shown.
@@ -1527,19 +1550,66 @@ class Sheet:
         if self.base_note:
             c.setFillColor(grey); c.setFont("Helvetica", 6); c.drawString(m + 6, m + 6, self.base_note)
         # title block, lower right
-        tb_w, tb_h = 4.0 * inch, 1.1 * inch
+        # ⭐ TALLER, AND RULED INTO BANDS. Jerry, 2026.10.27, off a 24" x 36"
+        # print: "the title block should be bigger. A space should be put in the
+        # title block for the director and scenic designer." Both halves of that
+        # are the same complaint — four facts stacked with no rules between them
+        # read as one paragraph from arm's length, and there was no room to add
+        # a fifth. 1.1" held what it held because nothing else was asking.
+        #
+        # ⚠ The bands are measured from the BOTTOM edge, because that is the
+        # edge that does not move: the block is anchored at the sheet margin and
+        # grows upward. Writing them from the top meant every offset changed the
+        # day the height did.
+        tb_w, tb_h = 4.0 * inch, 2.0 * inch
         x0, y0 = W - m - tb_w, m
+        FOOT_T, CTRL_T, CRED_T = 16, 40, 96        # band ceilings, above y0
         c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
-        c.setFillColor(GREEN); c.setFont("Helvetica-Bold", 11)
-        c.drawString(x0 + 6, y0 + tb_h - 15, self.meta["show"] or "Untitled")
-        c.setFillColor(black); c.setFont("Helvetica", 8)
+
+        def _rule(dy):
+            c.setLineWidth(0.6); c.line(x0, y0 + dy, x0 + tb_w, y0 + dy)
+
         from reportlab.pdfbase.pdfmetrics import stringWidth
+
+        def _fitted(t, font="Helvetica", size=8, room=None):
+            """Trim to the block's width, since a show's name is free text."""
+            room = (tb_w - 12) if room is None else room
+            if stringWidth(t, font, size) <= room:
+                return t
+            while t and stringWidth(t + "…", font, size) > room:
+                t = t[:-1]
+            return t + "…"
+
+        # ── identity ──────────────────────────────────────────────────────
+        c.setFillColor(GREEN); c.setFont("Helvetica-Bold", 11)
+        c.drawString(x0 + 6, y0 + tb_h - 17,
+                     _fitted(self.meta["show"] or "Untitled", "Helvetica-Bold", 11))
+        c.setFillColor(black); c.setFont("Helvetica", 8)
         for i, key in enumerate(("venue", "sheet")):
-            t = self.meta[key]
-            if stringWidth(t, "Helvetica", 8) > tb_w - 12:
-                while stringWidth(t + "…", "Helvetica", 8) > tb_w - 12: t = t[:-1]
-                t += "…"
-            c.drawString(x0 + 6, y0 + tb_h - 27 - 12 * i, t)
+            c.drawString(x0 + 6, y0 + tb_h - 30 - 12 * i, _fitted(self.meta[key]))
+        _rule(CRED_T)
+
+        # ── who made it ───────────────────────────────────────────────────
+        # ⚠ A CREDIT IS ONLY PRINTED IF THE FILE CARRIES IT, and the band simply
+        # comes out shorter when it does not. The renderer used to default the
+        # designer to a name and print a studio from a string literal, so a plot
+        # drawn for somebody else claimed this studio's authorship (Jerry,
+        # 2026.09.24: "I don't want to print anything that is hardcoded"). An
+        # empty DIRECTOR label with a blank after it is the same mistake in a
+        # politer font — the drawing would be asserting a role nobody filled.
+        _credits = [(self.meta["designer"], BROWN, "Helvetica-Bold"),
+                    (self.meta["director"], black, "Helvetica"),
+                    (self.meta["scenic"], black, "Helvetica")]
+        _cy = CRED_T - 14
+        for _text, _colour, _font in _credits:
+            if not _text:
+                continue
+            c.setFillColor(_colour); c.setFont(_font, 8)
+            c.drawString(x0 + 6, y0 + _cy, _fitted(_text, _font))
+            _cy -= 13
+        _rule(CTRL_T)
+
+        # ── scale, revision, date ─────────────────────────────────────────
         # ⭐ THE PLOT'S DATE, not today's. The title block carries "the date the
         # plate was published" (2025 USITT RP §2.2.6; RP-2 §4.1 the same), and
         # printing today's date made a reprint of an old plot claim to be new.
@@ -1551,19 +1621,26 @@ class Sheet:
         except ValueError:
             pass                    # not ISO: print it as the plot has it
         when = when or datetime.date.today().strftime('%Y.%m.%d')
-        c.drawString(x0 + 6, y0 + tb_h - 51, f"Scale {self.scale_label}   Rev {self.meta['rev']}   "
-                                              f"{when}")
-        if self.meta["designer"]:
-            c.setFillColor(BROWN); c.setFont("Helvetica-Bold", 8)
-            c.drawString(x0 + 6, y0 + 6, self.meta["designer"])
+        # ⚠ One list, so a divider cannot drift away from the cell it divides.
+        # The scale cell is the widest on purpose: 'Scale 3/16" = 1\'-0"' is the
+        # longest thing this row ever holds, and a metric '1:100' the shortest.
+        _dividers = (0.0, 118.0, 196.0)
+        _cells = [f"Scale {self.scale_label}", f"Rev {self.meta['rev']}", when]
+        c.setFillColor(black); c.setFont("Helvetica", 8)
+        for _x, _t in zip(_dividers, _cells):
+            c.drawString(x0 + _x + 6, y0 + CTRL_T - 15, _t)
+        for _x in _dividers[1:]:
+            c.setLineWidth(0.6); c.line(x0 + _x, y0 + FOOT_T, x0 + _x, y0 + CTRL_T)
+        _rule(FOOT_T)
+
+        # ── the sheet's own footer ────────────────────────────────────────
         # "Print at 100%" is a fact about the SHEET — the scale bar is only true
-        # at actual size — so it is always drawn. The studio name in front of it
-        # is not, and appears only if the plot carries one.
+        # at actual size — so it is always drawn. The studio name beside it is
+        # not, and appears only if the plot carries one.
         c.setFillColor(grey); c.setFont("Helvetica", 6)
-        foot = "print at 100% / Actual size"
         if self.meta["studio"]:
-            foot = f"{self.meta['studio']} — {foot}"
-        c.drawRightString(x0 + tb_w - 6, y0 + 6, foot)
+            c.drawString(x0 + 6, y0 + 6, self.meta["studio"])
+        c.drawRightString(x0 + tb_w - 6, y0 + 6, "print at 100% / Actual size")
         # scale bar: 0 to 10 ft in 1-ft ticks, left of title block
         # ⚠ Positioned from the bar's REAL width. It used to be placed as though
         # it were ten feet wide and then drawn ten metres wide, so on a metric
