@@ -174,7 +174,7 @@ print("the scale bar stays on the paper, at every scale")
 # The clipping guard only knows what the drawing touched, so furniture can walk
 # off the sheet without it ever being asked. Hence this test measures the
 # rendered rectangles rather than trusting the arithmetic that placed them.
-from plotedit.scaled_pdf import fit_scales as _fits, TITLE_BLOCK_IN
+from plotedit.scaled_pdf import fit_scales as _fits, TITLE_BLOCK_W_IN
 from plotedit import units as _u
 
 def _bar_extent(path):
@@ -225,7 +225,7 @@ for _sys in (_u.IMPERIAL, _u.METRIC):
         # ⚠ Measured from the RENDERED word, not from the arithmetic that placed
         # it, for the same reason as the bar above: this furniture is drawn in
         # page points rather than through P(), so nothing else is watching it.
-        _tb_left = _page.rect.width - _sheet.margin - TITLE_BLOCK_IN[0] * 72
+        _tb_left = _page.rect.width - _sheet.margin - TITLE_BLOCK_W_IN * 72
         # ⚠ NOT just any "100%". The title block's own footer says "print at
         # 100% / Actual size", and it is right-aligned inside the block — so
         # matching on the number alone measures the footer and reports every

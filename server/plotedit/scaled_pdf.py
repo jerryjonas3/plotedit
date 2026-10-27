@@ -254,10 +254,10 @@ FRAME = "frame"
 # of it — the scale bar and the one-inch check, today — reads it from here
 # rather than repeating the number and drifting (issue #131).
 #
-# ⚠ The HEIGHT is a minimum, not the height. The block grows by a line when
-# the revision note wraps to a second one; it never shrinks below this.
-# Only the width is fixed, and only the width is what anything else needs.
-TITLE_BLOCK_IN = (4.0, 2.0)
+# ⚠ ONLY THE WIDTH IS FIXED. The height is whatever the block's contents need
+# — credits and revision note both add lines — so it is not declared here at
+# all. The width is the only part anything else has to stay clear of.
+TITLE_BLOCK_W_IN = 4.0
 
 
 def credits(plot):
@@ -384,6 +384,15 @@ class Sheet:
         self.angle_in_barrel = False
         self.c.setLineJoin(1); self.c.setLineCap(1)
         self._bounds = [1e9, 1e9, -1e9, -1e9]   # page-pt extents of everything drawn
+        # ⭐ THE TITLE BLOCK'S COLUMN, watched separately. The clipping guard
+        # polices the sheet EDGE, and the block is nowhere near one — so a
+        # drawing that fits the paper perfectly can still run underneath it,
+        # and nothing was asking. The whole-drawing bounding box cannot answer
+        # this either: on a wide plot it reaches that corner whether or not
+        # anything is drawn there. So P() keeps the low-water mark of the
+        # right-hand column only, which is as precise as the coordinates get.
+        self._tb_x = self.page_pt[0] - self.margin - TITLE_BLOCK_W_IN * inch
+        self._tb_low = 1e9
         self.warnings = []
         # ⭐ Resolved ONCE, per sheet. Every drawing call reads self.styles, so
         # an override reaches the whole drawing rather than the handful of
@@ -582,6 +591,8 @@ class Sheet:
         px, py = self.ox + x_ft * self.pt_per_ft, self.oy + y_ft * self.pt_per_ft
         b = self._bounds
         b[0], b[1], b[2], b[3] = min(b[0], px), min(b[1], py), max(b[2], px), max(b[3], py)
+        if px > self._tb_x and py < self._tb_low:
+            self._tb_low = py
         return px, py
 
     def drawn_right_ft(self):
@@ -1598,7 +1609,7 @@ class Sheet:
         # edge that does not move: the block is anchored at the sheet margin and
         # grows upward. Writing them from the top meant every offset changed the
         # day the height did.
-        tb_w = TITLE_BLOCK_IN[0] * inch
+        tb_w = TITLE_BLOCK_W_IN * inch
         x0 = W - m - tb_w
         from reportlab.pdfbase.pdfmetrics import stringWidth
 
@@ -1633,16 +1644,43 @@ class Sheet:
                 out[-1] = " ".join([out[-1]] + words[i:])
             return [_fitted(o, size=size) for o in out]
 
-        # ⭐ THE BLOCK GROWS BY A LINE WHEN THE NOTE NEEDS ONE. Jerry,
-        # 2026.10.27: "wrap the note to two lines." Reserving both lines on
-        # every sheet would leave a plot with no revision note carrying an inch
-        # of white where a note would have gone, so the height follows the note
-        # and nothing else — and never drops below the 2.0" already agreed.
+        # ⭐ THE BLOCK IS AS TALL AS WHAT IS IN IT. Jerry, 2026.10.27: "the
+        # title block should be bigger" and "wrap the note to two lines."
+        # Bigger is a consequence of carrying more, not a size to hold open —
+        # so a plot naming a director, a scenic designer and a two-line
+        # revision gets 2.24", and one naming nobody gets 1.24".
+        #
+        # 🔴 A FIXED HEIGHT EATS THE DRAWING. Held open at 2.0" this ran under
+        # the section's deck on the shipped sample and under CAT 1 (FOH) on a
+        # LETTER plan — neither of which the 1.1" block touched. The corner is
+        # in use on anything fitted to its sheet, and reserving it for white
+        # space nobody asked for is the worst of both.
         _note = _wrapped(self.meta["rev_note"])
-        tb_h = max(TITLE_BLOCK_IN[1] * inch, 138 + 11 * len(_note))
+        _credits = [(self.meta["designer"], BROWN, "Helvetica-Bold"),
+                    (self.meta["director"], black, "Helvetica"),
+                    (self.meta["scenic"], black, "Helvetica")]
+        _credits = [c for c in _credits if c[0]]
         y0 = m
-        FOOT_T, CTRL_T, CRED_T = 18, 42, 90        # band ceilings, above y0
-        c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h)             # §6.18 title block border
+        FOOT_T, CTRL_T = 18, 42                    # band ceilings, above y0
+        CRED_T = CTRL_T + (12 * len(_credits) + 12 if _credits else 0)
+        tb_h = CRED_T + 47 + 12 * len(_note)
+        # ⭐ OPAQUE, like every title block on paper and like the instrument
+        # bodies fill_poly already clears. It is drawn last, over everything,
+        # and a stroked-only block lets the drawing run through its text — the
+        # block stops saying what the sheet is, which is the one thing it is
+        # for. On a LETTER sheet the position name CAT 1 (FOH) had the border
+        # ruled through the foot of its letters.
+        #
+        # ⚠ What it covers, it covers. The warning below is the other half:
+        # nothing may be hidden without the sheet saying so.
+        c.setFillColor(white)
+        c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h, stroke=1, fill=1)   # §6.18 title block border
+        if self._tb_low < y0 + tb_h:
+            msg = (f"TITLE BLOCK: the drawing runs "
+                   f"{(y0 + tb_h - self._tb_low) / inch:.2f}\" under the title block, which is "
+                   f"opaque — whatever is there is hidden. Use a larger sheet, a smaller scale, "
+                   f"or shorten the revision note (each line of it grows the block).")
+            self.warnings.append(msg); print("⚠", msg, file=sys.stderr)
 
         def _rule(dy):
             c.setLineWidth(0.6); c.line(x0, y0 + dy, x0 + tb_w, y0 + dy)
@@ -1672,17 +1710,15 @@ class Sheet:
         # 2026.09.24: "I don't want to print anything that is hardcoded"). An
         # empty DIRECTOR label with a blank after it is the same mistake in a
         # politer font — the drawing would be asserting a role nobody filled.
-        _credits = [(self.meta["designer"], BROWN, "Helvetica-Bold"),
-                    (self.meta["director"], black, "Helvetica"),
-                    (self.meta["scenic"], black, "Helvetica")]
         _cy = CRED_T - 12
         for _text, _colour, _font in _credits:
-            if not _text:
-                continue
             c.setFillColor(_colour); c.setFont(_font, 8)
             c.drawString(x0 + 6, y0 + _cy, _fitted(_text, _font))
             _cy -= 12
-        _rule(CTRL_T)
+        # ⚠ No credits, no band and no rule — not an empty one. A ruled box with
+        # nothing in it reads as a field somebody forgot to fill.
+        if _credits:
+            _rule(CTRL_T)
 
         # ── scale, revision, date ─────────────────────────────────────────
         # ⭐ THE PLOT'S DATE, not today's. The title block carries "the date the

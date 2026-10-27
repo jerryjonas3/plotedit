@@ -1215,13 +1215,13 @@ check("...and the note is NOT standing in for the plate name",
 # leave a plot with no revision note carrying an inch of white where a note
 # would have gone — so the block grows by a line when the note needs one, and
 # never drops below the 2.0" it is otherwise.
-from plotedit.scaled_pdf import TITLE_BLOCK_IN as _TB
+from plotedit.scaled_pdf import TITLE_BLOCK_W_IN as _TB_W
 
 def _tb_height(path):
     """The title block's drawn height in points, measured off the border."""
     page = _fz.open(path)[0]
     rects = [d["rect"] for d in page.get_drawings()
-             if abs(d["rect"].width - _TB[0] * 72) < 1
+             if abs(d["rect"].width - _TB_W * 72) < 1
              and d["rect"].x1 > page.rect.width - 40]
     return max(r.height for r in rects) if rects else None
 
@@ -1238,8 +1238,15 @@ _pdf_text({**_anon, "revision": "J"}, "nonote")
 _h0 = _tb_height(os.path.join(_tmp, "nonote.pdf"))
 check("two lines is taller than one", _h2 > _h1, True)
 check("...and one is taller than none", _h1 > _h0, True)
-check("...and none is still the 2.0\" minimum", round(_h0 / 72, 2), round(_TB[1], 2))
-check("...and the growth is one 11pt line each time", (_h1 - _h0, _h2 - _h1), (5.0, 11.0))
+# 🔴 AND IT SHRINKS. Held open at a fixed 2.0" this ran under the section's
+# deck on the shipped sample and under CAT 1 (FOH) on a LETTER plan — neither
+# of which the old 1.1" block touched. The corner is in use on anything fitted
+# to its sheet, so a block reserving it for white space nobody asked for buys
+# the complaint back one drawing over.
+check("...and the growth is one 12pt line each time", (_h1 - _h0, _h2 - _h1), (12.0, 12.0))
+check("a block carrying nothing but the plate is under 1.5\"", _h0 / 72 < 1.5, True)
+_h3 = _tb_height(os.path.join(_tmp, "credits.pdf"))     # director + scenic, no note
+check("...and one carrying credits is taller than one without", _h3 > _h0, True)
 
 # 🔴 THE ELLIPSIS GOES ON THE LAST LINE, not the first. A note cut short has to
 # say so where the reader stops; trimming line one would leave line two reading
