@@ -364,7 +364,7 @@ fields are in the order you use them, not the order a database would put them.
 | **DMX personality** | What the fixture is set to at its own display. Two identical units can be on different personalities. |
 | **Type** | The fixture. ⭐ **The lens is part of the type** — a `Lustr 26 EDLT` and a `Lustr 36 EDLT` are different rows, which is why changing it resizes the pool. There is no separate beam-angle box to contradict it. |
 | **Position** | |
-| **Color** | A dropdown of **498 gels** — Roscolux and LEE — that you can also type into. `R52+R119` **stacks** (the transmissions multiply); `R52/R119` is a **split frame** (only the first counts). Neither is in any list, which is why this is not a plain dropdown. ⚠ A bare number is refused: `R119` is Light Hamburg Frost at 89% and `L119` is Dark Blue at 2%. |
+| **Color** | A dropdown of **646 gels** — Roscolux, LEE and GamColor — that you can also type into. `R52+R119` **stacks** (the transmissions multiply); `R52/R119` is a **split frame** (only the first counts). Neither is in any list, which is why this is not a plain dropdown. ⚠ A bare number is refused: `R119` is Light Hamburg Frost at 89% and `L119` is Dark Blue at 2%. |
 | **Gobo** | |
 | **Accessories** | Separate with `+` — "top hat + gobo". Gate accessories are drawn at the gate, front accessories at the nose; you say only what is on the unit. |
 | **X / Y / Trim** | ⭐ Usually not typed — they arrive from dragging. The boxes are there to read back and to correct. On a **boom**, trim is the height on the boom and is written to both fields. |
