@@ -32,6 +32,7 @@ reader's measuring tool, or run  scaled_pdf.py --check file.pdf  which
 reads the 1-inch check bar and reports its width in points (want 72.0).
 """
 import contextlib
+import datetime
 import os
 import tempfile
 import shutil
@@ -258,6 +259,9 @@ FRAME = "frame"
 # — credits and revision note both add lines — so it is not declared here at
 # all. The width is the only part anything else has to stay clear of.
 TITLE_BLOCK_W_IN = 4.0
+# The stamp's height. It holds one headline and one line of small print, and it
+# is a constant because the clipping guard has to know it before it is drawn.
+STAMP_H = 46.0
 
 
 def credits(plot):
@@ -313,7 +317,8 @@ class Sheet:
     def __init__(self, path, page="ARCH_D", scale="1/4", landscape=True,
                  show="", venue="", sheet="", rev="A", designer="", studio="", date="",
                  director="", scenic="", rev_note="",
-                 margin_in=0.5, dxf=None, weights=None, units=None, layered=True):
+                 margin_in=0.5, dxf=None, weights=None, units=None, layered=True,
+                 stamp=None, stamp_date=None):
         w, h = PAGES[page] if isinstance(page, str) else page
         if landscape: w, h = h, w
         self.page_pt = (w * inch, h * inch)
@@ -321,6 +326,17 @@ class Sheet:
         # holds 40.0' x 58.8'" and leave the reader to work backwards from two
         # numbers to a paper size — Jerry, 2026.09.24: "do we know what size
         # sheet it is referring to?" It did not, because nothing kept the name.
+        # ⭐ A DRAFT STAMP IS A PROPERTY OF THE PRINT, NOT OF THE PLOT, so it
+        # arrives as an argument and nothing is written back to the file. A plot
+        # is issued and marked up from the same source on the same day; it is
+        # the sheet in someone's hand that is one or the other.
+        #
+        # ⚠ The DATE ON THE STAMP IS TODAY, deliberately — the title block's
+        # date belongs to the revision and can be weeks old, which is the whole
+        # reason the stamp exists. `stamp_date` overrides it so a test can
+        # render the same bytes twice.
+        self.stamp = str(stamp).strip() if stamp else None
+        self.stamp_date = stamp_date or datetime.date.today().strftime("%Y.%m.%d")
         self.page_name = page if isinstance(page, str) else "custom"
         self.landscape = bool(landscape)
         self.page_in = (w, h)
@@ -1664,6 +1680,12 @@ class Sheet:
         FOOT_T, CTRL_T = 18, 42                    # band ceilings, above y0
         CRED_T = CTRL_T + (12 * len(_credits) + 12 if _credits else 0)
         tb_h = CRED_T + 47 + 12 * len(_note)
+        # 🔴 THE STAMP IS PART OF WHAT THE CORNER COVERS. It sits on top of the
+        # block and is opaque for the same reason the block is, so the clipping
+        # guard below has to measure to the top of the STAMP, not the top of the
+        # block. Left out, a stamped sheet hides a strip of the drawing and says
+        # nothing — the one failure the comment above is about.
+        stamp_h = STAMP_H if self.stamp else 0
         # ⭐ OPAQUE, like every title block on paper and like the instrument
         # bodies fill_poly already clears. It is drawn last, over everything,
         # and a stroked-only block lets the drawing run through its text — the
@@ -1675,9 +1697,9 @@ class Sheet:
         # nothing may be hidden without the sheet saying so.
         c.setFillColor(white)
         c.setLineWidth(HEAVY); c.rect(x0, y0, tb_w, tb_h, stroke=1, fill=1)   # §6.18 title block border
-        if self._tb_low < y0 + tb_h:
+        if self._tb_low < y0 + tb_h + stamp_h:
             msg = (f"TITLE BLOCK: the drawing runs "
-                   f"{(y0 + tb_h - self._tb_low) / inch:.2f}\" under the title block, which is "
+                   f"{(y0 + tb_h + stamp_h - self._tb_low) / inch:.2f}\" under the title block, which is "
                    f"opaque — whatever is there is hidden. Use a larger sheet, a smaller scale, "
                    f"or shorten the revision note (each line of it grows the block).")
             self.warnings.append(msg); print("⚠", msg, file=sys.stderr)
@@ -1725,7 +1747,6 @@ class Sheet:
         # plate was published" (2025 USITT RP §2.2.6; RP-2 §4.1 the same), and
         # printing today's date made a reprint of an old plot claim to be new.
         # Today's date only when the plot carries none.
-        import datetime
         when = str(self.meta.get("date") or "").strip()
         try:
             when = datetime.date.fromisoformat(when).strftime('%Y.%m.%d') if when else ""
@@ -1798,11 +1819,52 @@ class Sheet:
         cx, cy = sx, sy + 0.32 * inch
         c.setLineWidth(1); c.rect(cx, cy, bar_pt, 4, stroke=1, fill=0)
         c.drawString(cx + bar_pt + 4, cy, bar_says)
+        if self.stamp:
+            self._draw_stamp(x0, y0 + tb_h, tb_w, _fitted)
         if self.layered:
             self._compose()
         else:
             c.save()
         if _dxf and self.dxf_path: _dxf.save(self.dxf_path)
+
+    def _draw_stamp(self, x0, y_top, tb_w, fitted):
+        """A draft stamp sitting on top of the title block, the same width.
+
+        ⭐ ON TOP OF THE BLOCK, NOT ACROSS THE DRAWING. A stamp banner over the
+        rig hides the thing the sheet is for, and anyone drafting on it works
+        around the stamp. Sat on the block it reads as part of the block, which
+        is where a reader already looks to find out what a sheet is.
+
+        🔴 OPAQUE, LIKE THE BLOCK, AND COUNTED BY THE CLIPPING GUARD. See
+        STAMP_H at the top of the file: a stamp that covered drawing without
+        saying so would be the exact fault the block's own warning exists for.
+
+        ⚠ ANYTHING THE FONT CANNOT SET IS REPLACED, NOT DROPPED. The text is
+        free, so it can carry a character Helvetica has no glyph for; reportlab
+        raises on that at save time, a long way from the typo that caused it.
+        Replaced, the sheet still prints and the warning names what happened.
+        """
+        c = self.c
+        text = fitted(self._stampable(self.stamp), "Helvetica-Bold", 15)
+        under = fitted(f"Printed {self.stamp_date}. "
+                       "The revision below is the plot's, not this print's.",
+                       "Helvetica", 7)
+        c.saveState()
+        c.setFillColor(white); c.setStrokeColor(BROWN); c.setLineWidth(HEAVY)
+        c.rect(x0, y_top, tb_w, STAMP_H, stroke=1, fill=1)
+        c.setFillColor(BROWN)
+        c.setFont("Helvetica-Bold", 15); c.drawString(x0 + 7, y_top + STAMP_H - 21, text)
+        c.setFont("Helvetica", 7); c.drawString(x0 + 7, y_top + STAMP_H - 35, under)
+        c.restoreState()
+
+    def _stampable(self, text):
+        """`text` with anything the standard fonts cannot set turned into '?'."""
+        safe = text.encode("cp1252", "replace").decode("cp1252")
+        if safe != text:
+            msg = (f"STAMP: {text!r} contains characters Helvetica cannot set; "
+                   f"they are printed as '?'. Stamped as {safe!r}.")
+            self.warnings.append(msg); print("⚠", msg, file=sys.stderr)
+        return safe
 
     def _compose(self):
         """Overlay the per-layer canvases onto one page, each its own group.
