@@ -763,6 +763,28 @@ class Sheet:
         c.circle(*self.P(x, y), self.L(r), stroke=1, fill=1 if fill else 0); c.restoreState()
         if self.dxf: self.dxf.circle(x, y, r)
 
+    def polygon(self, pts, width=0.75, fill=None, color=black):
+        """A closed polygon. `fill` makes it OPAQUE, which is the point: a
+        §6.14.1 container has to read as a container, and a batten running
+        through it breaks the shape that carries the meaning.
+
+        ⚠ NOT filled in the DXF — same reason Sheet.text leaves its knockout
+        off. There the reader turns layers on and off, and a white polygon
+        exported under the number is an object nobody asked for.
+        """
+        c = self.c; c.saveState(); c.setLineWidth(width); c.setStrokeColor(color)
+        if fill: c.setFillColor(fill)
+        path = c.beginPath()
+        for i, (px, py) in enumerate(pts):
+            self.P(px, py)
+            (path.moveTo if i == 0 else path.lineTo)(*self.P(px, py))
+        path.close()
+        c.drawPath(path, stroke=1, fill=1 if fill else 0); c.restoreState()
+        if self.dxf:
+            for i in range(len(pts)):
+                a, b = pts[i], pts[(i + 1) % len(pts)]
+                self.dxf.line(a[0], a[1], b[0], b[1])
+
     def ellipse(self, cx, cy, a, b, angle_deg=0.0, width=0.75, color=black,
                 dash=None, style=None, steps=64):
         """A rotated ellipse, drawn as a polyline so the DXF export gets real
