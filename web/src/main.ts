@@ -43,6 +43,7 @@ import { renderPositions, resetPositionCards } from "./positions.js";
 import { renderDetails } from "./details.js";
 import { unitLabel } from "./plot.js";
 import { attachHelp } from "./help.js";
+import { pxFromPos, posFromPx, ZOOM_DEFAULT } from "./zoom.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const svg = $<HTMLElement>("plot") as unknown as SVGSVGElement;
@@ -131,7 +132,8 @@ function panDrawing(dx: number, dy: number): void {
 }
 
 function view(): View {
-  const pxPerFoot = Number($<HTMLInputElement>("zoom").value);
+  // ⚠ #122: the slider holds a POSITION now, not pixels per foot.
+  const pxPerFoot = pxFromPos(Number($<HTMLInputElement>("zoom").value));
   const { width, depth } = store.plot.room;
   const { w, h, house } = drawingFeet();
   return fitView(width, depth, w * pxPerFoot, h * pxPerFoot, VIEW_MARGIN, house, boomSpace);
@@ -541,17 +543,15 @@ function wireSplitter(): void {
 }
 
 /** Zoom presets beside the slider: whole plot, fit height, fit width, 100%.
- *  "100%" is the slider's default of 14 px per foot, the editor's home zoom. */
-const ZOOM_DEFAULT = 14;
+ *  "100%" is 14 px per foot, the editor's home zoom — see src/zoom.ts. */
 
 function wireZoomButtons(): void {
   const slider = $<HTMLInputElement>("zoom");
   const canvas = $("canvas");
-  const setZoom = (px: number) => {
-    const lo = Number(slider.min), hi = Number(slider.max), step = Number(slider.step);
-    slider.value = String(Math.max(lo, Math.min(hi, Math.floor(px / step) * step)));
-    draw();
-  };
+  // ⚠ posFromPx clamps to the slider's ends itself, so a fit that asks for
+  // more zoom than the control can hold lands on the maximum rather than
+  // writing a value the input will silently reject.
+  const setZoom = (px: number) => { slider.value = String(posFromPx(px)); draw(); };
   // ⚠ Measured ONCE and reused. It adds a probe element to the document to
   // find the scrollbar's width, and doing that inside every fit meant three
   // layout flushes to answer a question whose answer does not change.
