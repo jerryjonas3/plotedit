@@ -42,6 +42,7 @@ import { renderInspector } from "./inspector.js";
 import { renderPositions, resetPositionCards } from "./positions.js";
 import { renderDetails } from "./details.js";
 import { unitLabel } from "./plot.js";
+import { attachHelp } from "./help.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const svg = $<HTMLElement>("plot") as unknown as SVGSVGElement;
@@ -1625,6 +1626,10 @@ async function showVersion(): Promise<void> {
 
 async function boot() {
   void showVersion();
+  // ⭐ #156: wire the help line BEFORE anything that can fail. A panel that
+  // cannot explain itself is least use to somebody reading an error in it.
+  const helpText = document.getElementById("help-text");
+  if (helpText) attachHelp(document, helpText, () => document.activeElement);
   try {
     // ⭐ Open what you were last working on. Starting on the bundled sample
     // every time means a designer's first act at every session is to find their
