@@ -634,8 +634,12 @@
            together but maybe we could group them somehow." They are one control
            for one thing, so they get one container and one label. -->
       <span class="zoomgroup" role="group" aria-label="Zoom">
+      <!-- 🔴 #122. This is a POSITION, 0-1000, not pixels per foot — the
+           mapping is exponential and lives in src/zoom.ts. value="423" is
+           posFromPx(ZOOM_DEFAULT) and zoom.test.ts pins the two together,
+           because the markup renders before any script can set it. -->
       <label title="How many screen pixels one foot is drawn at">drawing zoom: <span class="material-symbols-outlined" aria-hidden="true">zoom_in</span>
-        <input type="range" id="zoom" min="2" max="400" step="0.5" value="14"></label>
+        <input type="range" id="zoom" min="0" max="1000" step="1" value="367"></label>
       <div class="group">
         <button id="zoom-page" class="icon" title="Fit the whole plot">
           <span class="material-symbols-outlined" aria-hidden="true">fit_screen</span></button>
