@@ -319,6 +319,24 @@
        what is in it. */
     aside { background:var(--surface-container); overflow:auto; padding:12px;
             display:flex; flex-direction:column; gap:12px; }
+    /* ⭐ #156: THE HELP LINE. Every explanation in this app was a `title=`,
+       which shows on hover, after a delay, to a mouse. This says the same
+       sentence on KEYBOARD FOCUS and on a touch screen, where a native tooltip
+       says nothing at all.
+       ⚠ margin-top:auto holds it at the foot while the panel is short;
+       position:sticky holds it there once the panel scrolls. The negative
+       margins bleed it out through the aside's own 12px padding. */
+    #help { position:sticky; bottom:-12px; z-index:3; flex:0 0 auto;
+            margin:auto -12px -12px; padding:8px 12px;
+            background:var(--surface-container-high);
+            border-top:1px solid var(--outline-variant);
+            color:var(--on-surface-variant); font-size:12px; line-height:1.4;
+            display:flex; gap:8px; align-items:flex-start; }
+    #help .material-symbols-outlined { font-size:16px; flex:0 0 auto; }
+    /* ⚠ Two lines reserved. Without it the panel jumps every time the help
+       wraps to a second line, which moves the control out from under the
+       pointer that is asking about it. */
+    #help-text { min-height:2.8em; }
     /* ⚠ flex-shrink:0. A flex item shrinks below its content by default, so
        the Instrument card was squeezed to its first field and Positions showed
        one of six — the panel LOOKED empty rather than scrolled. The aside is
@@ -530,18 +548,18 @@
       <span id="version" class="version" title="Which build this is. Quote it if you report something."></span>
       <div class="group grow">
         <button id="undo" class="icon" title="Undo (⌘Z)" disabled>
-          <span class="material-symbols-outlined">undo</span></button>
+          <span class="material-symbols-outlined" aria-hidden="true">undo</span></button>
         <button id="redo" class="icon" title="Redo (⇧⌘Z)" disabled>
-          <span class="material-symbols-outlined">redo</span></button>
+          <span class="material-symbols-outlined" aria-hidden="true">redo</span></button>
         <div class="divider"></div>
         <button id="new" class="outlined" title="New plot (start over)">
-          <span class="material-symbols-outlined">note_add</span>New</button>
+          <span class="material-symbols-outlined" aria-hidden="true">note_add</span>New</button>
         <button id="open" class="outlined" title="Open a saved plot" aria-haspopup="menu" aria-expanded="false">
           <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>Open…<span class="chev material-symbols-outlined" aria-hidden="true">arrow_drop_down</span></button>
         <button id="save" class="filled" title="Save (⌘S)">
-          <span class="material-symbols-outlined">save</span>Save</button>
+          <span class="material-symbols-outlined" aria-hidden="true">save</span>Save</button>
         <button id="saveas" class="outlined" title="Save As… (⇧⌘S)">
-          <span class="material-symbols-outlined">save_as</span>Save As…</button>
+          <span class="material-symbols-outlined" aria-hidden="true">save_as</span>Save As…</button>
         <!-- ⭐ #56: "a revert to return the file to the way it was before we
              touched it in this session". Disabled when there is nothing to go
              back from — the same rule Save follows, and M3's rule for a control
@@ -620,11 +638,11 @@
         <input type="range" id="zoom" min="2" max="400" step="0.5" value="14"></label>
       <div class="group">
         <button id="zoom-page" class="icon" title="Fit the whole plot">
-          <span class="material-symbols-outlined">fit_screen</span></button>
+          <span class="material-symbols-outlined" aria-hidden="true">fit_screen</span></button>
         <button id="zoom-height" class="icon" title="Fit to height">
-          <span class="material-symbols-outlined">height</span></button>
+          <span class="material-symbols-outlined" aria-hidden="true">height</span></button>
         <button id="zoom-width" class="icon" title="Fit to width">
-          <span class="material-symbols-outlined">width</span></button>
+          <span class="material-symbols-outlined" aria-hidden="true">width</span></button>
         <button id="zoom-100" class="small outlined" title="Default zoom (14 px per foot)">100%</button>
       </div>
       </span>
@@ -657,8 +675,8 @@
            was the first thing between the reader and the rig. -->
       <details class="panel details" id="panel-details">
         <summary>
-          <span class="material-symbols-outlined chevron">expand_more</span>
-          <span class="material-symbols-outlined">theater_comedy</span>
+          <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+          <span class="material-symbols-outlined" aria-hidden="true">theater_comedy</span>
           <h2>Show &amp; Venue</h2>
           <span class="count" id="det-count"></span>
         </summary>
@@ -666,8 +684,8 @@
       </details>
       <details class="panel instrument" id="panel-instrument" open>
         <summary>
-          <span class="material-symbols-outlined chevron">expand_more</span>
-          <span class="material-symbols-outlined">flashlight_on</span>
+          <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+          <span class="material-symbols-outlined" aria-hidden="true">flashlight_on</span>
           <h2>Instrument</h2>
           <span class="count" id="inst-count"></span>
         </summary>
@@ -675,8 +693,8 @@
       </details>
       <details class="panel positions" id="panel-positions" open>
         <summary>
-          <span class="material-symbols-outlined chevron">expand_more</span>
-          <span class="material-symbols-outlined">horizontal_rule</span>
+          <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+          <span class="material-symbols-outlined" aria-hidden="true">horizontal_rule</span>
           <h2>Positions</h2>
           <span class="count" id="pos-count"></span>
         </summary>
@@ -684,8 +702,8 @@
       </details>
       <details class="panel schedule" id="panel-schedule" open>
         <summary>
-          <span class="material-symbols-outlined chevron">expand_more</span>
-          <span class="material-symbols-outlined">table_rows</span>
+          <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+          <span class="material-symbols-outlined" aria-hidden="true">table_rows</span>
           <h2>Schedule</h2>
           <span class="count" id="sched-count"></span>
         </summary>
@@ -697,6 +715,15 @@
           </tr></thead><tbody></tbody></table>
         </div>
       </details>
+      <!-- ⭐ #156. aria-hidden because this is a VISUAL affordance: a screen
+           reader already gets each control's own `title` as its description, so
+           announcing this line as well would read everything twice. The bug for
+           AT was never the tooltip, it was the icon NAMES — see the
+           aria-hidden on the Material spans above. -->
+      <div id="help" aria-hidden="true">
+        <span class="material-symbols-outlined">help</span>
+        <span id="help-text"></span>
+      </div>
     </aside>
   </main>
   <div id="err" hidden></div>
