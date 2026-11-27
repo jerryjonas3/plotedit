@@ -44,6 +44,7 @@ import { renderDetails } from "./details.js";
 import { unitLabel } from "./plot.js";
 import { attachHelp } from "./help.js";
 import { pxFromPos, posFromPx, ZOOM_DEFAULT } from "./zoom.js";
+import { anchorOf, scrollShift } from "./anchor.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const svg = $<HTMLElement>("plot") as unknown as SVGSVGElement;
@@ -129,6 +130,46 @@ function panDrawing(dx: number, dy: number): void {
   const canvas = $("canvas");
   canvas.scrollLeft = panStart.x - dx;
   canvas.scrollTop = panStart.y - dy;
+}
+
+/**
+ * Run a change of scale with the middle of the view held still.
+ *
+ * #163: the scroll offset is in pixels and the drawing is not, so a zoom threw
+ * the view towards the drawing's origin — further the more you zoomed, which is
+ * backwards, because the reason to zoom is that you had found something.
+ *
+ * 🔴 EVERY WAY OF CHANGING THE SCALE GOES THROUGH HERE. The slider, the three
+ * fit buttons and "100%" are five routes to the same state, and #163 is explicit
+ * that a rule wired into one handler leaves the other four behaving differently.
+ * ⭐ On a fit it costs nothing: the drawing no longer overflows, so the shift has
+ * no scroll range to use and the browser clamps it away. One rule everywhere
+ * beats four handlers that agree and one that does not.
+ *
+ * ⚠ `clientLeft` / `clientTop` are the BORDER, and `clientWidth` / `clientHeight`
+ * already exclude whichever scrollbars are up — so this is the centre of what can
+ * actually be seen, not of the element.
+ *
+ * ⚠ Reading the svg's box after `change()` forces the layout the new width and
+ * height need. That is why this is synchronous and must stay so: deferring the
+ * shift to a frame later would paint the thrown view first.
+ */
+function withCentreHeld(change: () => void): void {
+  const canvas = $("canvas");
+  const centre = () => {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: r.left + canvas.clientLeft + canvas.clientWidth / 2,
+      y: r.top + canvas.clientTop + canvas.clientHeight / 2,
+    };
+  };
+  const before = centre();
+  const held = anchorOf(svg.getBoundingClientRect(), before.x, before.y);
+  change();
+  const after = centre();
+  const { dx, dy } = scrollShift(held, svg.getBoundingClientRect(), after.x, after.y);
+  canvas.scrollLeft += dx;
+  canvas.scrollTop += dy;
 }
 
 function view(): View {
@@ -551,7 +592,10 @@ function wireZoomButtons(): void {
   // ⚠ posFromPx clamps to the slider's ends itself, so a fit that asks for
   // more zoom than the control can hold lands on the maximum rather than
   // writing a value the input will silently reject.
-  const setZoom = (px: number) => { slider.value = String(posFromPx(px)); draw(); };
+  // ⚠ #163: through withCentreHeld, so all four buttons below inherit the
+  // anchor rule rather than each remembering to ask for it.
+  const setZoom = (px: number) =>
+    withCentreHeld(() => { slider.value = String(posFromPx(px)); draw(); });
   // ⚠ Measured ONCE and reused. It adds a probe element to the document to
   // find the scrollbar's width, and doing that inside every fit meant three
   // layout flushes to answer a question whose answer does not change.
@@ -1708,8 +1752,11 @@ async function boot() {
     // ⚠ `rulers` is not here either, for the opposite reason: it changes the
     // PRINT and nothing on screen. Wiring it to draw would redraw the canvas
     // to no visible effect and suggest the toggle had failed.
+    // ⚠ #163: NOT bare `draw`. The slider is the fifth way to change the scale
+    // and the one the bug was filed from — dragging it right from a fitted view
+    // used to land on blank paper.
     for (const id of ["zoom"])
-      $(id).addEventListener("input", draw);
+      $(id).addEventListener("input", () => withCentreHeld(draw));
 
     // ⭐ A CHIP IS AN EDIT NOW, so it goes through the store: it is undoable,
     // it marks the plot unsaved, and it is saved with the file. That last part
