@@ -43,6 +43,7 @@ import { renderPositions, resetPositionCards } from "./positions.js";
 import { renderDetails } from "./details.js";
 import { unitLabel } from "./plot.js";
 import { attachHelp } from "./help.js";
+import { move, sanitize, canMove } from "./panelOrder.js";
 import { pxFromPos, posFromPx, ZOOM_DEFAULT } from "./zoom.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -430,6 +431,60 @@ function paint() {
  * preference is not worth an exception that stops the editor loading.
  */
 const PANELS = ["details", "instrument", "positions", "schedule"] as const;
+type Panel = (typeof PANELS)[number];
+
+/** Where the column's order lives. ⚠ Browser storage, never the .plot.json —
+ *  #156 is explicit, and cites #154 and the #63 failure behind it. */
+const ORDER_KEY = "plotedit.panelOrder";
+
+function readOrder(): Panel[] {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY);
+    // ⚠ Through sanitize whatever comes back, including a parse that throws on
+    // a half-written value: see panelOrder.ts for why a stored order is never
+    // trusted. JSON.parse of a non-array is handled there too — it is not a
+    // string[], so nothing in it is a known panel and the default survives.
+    return sanitize(raw ? (JSON.parse(raw) as Panel[]) : null, PANELS);
+  } catch { return [...PANELS]; }
+}
+
+function writeOrder(order: readonly Panel[]): void {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)); }
+  catch { /* no storage — the column is still arranged for this session */ }
+}
+
+/** ⚠ Array.from, not a spread: tsconfig does not include DOM.Iterable, so a
+ *  NodeList is not iterable here. */
+const moveButtons = (): HTMLButtonElement[] =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>("button.move"));
+
+/**
+ * Put the panels in `order` and tell each move button whether it can still go.
+ *
+ * ⭐ `append` MOVES an element that is already in the document rather than
+ * copying it, so the panels keep their listeners, their open state and
+ * whatever the inspector has drawn inside them. Re-rendering the column would
+ * have thrown all three away to change four integers.
+ */
+function applyOrder(order: readonly Panel[]): void {
+  const aside = document.querySelector("aside");
+  if (!aside) return;
+  // 🔴 insertBefore, NOT append. The panels are not the last thing in the
+  // aside — #161's help line sits under them — and appending each panel in
+  // turn walked all four PAST it, so the first arrangement of the column put
+  // the help line at the top. Caught on screen; the suite cannot see it.
+  // ⚠ `insertBefore(el, null)` is append, so a build without the help line
+  // still orders correctly rather than throwing.
+  const tail = document.getElementById("help");
+  for (const name of order) {
+    const el = document.getElementById(`panel-${name}`);
+    if (el) aside.insertBefore(el, tail);
+  }
+  for (const btn of moveButtons()) {
+    const name = btn.dataset.move as Panel;
+    btn.disabled = !canMove(order, name, Number(btn.dataset.dir));
+  }
+}
 
 function wirePanels(): void {
   for (const name of PANELS) {
@@ -442,6 +497,30 @@ function wirePanels(): void {
     el.addEventListener("toggle", () => {
       try { localStorage.setItem(`plotedit.panel.${name}`, el.open ? "1" : "0"); }
       catch { /* nothing to do; the panel still works this session */ }
+    });
+  }
+
+  // ⭐ #156, the half of "collapse and reorder" that was still missing — the
+  // accordions have remembered their open state since 2026.09.24.
+  let order = readOrder();
+  applyOrder(order);
+
+  for (const btn of moveButtons()) {
+    btn.addEventListener("click", (e: Event) => {
+      // 🔴 THE BUTTON IS INSIDE A <summary>. Without both of these, arranging
+      // the column would open and shut the panel being arranged on every
+      // press — the click reaches the summary and toggles the <details>.
+      e.preventDefault();
+      e.stopPropagation();
+      const name = btn.dataset.move as Panel;
+      order = move(order, name, Number(btn.dataset.dir));
+      applyOrder(order);
+      writeOrder(order);
+      // ⚠ `append` took the button out of the document and put it back, which
+      // drops focus to <body> — so a keyboard user arranging the column loses
+      // their place after one press. Put it back on the same control.
+      document.querySelector<HTMLButtonElement>(
+        `button.move[data-move="${name}"][data-dir="${btn.dataset.dir}"]`)?.focus();
     });
   }
 }

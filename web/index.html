@@ -377,6 +377,28 @@
     /* ⚠ The chip gives way, not the title. A venue name is long and a section
        heading is the thing that says which panel this is — wrapping "Show &
        Venue" onto two lines to fit the venue in gets it backwards. */
+    /* ⭐ #156: move a panel up or down the column. BUTTONS, not drag — #156's
+       other half was that everything in here was mouse-only, and HTML5 drag
+       does not fire on touch at all. Two buttons are keyboard-reachable and
+       touch-friendly without a parallel affordance built beside them.
+       ⚠ The COUNT keeps margin-left:auto and the buttons simply follow it. Giving
+       the auto margin to .reorder instead left the counts ragged, sitting against
+       titles of four different lengths; this way the pair is a fixed width at the
+       right-hand end and the badges line up as they always did. */
+    .panel .reorder { display:flex; gap:2px; flex:0 0 auto; }
+    .panel .move { background:none; border:none; box-shadow:none; color:inherit;
+                   padding:2px; border-radius:var(--shape-s); cursor:pointer;
+                   display:grid; place-items:center; opacity:.65; }
+    .panel .move:hover:not(:disabled) { opacity:1; background:#0002; }
+    .panel .move:focus-visible { outline:2px solid var(--primary); outline-offset:-2px;
+                                 opacity:1; }
+    /* ⚠ VISIBLE BUT DISABLED at the ends, not hidden. A control that vanishes
+       makes the header reflow as a panel moves, and the pair reads as one
+       thing — the top panel showing a single arrow invites a hunt for the
+       other one. `title` still answers on a disabled button here because the
+       button is not the thing the pointer is over; the summary is. */
+    .panel .move:disabled { opacity:.25; cursor:default; }
+    .panel .move .material-symbols-outlined { font-size:18px; }
     .panel .count { margin-left:auto; font-size:11px; line-height:16px; letter-spacing:.5px;
                     font-weight:500; padding:2px 8px; border-radius:var(--shape-full);
                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -683,6 +705,16 @@
           <span class="material-symbols-outlined" aria-hidden="true">theater_comedy</span>
           <h2>Show &amp; Venue</h2>
           <span class="count" id="det-count"></span>
+          <span class="reorder">
+            <button type="button" class="move" data-move="details" data-dir="-1"
+                    title="Move the Show &amp; Venue panel up the column"
+                    aria-label="Move Show &amp; Venue up"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_up</span></button>
+            <button type="button" class="move" data-move="details" data-dir="1"
+                    title="Move the Show &amp; Venue panel down the column"
+                    aria-label="Move Show &amp; Venue down"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_down</span></button>
+          </span>
         </summary>
         <div class="body" id="details"></div>
       </details>
@@ -692,6 +724,16 @@
           <span class="material-symbols-outlined" aria-hidden="true">flashlight_on</span>
           <h2>Instrument</h2>
           <span class="count" id="inst-count"></span>
+          <span class="reorder">
+            <button type="button" class="move" data-move="instrument" data-dir="-1"
+                    title="Move the Instrument panel up the column"
+                    aria-label="Move Instrument up"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_up</span></button>
+            <button type="button" class="move" data-move="instrument" data-dir="1"
+                    title="Move the Instrument panel down the column"
+                    aria-label="Move Instrument down"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_down</span></button>
+          </span>
         </summary>
         <div class="body" id="inspector"></div>
       </details>
@@ -701,6 +743,16 @@
           <span class="material-symbols-outlined" aria-hidden="true">horizontal_rule</span>
           <h2>Positions</h2>
           <span class="count" id="pos-count"></span>
+          <span class="reorder">
+            <button type="button" class="move" data-move="positions" data-dir="-1"
+                    title="Move the Positions panel up the column"
+                    aria-label="Move Positions up"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_up</span></button>
+            <button type="button" class="move" data-move="positions" data-dir="1"
+                    title="Move the Positions panel down the column"
+                    aria-label="Move Positions down"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_down</span></button>
+          </span>
         </summary>
         <div class="body" id="positions"></div>
       </details>
@@ -710,6 +762,16 @@
           <span class="material-symbols-outlined" aria-hidden="true">table_rows</span>
           <h2>Schedule</h2>
           <span class="count" id="sched-count"></span>
+          <span class="reorder">
+            <button type="button" class="move" data-move="schedule" data-dir="-1"
+                    title="Move the Schedule panel up the column"
+                    aria-label="Move Schedule up"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_up</span></button>
+            <button type="button" class="move" data-move="schedule" data-dir="1"
+                    title="Move the Schedule panel down the column"
+                    aria-label="Move Schedule down"><span class="material-symbols-outlined"
+                    aria-hidden="true">keyboard_arrow_down</span></button>
+          </span>
         </summary>
         <div class="body">
           <table id="schedule"><thead><tr>
