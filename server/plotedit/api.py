@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, field_validator
 from . import dmx
 from . import labels as _labels
 from . import photometrics as ph
+from . import gel_colour as gc
 from . import positions as P
 from . import exports, dxf_bridge, pdf_bridge, symbols as sym
 from . import booms
@@ -187,18 +188,59 @@ def fixtures() -> Dict[str, Any]:
 
 @app.get("/gels")
 def gels() -> Dict[str, Any]:
-    """Gel transmissions, each with its source.
+    """Gel transmissions and colour, each with its source.
 
     Rosco publishes transmission for color filters on the website but NOT for
     the diffusions — those figures come from the myColor swatch app.
+
+    #148: `colour` is present where a maker publishes chromaticity and is
+    explicitly None where none does. ⚠ It is NEVER filled in by eye or guessed
+    from a neighbour — the bug that raised the issue was a renderer quietly
+    substituting warm white for thirteen filters it did not know, and an absence
+    a caller can see is worth more than a value it cannot check.
     """
+    colours = {k: gc.colour_for(k) for k in ph.GELS}
+    with_colour = sum(1 for v in colours.values() if v)
     return {
         "count": len(ph.GELS),
+        "with_colour": with_colour,
+        "without_colour": len(ph.GELS) - with_colour,
         "notation": {
             "+": "stacked in one frame — transmissions multiply",
             "/": "a split frame, two gels cut diagonally — they do NOT multiply",
         },
-        "gels": {k: {"name": v["name"], "transmission": v["t"], "source": v["source"]}
+        "colour": {
+            "space": "sRGB, 8 bit, at full value",
+            "luminance": (
+                "NOT applied to rgb — `luminance_pct` is the measured Y and a "
+                "caller that wants true appearance multiplies by it. A 24% filter "
+                "rendered at its own Y is nearly black and useless as a swatch."
+            ),
+            "white_point": (
+                "Bradford-adapted to D65 from the illuminant each figure was "
+                "measured under, so a value is the FILTER's colour rather than the "
+                "filter plus the lamp. A renderer applies the lamp separately."
+            ),
+            "illuminant_preference": list(gc.ILLUMINANT_PREFERENCE),
+            "illuminants_differ_by_maker": (
+                "No illuminant is common to all three makers — GamColor publishes "
+                "under A, LEE under C and 3200K, Rosco under A and D65 — so each "
+                "entry reports the one it used rather than a house standard."
+            ),
+            "out_of_gamut": (
+                "True where the filter is more saturated than sRGB can show. The "
+                "negative channel is clamped, so the hex is as close as sRGB gets "
+                "rather than the colour itself."
+            ),
+            "caveat": (
+                "A single RGB is a simplification however it is derived. A gel "
+                "looks different under tungsten and under white LED, and different "
+                "again on skin than on a cyc; overlapping beams wash toward white "
+                "in any additive renderer."
+            ),
+        },
+        "gels": {k: {"name": v["name"], "transmission": v["t"], "source": v["source"],
+                     "colour": colours[k]}
                  for k, v in ph.GELS.items()},
     }
 
