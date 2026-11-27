@@ -8,7 +8,7 @@
     "test": "tsx src/geometry.test.ts",
     "test:store": "tsx src/store.test.ts",
     "test:seq": "tsx src/sequence.test.ts",
-    "test:all": "npm test && npm run test:store && npm run test:seq && npm run test:layers && npm run test:base && npm run test:cards && npm run test:selection && npm run test:interact && npm run test:units && npm run test:lamps && npm run test:help && npm run test:zoom && npm run test:anchor",
+    "test:all": "npm test && npm run test:store && npm run test:seq && npm run test:layers && npm run test:base && npm run test:cards && npm run test:selection && npm run test:interact && npm run test:units && npm run test:lamps && npm run test:help && npm run test:zoom && npm run test:anchor && npm run test:order",
     "test:layers": "tsx src/layers.test.ts",
     "test:base": "tsx src/basePlan.test.ts",
     "test:cards": "tsx src/positions.test.ts",
@@ -18,7 +18,8 @@
     "test:lamps": "tsx src/inspector.test.ts",
     "test:help": "tsx src/help.test.ts",
     "test:zoom": "tsx src/zoom.test.ts",
-    "test:anchor": "tsx src/anchor.test.ts"
+    "test:anchor": "tsx src/anchor.test.ts",
+    "test:order": "tsx src/panelOrder.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
