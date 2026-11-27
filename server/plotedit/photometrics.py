@@ -768,13 +768,43 @@ def gel_key(gel):
 
 
 def load_gels(path=None):
-    """gels.csv beside this file: gel, name, transmission (0-1), source, added. Add rows as gels come up."""
+    """gels.csv beside this file: gel, name, transmission (0-1), source, added. Add rows as gels come up.
+
+    🔴 TWO ROWS MAY NOT NORMALISE TO ONE KEY (#147). `gel_key` strips punctuation
+    and case, and this is a plain dict, so a second row with the same key used to
+    OVERWRITE the first in silence — no error, no warning, and every plot using
+    the losing filter would quietly carry the winner's transmission.
+
+    ⚠ `R` is already four product lines: Roscolux 0-399, Storaro 2001-2009,
+    Cinegel 3405-3411 and Calcolor 4215-4590. They do not collide today — 646
+    rows, 646 distinct keys — but #147 is blunt that this is "luck, not design",
+    and the obvious next ranges to add are the ones that reuse low numbers.
+
+    ⭐ #147 asks for exactly this check and nothing more: it says the naming
+    scheme "should not be picked in a diff" but that a load-time check is "worth
+    having whatever is decided above". So this refuses a collision; it does not
+    invent a prefix to resolve one.
+
+    ➡ RAISES rather than warns, and that is the lesser harm. The table is in the
+    repo and under test, so a collision can only arrive with an edit to
+    gels.csv — it fails on the next run, in front of whoever made it, instead of
+    reaching a plot as a wrong footcandle figure.
+    """
     import csv, os
     path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "gels.csv")
-    out = {}
+    out, seen = {}, {}
     with open(path) as fh:
         for row in csv.DictReader(fh):
-            out[gel_key(row["gel"])] = dict(name=row["name"], t=float(row["transmission"]), source=row["source"])
+            key = gel_key(row["gel"])
+            if key in seen:
+                first, second = seen[key], row["gel"]
+                raise ValueError(
+                    f"gels.csv: {first!r} and {second!r} both normalise to {key!r}, so one "
+                    f"would silently replace the other. They are different filters "
+                    f"({out[key]['name']!r} and {row['name']!r}) and need codes that stay "
+                    f"distinct once punctuation and case are stripped — see issue #147")
+            seen[key] = row["gel"]
+            out[key] = dict(name=row["name"], t=float(row["transmission"]), source=row["source"])
     return out
 
 GELS = load_gels()
@@ -819,8 +849,15 @@ def gel_factor(gel):
             # guessing a house's preferred maker is how a plot promises forty
             # times the light it will deliver.
             if g[:1].isdigit():
-                return None, (f"gel {g} has no maker — R{g} and L{g} are different "
-                              f"filters. Write R{g} for Roscolux or L{g} for LEE.")
+                # ⚠ #147: this said "R{g} and L{g} ... R for Roscolux or L for LEE".
+                # Three things wrong with it. It left GAM out altogether. It
+                # equated R with Roscolux when R is also Calcolor, Cinegel and
+                # Storaro. And it offered a two-way choice where the table holds
+                # three makers. Refusing was always right; the reason given was not.
+                return None, (f"gel {g} has no maker — R{g}, L{g} and G{g} are different "
+                              f"filters. Write R{g} (Rosco), L{g} (LEE) or G{g} (GamColor). "
+                              f"Note R covers several Rosco ranges, so a number alone names "
+                              f"no filter.")
             return None, (f"gel {g} not in gels.csv — add it with the maker's "
                           f"published transmission")
         rows.append((g.upper(), row["t"]))
@@ -872,8 +909,32 @@ def _footcandles_white(f, kind, throw, lamp, mode):
     # on the plot by about a quarter, in the safe-looking direction — the plot
     # promises light the rig will not deliver. So when the paperwork is silent
     # about a tungsten Source Four, assume the lamp that is actually in it.
-    if lamp is None and f.get("ref_lamp") in LAMP_MF and kind in LAMP_MF.get(DEFAULT_LAMP, {}):
-        lamp = DEFAULT_LAMP
+    # 🔴 #139: ASK ASSUME_DEFAULT_LAMP, which is the gate that already answers
+    # this. The old test here — ref_lamp in LAMP_MF and kind in the 575 table —
+    # rolled its own version of the same question and got a different answer,
+    # and `watts_for` three hundred lines up has used the family gate since
+    # 2026.10.13. Two places deciding "is this a 575 fixture?" differently is
+    # the defect; the EDLT was only where it showed.
+    _fam = f.get("family") or ""
+    _assume_575 = any(_fam.startswith(x) for x in ASSUME_DEFAULT_LAMP)
+    if lamp is None and _assume_575:
+        if kind in LAMP_MF.get(DEFAULT_LAMP, {}):
+            lamp = DEFAULT_LAMP
+        elif f.get("cd") is not None:
+            # 🔴 REFUSE RATHER THAN ANSWER AT THE REFERENCE LAMP. `S4 36 EDLT`
+            # has no HPL 575 row, so the old code left lamp None and returned
+            # the HPL 750 figure labelled "at HPL 750" — 246 fc where the real
+            # answer is nearer 165, HIGH BY HALF, and in the safe-looking
+            # direction: the plot promises light the rig will not deliver. The
+            # note even looked honest, because a 750 IS what the chart was
+            # measured at; it is just not what is in the barrel.
+            # ⚠ The factor differs per LENS (.85/.78/.67/.79 across the four
+            # barrels), so it CANNOT be borrowed from the plain tube of the same
+            # degree. That needs ETC's EDLT sheet, which is why this refuses
+            # instead of estimating.
+            return None, (f"no {DEFAULT_LAMP} multiplier on file for {kind} — and an S4 "
+                          f"is a 575 unless noted, so the {f['ref_lamp']} figure would "
+                          f"overstate it. Name the lamp to get a level")
 
     mf = 1.0; note = f"at {f['ref_lamp']}"
     if lamp and lamp != f["ref_lamp"]:
